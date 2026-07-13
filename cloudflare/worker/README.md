@@ -15,8 +15,8 @@ This repo has three frontend surfaces, each independently deployed:
 
 | Surface | Path | Stack | Deploy |
 | --- | --- | --- | --- |
-| **Landing page** | `landing-astro/` | Astro (static) → Cloudflare Pages | `https://knowledgebase-landing.pages.dev` |
-| **Dashboard app** | `app/` | Next.js 16 → Cloudflare Workers (OpenNext) | `https://knowledgebase-app.sarthakagrawal927.workers.dev` |
+| **Landing page** | `landing-astro/` | Astro (static) → Cloudflare Pages | `https://search.sassmaker.com` |
+| **Dashboard app** | `app/` | Next.js 16 → Cloudflare Workers (OpenNext) | `https://search.sassmaker.com` |
 | **Operator testing UI** | Worker `/` and `/ui` | Inline HTML in Worker | `https://knowledgebase.sarthakagrawal927.workers.dev/ui` |
 
 The landing page is the public marketing surface. The dashboard app is the

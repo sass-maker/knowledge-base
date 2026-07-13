@@ -6,7 +6,7 @@ import { auditVectorizeMetadataIndexes } from './audit-vectorize-metadata-indexe
 import { embeddingModelReleasePlan } from './embedding-model-release-plan.mjs';
 
 const DEFAULT_RAG_BASE_URL = process.env.RAG_BASE_URL || 'https://knowledgebase.sarthakagrawal927.workers.dev';
-const DEFAULT_FREE_AI_BASE_URL = process.env.FREE_AI_BASE_URL || 'https://free-ai-gateway.sarthakagrawal927.workers.dev';
+const DEFAULT_FREE_AI_BASE_URL = process.env.FREE_AI_BASE_URL || 'https://ai-gateway.sassmaker.com';
 const DEFAULT_MODEL = process.env.RAG_REQUIRED_EMBEDDING_MODEL || 'gemini-embedding-001';
 const DEFAULT_RAG_SERVICE_KEY = process.env.RAG_SERVICE_KEY || '';
 /** @type {any} */

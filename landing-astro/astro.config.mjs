@@ -12,7 +12,7 @@ import tailwindcss from '@tailwindcss/vite';
 // File-format output (`build.format: 'file'`) emits `index.html` at the
 // repo root rather than `index/index.html`.
 export default defineConfig({
-  site: 'https://knowledgebase-landing.pages.dev',
+  site: 'https://search.sassmaker.com',
   output: 'static',
   trailingSlash: 'never',
   build: {

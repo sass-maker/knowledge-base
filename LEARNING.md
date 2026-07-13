@@ -74,7 +74,7 @@ User's goal: get the project to a polished, fully-documented state with every de
 
 In sequence, the user asked for:
 
-1. Wire in a free AI gateway (`https://free-ai-gateway.sarthakagrawal927.workers.dev/`) so we stop burning DeepSeek credits on eval iteration.
+1. Wire in a free AI gateway (`https://ai-gateway.sassmaker.com/`) so we stop burning DeepSeek credits on eval iteration.
 2. Address Grok's 13 findings.
 3. Push the codebase to GitHub in small controlled commits.
 4. Test how quality dips with lower-tier models. (User's hypothesis: not much — *"ingestion does not really involve a lot of models"*.)

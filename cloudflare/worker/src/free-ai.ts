@@ -4,7 +4,7 @@ import type { Env } from './types';
 // (https://github.com/.../free-ai). Routes embeddings and chat through free
 // upstream providers (Gemini/Groq/Voyage) instead of Cloudflare Workers AI.
 
-const DEFAULT_BASE_URL = 'https://free-ai-gateway.sarthakagrawal927.workers.dev/v1';
+const DEFAULT_BASE_URL = 'https://ai-gateway.sassmaker.com/v1';
 // gemini-embedding-001 is Matryoshka-trained; the gateway forwards `dimensions`
 // to its output_dimensionality, so we request 1536 (fits Vectorize's 1536-dim
 // ceiling) and validate the response length. Gemini's free tier sustains bursts

@@ -65,7 +65,7 @@ export function Sidebar() {
       </nav>
       <div className="border-t border-border p-3">
         <a
-          href="https://knowledgebase-landing.pages.dev/"
+          href="https://search.sassmaker.com/"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"

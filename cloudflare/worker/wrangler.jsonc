@@ -90,7 +90,7 @@
 		"RAG_SHARED_EMBEDDING_CACHE_ENABLED": "true",
 		"RAG_EMBED_PROVIDER": "free_ai",
 		"RAG_SYNTH_PROVIDER": "free_ai",
-		"FREE_AI_BASE_URL": "https://free-ai-gateway.sarthakagrawal927.workers.dev/v1",
+		"FREE_AI_BASE_URL": "https://ai-gateway.sassmaker.com/v1",
 		"FREE_AI_PROJECT_ID": "knowledgebase",
 		"FREE_AI_EMBED_MODEL": "gemini-embedding-001",
 		"FREE_AI_EMBED_PROVIDER": "gemini",
