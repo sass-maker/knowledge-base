@@ -1,6 +1,6 @@
 # Private Agent Search
 
-[![CI](https://github.com/sarthak-fleet/knowledge-base/actions/workflows/ci.yml/badge.svg)](https://github.com/sarthak-fleet/knowledge-base/actions/workflows/ci.yml)
+[![CI](https://github.com/sass-maker/knowledge-base/actions/workflows/ci.yml/badge.svg)](https://github.com/sass-maker/knowledge-base/actions/workflows/ci.yml)
 [![worker-tests](https://img.shields.io/badge/worker_tests-passing-brightgreen)](#)
 
 Exa-style search for private, specialized document collections, with schemas,
