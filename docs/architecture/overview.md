@@ -2,9 +2,11 @@
 
 `knowledgebase` owns the fleet `RAG_SERVICE` as a Cloudflare Worker. The current
 product runtime is TypeScript/Node on Cloudflare: Hono routes, D1 metadata,
-Vectorize retrieval, R2 raw/parse artifacts, Queues/Workflows ingestion, Workers
-AI for embeddings and optional rerank/synthesis/OCR, and a Worker-hosted `/ui`
-testing surface.
+Vectorize retrieval, R2 raw/parse artifacts, Queues/Workflows ingestion,
+embeddings + synthesis through the fleet `free-ai` gateway
+(`gemini-embedding-001` at 1536 dims, `gemini-2.5-flash`) with Workers AI as the
+fallback and for optional neural rerank/OCR, and a Worker-hosted `/ui` testing
+surface.
 
 ## Runtime
 
@@ -14,7 +16,8 @@ flowchart LR
     Worker --> D1[(D1 metadata<br/>schemas/files/entities/jobs/traces/evals)]
     Worker --> R2[(R2 raw files<br/>parse artifacts)]
     Worker --> Vectorize[(Vectorize indexes)]
-    Worker --> AI[(Workers AI)]
+    Worker --> FreeAI[(free-ai gateway<br/>embeddings + synthesis)]
+    Worker --> AI[(Workers AI<br/>fallback + rerank/OCR)]
     Worker --> Queue[Queues + Workflows]
     Worker --> Analytics[Analytics Engine]
 ```
@@ -34,11 +37,13 @@ flowchart LR
 The old Qdrant BM42 path is replaced by a Cloudflare-native hybrid path:
 
 - D1 exact structured routes and relationship graph expansion.
-- Vectorize dense search.
-- D1 fuzzy sparse lexical prefilter/scoring.
+- Vectorize dense search (embeddings via the `free-ai` gateway).
+- In-Worker BM25 sparse lexical scoring over D1 chunks (fuzzy token matching;
+  `sparseLexicalScore`), not a D1 `LIKE` query and not Qdrant BM42.
 - RRF fusion, MMR, deterministic rewrite/decompose fanout.
-- Optional Workers AI rerank and answer synthesis.
-- Extractive cited answers by default, with evidence-bound synthesis fallback.
+- Keyword-overlap rerank by default; optional Workers AI neural rerank.
+- Extractive cited answers by default; opt-in `free-ai`/Workers AI cited
+  synthesis.
 
 ## Testing Surface
 

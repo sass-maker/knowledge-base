@@ -148,12 +148,18 @@ happen* is enforced structurally, not left to a prompt (**A3**).
 3. **Retrieve — dense + sparse in parallel.** `queryByVector` embeds the
    question and queries the dimension-matched Vectorize index (namespaced by
    tenant/index, with a metadata-filter fallback when the namespace returns
-   nothing). `queryByLexical` runs a D1 sparse path: tokens are stemmed and
-   expanded (stems, trigrams, bounded edit-distance fuzzy match — see
-   `lexicalPrefilterTokens`/`lexicalTokenSimilarity`) then scored with
-   `LOWER(content) LIKE` counting in `searchLexicalChunks`. This is *functional*
-   hybrid parity over D1 chunks, deliberately **not** the old Qdrant BM42 model
-   — don't claim BM42 equivalence (**A4**).
+   nothing). `queryByLexical` runs an in-Worker sparse path: it loads the
+   index's chunk rows from D1 (`listChunksForIndex`, up to `MAX_LEXICAL_CHUNKS`
+   = 5000, cached per tenant/index in `getCachedLexicalChunks`) and scores them
+   in the isolate with `sparseLexicalScore` — a real **BM25** kernel
+   (`k1 = 1.2`, `b = 0.75`, IDF + length-normalized TF) over fuzzy-matched
+   tokens (stems, trigrams, bounded edit-distance — see
+   `lexicalTokenSimilarity`/`bestLexicalMatch`; scoring version
+   `bm25_fuzzy_sparse_v3`). This is *functional* hybrid parity over D1 chunks,
+   deliberately **not** the old Qdrant BM42 model — don't claim BM42
+   equivalence (**A4**). (A D1 `LOWER(content) LIKE` method,
+   `searchLexicalChunks`, exists on the repository but is not on the live query
+   path.)
 4. **Fuse.** `fuseHybridResults` combines the two ranked lists with Reciprocal
    Rank Fusion — each list contributes `1 / (60 + rank + 1)` per chunk, scores
    sum, top-K wins. Multi-query fanout (`query_rewrite` /

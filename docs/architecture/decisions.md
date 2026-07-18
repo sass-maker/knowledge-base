@@ -64,15 +64,25 @@ cosine; confidence is downgraded proportionally to per-claim verify pass rate.
 ## A4 — Cloudflare-native hybrid retrieval replaces Qdrant BM42
 
 **Decision:** The hybrid path is D1 exact structured routes + D1 relationship
-graph expansion + Vectorize dense search + D1 BM25-style fuzzy sparse lexical
-prefilter/scoring + RRF fusion + local MMR + deterministic rewrite/decompose
-fanout + optional Workers AI neural rerank. Extractive cited answers by
-default; opt-in Workers AI cited synthesis via `answer_mode: "workers_ai"`.
+graph expansion + Vectorize dense search + an in-Worker BM25 sparse lexical
+scorer over D1 chunks + RRF fusion + local MMR + deterministic
+rewrite/decompose fanout + optional Workers AI neural rerank. Extractive cited
+answers by default; opt-in Workers AI cited synthesis via
+`answer_mode: "workers_ai"`.
 
 **Why:** Cloudflare Vectorize does dense search and metadata filtering but not
 sparse vectors. Building the sparse side over D1 chunks keeps everything
 Cloudflare-native and lets the structured/graph fast paths short-circuit
 embedding entirely for exact-term and entity-filter queries.
+
+**How the sparse side actually works:** `queryByLexical` loads the index's
+chunk rows from D1 (`listChunksForIndex`, capped at `MAX_LEXICAL_CHUNKS` = 5000,
+cached per tenant/index) and scores them inside the isolate with
+`sparseLexicalScore` — genuine BM25 (`k1 = 1.2`, `b = 0.75`, IDF +
+length-normalized TF, scoring version `bm25_fuzzy_sparse_v3`) over fuzzy-matched
+tokens (stems, trigrams, bounded edit-distance). It is BM25, not a D1
+`LOWER(content) LIKE` query; the `searchLexicalChunks` LIKE method on the
+repository is not on the live path.
 
 **Constraint:** This is functional retrieval parity, not the exact BM42 model.
 Do not claim BM42 equivalence. Semantic p99 on completely unique cold misses
@@ -174,19 +184,26 @@ core code reads schema-declared pipeline roles (`graph_route`, `tabular`,
 
 ## A11 — Loud error logging and defensive LLM parsing are non-optional
 
-**Decision:** Every swallowed LLM error logs at WARNING/ERROR with type + first
-200 chars; auth/quota errors re-raise so callers fail loudly. Every `json.loads`
-on model output goes through a `_coerce_json`-style helper that strips fences,
-searches for the first `{...}`, and returns `{}` on total failure.
+**Decision:** Model/gateway errors surface loudly with type + a bounded detail
+slice; auth/quota errors propagate so callers fail loudly rather than silently
+degrading. Model output is never fed to a bare parse — it goes through a
+coercing helper that tolerates fenced/prose-wrapped JSON and returns a
+null/empty result on total failure instead of throwing. In the Worker this is
+`parseJudgeJson` in [`src/index.ts`](../../cloudflare/worker/src/index.ts): it
+tries `JSON.parse`, falls back to the first `{…}` match, and returns `null` when
+neither parses. The free-ai/Workers-AI error paths slice the upstream body
+(`detail.slice(0, 200)`) into the thrown error (see
+[`src/free-ai.ts`](../../cloudflare/worker/src/free-ai.ts)).
 
 **Why:** Five production bugs (DuckDB missing dep, missing tickers, inconsistent
-metric names, ghost Prometheus counter, RAGAS shape) were surfaced by loud
-logging or by watching live logs during a real eval. Silent green tests tell
-you the code doesn't crash, not that the system works.
+metric names, ghost Prometheus counter, RAGAS shape) were surfaced during the
+Python era by loud logging or by watching live logs during a real eval. Silent
+green tests tell you the code doesn't crash, not that the system works — the
+principle carried over to the Worker.
 
-**Constraint:** Do not add a broad `except Exception` around an LLM call
-without a loud log. Do not `json.loads` raw model output without a coerce
-helper. See [`knowledge/learnings.md`](../knowledge/learnings.md) and
+**Constraint:** Do not wrap an LLM/gateway call in a silent catch. Do not
+`JSON.parse` raw model output without a coercing fallback. See
+[`knowledge/learnings.md`](../knowledge/learnings.md) and
 [`knowledge/failed-approaches.md`](../knowledge/failed-approaches.md).
 
 ## A12 — Scorecard gates prevent "missing proof" masquerading as excellence

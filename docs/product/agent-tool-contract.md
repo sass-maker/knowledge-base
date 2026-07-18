@@ -22,7 +22,6 @@ Authorization: Bearer <RAG_SERVICE_KEY>
 
 ```json
 {
-  "project": "my-private-corpus",
   "domain": "research-papers",
   "question": "What evidence supports using retrieval reranking?",
   "top_k": 8,
@@ -31,7 +30,10 @@ Authorization: Bearer <RAG_SERVICE_KEY>
 }
 ```
 
-Use `mode: "hybrid"` when quality matters. Use `mode: "lexical"` for
+`/v1/kb/query` reads only `domain` and `question` (alias `query`) plus optional
+retrieval knobs. The project/tenant is **not** taken from the request body — it
+is bound to the authenticated service key, so a per-tenant key already scopes
+every call. Use `mode: "hybrid"` when quality matters. Use `mode: "lexical"` for
 latency-critical exact-term workflows.
 
 ## Response Contract
@@ -52,7 +54,6 @@ curl -s -X POST "$RAG_BASE_URL/v1/kb/query" \
   -H "Authorization: Bearer $RAG_SERVICE_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-    "project": "my-private-corpus",
     "domain": "research-papers",
     "question": "retrieval reranking evidence",
     "top_k": 5,

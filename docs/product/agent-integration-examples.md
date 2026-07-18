@@ -25,7 +25,6 @@ Input schema:
 {
   "type": "object",
   "properties": {
-    "project": {"type": "string"},
     "domain": {"type": "string"},
     "question": {"type": "string"},
     "top_k": {"type": "integer", "minimum": 1, "maximum": 50},
@@ -36,13 +35,16 @@ Input schema:
 }
 ```
 
+The corpus/tenant is bound to the authenticated service key, not passed in the
+body — `/v1/kb/query` reads only `domain` and `question` (alias `query`) plus
+the optional retrieval knobs above.
+
 ## TypeScript Wrapper
 
 ```ts
 export async function privateCorpusQuery(input: {
   baseUrl: string;
   serviceKey: string;
-  project?: string;
   domain: string;
   question: string;
   topK?: number;
@@ -50,11 +52,11 @@ export async function privateCorpusQuery(input: {
   const response = await fetch(`${input.baseUrl.replace(/\/$/, "")}/v1/kb/query`, {
     method: "POST",
     headers: {
+      // The corpus/tenant is scoped by this service key, not a body field.
       Authorization: `Bearer ${input.serviceKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      project: input.project ?? "default",
       domain: input.domain,
       question: input.question,
       top_k: input.topK ?? 8,

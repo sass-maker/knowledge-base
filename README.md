@@ -8,7 +8,9 @@ citations, and provenance for agents.
 
 This repo also owns the Cloudflare-native shared RAG Worker in
 `cloudflare/worker`. That Worker is the fleet `RAG_SERVICE`: service-key
-authenticated ingestion/query APIs backed by Workers AI, Vectorize, D1, and R2.
+authenticated ingestion/query APIs backed by the fleet `free-ai` gateway
+(embeddings + synthesis), Workers AI (fallback + rerank/OCR), Vectorize, D1, and
+R2.
 
 Bring your own project and documents, or start from the included SEC/legal
 templates. Drop in research papers, company private information, spreadsheets,
@@ -108,10 +110,11 @@ flowchart LR
     Pipeline --> D1[(D1<br/>entities, jobs,<br/>traces, evals)]
     Pipeline --> Vectorize[(Vectorize<br/>dense indexes)]
     Worker --> R2[(R2<br/>raw + parse artifacts)]
-    Worker --> AI[(Workers AI)]
+    Worker --> FreeAI[(free-ai gateway<br/>embeddings + synthesis)]
+    Worker --> AI[(Workers AI<br/>fallback + rerank/OCR)]
 
     classDef store fill:#e8f4f8,stroke:#0288d1,color:#01579b
-    class D1,Vectorize,R2,AI store
+    class D1,Vectorize,R2,FreeAI,AI store
 ```
 
 Two demo domains (SEC + Legal) run on the **same code** with completely different schemas, sources, and eval sets — proves domain-agnosticism empirically, not aspirationally. See [`docs/product/onboard-new-domain.md`](docs/product/onboard-new-domain.md) for a 30-minute walkthrough of adding a third.

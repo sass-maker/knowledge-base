@@ -31,13 +31,16 @@ curl -s -X POST "$RAG_BASE_URL/v1/kb/query" \
   -H "Authorization: Bearer $RAG_SERVICE_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-    "project": "my-private-corpus",
     "domain": "research-papers",
     "question": "What evidence discusses reranking?",
     "top_k": 5,
     "mode": "hybrid"
   }' | jq '{answer, citations, confidence}'
 ```
+
+The corpus/tenant is bound to the authenticated service key, so `/v1/kb/query`
+takes no `project` field in the body — it reads only `domain` and `question`
+plus optional retrieval knobs.
 
 Use the Worker `/ui` for upload, schema review, ingest progress, traces, and eval
 reports when working interactively.

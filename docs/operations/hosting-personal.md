@@ -10,7 +10,10 @@ The retired local Python/Docker stack is no longer a deployable surface.
 - R2: raw files and parse artifacts
 - Vectorize: dense vector indexes
 - Queues and Workflows: async ingestion
-- Workers AI: embeddings, optional rerank/synthesis/OCR
+- `free-ai` gateway (`FREE_AI` service binding): embeddings
+  (`gemini-embedding-001`, 1536d) + synthesis (`gemini-2.5-flash`)
+- Workers AI (`AI` binding): embedding fallback, optional neural
+  rerank/synthesis/OCR
 - Analytics Engine: query/eval telemetry
 
 ## Pre-Deploy Checklist

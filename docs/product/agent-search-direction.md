@@ -125,7 +125,7 @@ Do not pitch this as:
 8. **Latency**
 
    `/v1/kb/search` and lexical/entity query paths avoid synthesis and are the
-   fast path. Unique semantic misses still pay Workers AI embedding plus
+   fast path. Unique semantic misses still pay `free-ai` gateway embedding plus
    Vectorize latency; production agent use needs cached popular queries,
    precomputed query vectors where appropriate, and per-tool latency budgets.
 
