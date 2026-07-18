@@ -3,6 +3,12 @@
 > Historical submission brief. The active product runtime is now the
 > Cloudflare Worker in `cloudflare/worker`; the old Python `src/kb` runtime has
 > been retired.
+>
+> **Archived snapshot.** The "three trickiest decisions" below are re-homed and
+> kept current in
+> [`docs/architecture/decisions.md`](../../architecture/decisions.md); the
+> architecture diagram lives in
+> [`docs/architecture/overview.md`](../../architecture/overview.md).
 
 **Repository:** [github.com/sass-maker/knowledge-base](https://github.com/sass-maker/knowledge-base)
 
@@ -18,7 +24,7 @@ An earlier iteration left four files in `src/kb/query` and `src/kb/extract` with
 
 ## 1. Architecture
 
-![Architecture diagram](docs/img/architecture.png)
+![Architecture diagram](../../img/architecture.png)
 
 Three stores, each with one job. Postgres holds the versioned schemas, the entities the pipeline extracts (lineage walked via recursive CTEs), and the ingest job queue. `SELECT ... FOR UPDATE SKIP LOCKED` makes that a real queue without bringing in Celery. Qdrant holds the chunks, with native dense + sparse hybrid and RRF fusion; a pgvector adapter is shipped behind the same Protocol so the choice isn't permanent. MinIO holds raw bytes and cached parse artifacts. Workers fan out as an asyncio pool, with per-file failures bounded so one bad PDF doesn't poison the rest of the index.
 

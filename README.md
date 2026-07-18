@@ -30,9 +30,9 @@ The wedge is intentionally narrower than "generic RAG":
 
 > On this RAG pipeline, **`groq-llama-3.1-8b` beats `gemini-2.5-pro` by 24 pass-rate points** on SEC. Bigger models hedge, smaller decisive ones don't — when retrieval is solid, the synthesis model becomes a rephrase-and-commit job that cheap models do *better*.
 
-This inversion is **contingent on retrieval quality**: the cheap-decisive synth is a retrieval-quality multiplier (NOTES.md §4.7, line 316). With reranker+RRF off, the 8b model would happily commit to wrong sources and the result flips. The right framing isn't "8b wins" — it's "no fixed model wins; the right synth depends on whether your context is solid enough that decisiveness pays off."
+This inversion is **contingent on retrieval quality**: the cheap-decisive synth is a retrieval-quality multiplier (see `docs/knowledge/archive/notes-python-era.md` §4.7). With reranker+RRF off, the 8b model would happily commit to wrong sources and the result flips. The right framing isn't "8b wins" — it's "no fixed model wins; the right synth depends on whether your context is solid enough that decisiveness pays off."
 
-Three historical moments documented honestly in `LEARNING.md`:
+Three historical moments documented honestly in `docs/knowledge/archive/learning-python-era.md`:
 1. The DuckDB structured-query route was silently broken for 5 eval rounds (missing dep + import outside try) — every aggregate question 500'd, eval logged as `query_error`, all v0-v5 numbers achieved despite this. Caught by loud-error-logging, fixed.
 2. A methodology bug in the retired Python reference stack — process-level env overrides did not propagate to the running API server, so 3 supposedly-different cross-model eval runs were the same model under different labels. Caught when two report files had identical MD5.
 3. A citation-hygiene gap I introduced in my own GraphRAG sketch (entity-graph themes shaped the answer but their `entity_mentions` weren't in the citation list) — caught it in self-review, closed it before shipping.
@@ -41,37 +41,44 @@ The project mantra **"cited or it didn't happen"** holds through every retrieval
 
 ## Reading guide
 
-Sorted by how much time you have:
+The canonical knowledge system lives under [`docs/`](docs/index.md) with
+[`STATUS.md`](STATUS.md) as the short live-status view and
+[`AGENTS.md`](AGENTS.md) as the agent bootloader. Sorted by how much time you
+have:
 
-**5 min — the rubric write-up**
-- [`WRITEUP.md`](WRITEUP.md) — 4-page submission write-up: architecture diagram, three trickiest decisions, what I'd do differently, where it breaks. This is what to read if you're scoring against the assignment.
-
-**Post-submission additions** (after the original deliverable shipped):
-- [`SESSION_LOG.md`](SESSION_LOG.md) — historical notes from the Python reference era.
+**5 min — the product + architecture**
+- [`docs/product/overview.md`](docs/product/overview.md) — thesis, wedge, surfaces, empirical headline.
+- [`docs/architecture/overview.md`](docs/architecture/overview.md) — runtime, ingestion, retrieval, testing surface.
+- [`docs/architecture/decisions.md`](docs/architecture/decisions.md) — the non-obvious architectural choices and the why behind each.
 
 **15 min — decision depth + the empirical headline**
-1. [`LEARNING.md`](LEARNING.md) Part 4 (decision log) — every architectural choice, why, what surfaced it. Includes the 4 production bugs called out above.
-2. [`LEARNING.md`](LEARNING.md) Part 8 (five distilled lessons) — what to take away.
-3. [`NOTES.md`](NOTES.md) §4.7-final — the cross-domain × cross-model matrix that drives the headline finding.
-
-**60 min — full deep dive**
-- [`NOTES.md`](NOTES.md) — long-form engineering notes (~25 pages): every decision, the research behind each choice, the empirical numbers at each step. Source-of-truth appendix to WRITEUP.md.
-- [`DESIGN.md`](DESIGN.md) — architecture detail + boundary tests for domain-agnosticism.
+1. [`docs/architecture/decisions.md`](docs/architecture/decisions.md) — durable decisions (A1–A12).
+2. [`docs/knowledge/learnings.md`](docs/knowledge/learnings.md) — the five distilled lessons.
+3. [`docs/knowledge/archive/notes-python-era.md`](docs/knowledge/archive/notes-python-era.md) §4.7 — the cross-domain × cross-model matrix behind the headline finding.
 
 **Operator-flavored**
-- [`docs/runbook.md`](docs/runbook.md) — operator runbook
-- [`docs/demo-walkthrough.md`](docs/demo-walkthrough.md) — guided demo
-- [`docs/onboard-new-domain.md`](docs/onboard-new-domain.md) — adding a third domain in ~30 min
-- [`docs/agent-search-direction.md`](docs/agent-search-direction.md) — product direction + gap map for private agent search
-- [`docs/bring-your-own-corpus.md`](docs/bring-your-own-corpus.md) — self-serve private corpus flow
-- [`docs/agent-tool-contract.md`](docs/agent-tool-contract.md) — how agents should call `/search` and `/query`
-- [`docs/agent-integration-examples.md`](docs/agent-integration-examples.md) — tool contract + wrapper examples
-- [`docs/hosting-personal.md`](docs/hosting-personal.md) — personal hosting checklist and smoke tests
+- [`docs/operations/runbook.md`](docs/operations/runbook.md) — operator runbook
+- [`docs/product/demo-walkthrough.md`](docs/product/demo-walkthrough.md) — guided demo
+- [`docs/product/onboard-new-domain.md`](docs/product/onboard-new-domain.md) — adding a third domain in ~30 min
+- [`docs/product/agent-search-direction.md`](docs/product/agent-search-direction.md) — product direction + gap map
+- [`docs/product/bring-your-own-corpus.md`](docs/product/bring-your-own-corpus.md) — self-serve private corpus flow
+- [`docs/product/agent-tool-contract.md`](docs/product/agent-tool-contract.md) — how agents should call `/search` and `/query`
+- [`docs/product/agent-integration-examples.md`](docs/product/agent-integration-examples.md) — tool contract + wrapper examples
+- [`docs/operations/hosting-personal.md`](docs/operations/hosting-personal.md) — personal hosting checklist and smoke tests
 
-**Appendix**
-- [`LIVE_VERIFICATION.md`](LIVE_VERIFICATION.md) — recorded live-run output of the eval pipeline.
-- [`GROK_FINDINGS.md`](GROK_FINDINGS.md) — external code review (13 findings, all resolved).
-- [`docs/highsignal-integration.md`](docs/highsignal-integration.md) — integration notes.
+**Historical archive (Python era, preserved snapshots)**
+- [`docs/knowledge/archive/writeup.md`](docs/knowledge/archive/writeup.md) — original 4-page submission brief.
+- [`docs/knowledge/archive/notes-python-era.md`](docs/knowledge/archive/notes-python-era.md) — long-form engineering notes (~25 pages).
+- [`docs/knowledge/archive/learning-python-era.md`](docs/knowledge/archive/learning-python-era.md) — full session story + decision log.
+- [`docs/knowledge/archive/live-verification.md`](docs/knowledge/archive/live-verification.md) — recorded live-run output of the eval pipeline.
+- [`docs/knowledge/archive/grok-findings.md`](docs/knowledge/archive/grok-findings.md) — external code review (13 findings, all resolved).
+- [`docs/knowledge/archive/session-log.md`](docs/knowledge/archive/session-log.md) — post-submission session log.
+- [`docs/knowledge/archive/project-status-2026-06-28.md`](docs/knowledge/archive/project-status-2026-06-28.md) — detailed status snapshot.
+- [`docs/knowledge/archive/cloudflare-agent-handoff.md`](docs/knowledge/archive/cloudflare-agent-handoff.md) — migration handoff snapshot.
+- [`docs/operations/highsignal-integration.md`](docs/operations/highsignal-integration.md) — fleet consumer integration notes.
+
+**Maintaining the docs themselves**
+- [`docs/maintenance.md`](docs/maintenance.md) — how to edit this knowledge system, validate links, and build with Blume.
 
 ## Architecture
 
@@ -107,7 +114,7 @@ flowchart LR
     class D1,Vectorize,R2,AI store
 ```
 
-Two demo domains (SEC + Legal) run on the **same code** with completely different schemas, sources, and eval sets — proves domain-agnosticism empirically, not aspirationally. See [`docs/onboard-new-domain.md`](docs/onboard-new-domain.md) for a 30-minute walkthrough of adding a third.
+Two demo domains (SEC + Legal) run on the **same code** with completely different schemas, sources, and eval sets — proves domain-agnosticism empirically, not aspirationally. See [`docs/product/onboard-new-domain.md`](docs/product/onboard-new-domain.md) for a 30-minute walkthrough of adding a third.
 
 ## Worker Commands
 
@@ -230,7 +237,7 @@ Built with heavy assist from Claude Opus 4.7 (visible as the co-author on commit
 | Citation hygiene as a non-negotiable across new routes (caught my own GraphRAG-citation gap in self-review) | Test scaffolding, doc rewrites |
 | The empirical methodology (5×2 matrix, judge held constant, deterministic LLM cache for reproducibility) | Doc generation from my notes |
 
-The decision log in `LEARNING.md` was written from my own session notes; it's what I'd talk through in an interview.
+The decision log in `docs/knowledge/archive/learning-python-era.md` was written from my own session notes; the durable choices are distilled in `docs/architecture/decisions.md`.
 
 ## Current Worker Source Tree
 

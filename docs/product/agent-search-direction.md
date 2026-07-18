@@ -45,9 +45,9 @@ and other sources that are too small or private for web-scale search.
   for ranked evidence; retired `/search/eval` is a compatibility alias.
 - Corpus status: `GET /v1/kb/projects/{project}/status` reports per-domain
   readiness state.
-- Agent docs: `docs/agent-tool-contract.md` describes the current Worker
+- Agent docs: [`agent-tool-contract.md`](agent-tool-contract.md) describes the current Worker
   contract and compatibility aliases.
-- Bring-your-own-corpus docs: `docs/bring-your-own-corpus.md` covers upload,
+- Bring-your-own-corpus docs: [`bring-your-own-corpus.md`](bring-your-own-corpus.md) covers upload,
   infer, confirm, ingest, and search.
 
 ## Product Wedge

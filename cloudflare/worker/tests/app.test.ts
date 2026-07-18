@@ -526,7 +526,7 @@ class MemoryMetadataRepository implements MetadataRepository {
     if (input.incrementAttempts) row.attempts += 1;
     if (input.lockedBy !== undefined) {
       row.locked_by = input.lockedBy;
-      row.locked_at = new Date(0).toISOString();
+      row.locked_at = input.lockedBy ? new Date().toISOString() : null;
     }
     row.updated_at = new Date(0).toISOString();
   }
@@ -4883,6 +4883,213 @@ describe('knowledgebase RAG Worker app', () => {
 	    expect(rawDocs.puts.some((put) => put.key.startsWith('parse/contracts/'))).toBe(true);
 	    expect(vectorize.vectors.size).toBeGreaterThan(0);
 	  });
+
+  it('duplicate queue delivery does not create a second durable write', async () => {
+    const repo = new MemoryRepository();
+    const metadata = new MemoryMetadataRepository();
+    const rawDocs = new FakeR2Bucket();
+    const vectorize = new FakeVectorize();
+    const queue = new FakeQueue();
+    const options = {
+      makeRepository: () => repo,
+      makeMetadataRepository: () => metadata,
+    };
+    const app = createApp(options);
+    const worker = createWorker(options);
+    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket, queue);
+    const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
+    const form = new FormData();
+    form.set('domain', 'dedup-test');
+    form.set('file', new File(['title,content\nt1,hello world\nt2,second row'], 'dedup.csv', { type: 'text/csv' }));
+    const inferred = await app.request('/v1/kb/schemas/infer-upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    const inferredBody = (await inferred.json()) as { spec: DomainSchema };
+    await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
+
+    const queued = await app.request('/v1/kb/ingest/run', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ domain: 'dedup-test', run_id: 'run-dedup-1' }),
+    }, env);
+    expect(queued.status).toBe(202);
+
+    const makeMessage = (id: string): Message<KbIngestQueueMessage> => ({
+      id, timestamp: new Date(0), attempts: 1, body: queue.sent[0],
+      ack: () => undefined, retry: () => undefined,
+    } as Message<KbIngestQueueMessage>);
+
+    await worker.queue({ messages: [makeMessage('msg-dedup-1')], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
+    const chunksAfterFirst = [...metadata.chunks.keys()];
+    const vectorsAfterFirst = vectorize.vectors.size;
+
+    await worker.queue({ messages: [makeMessage('msg-dedup-2')], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
+    const chunksAfterSecond = [...metadata.chunks.keys()];
+    const vectorsAfterSecond = vectorize.vectors.size;
+
+    expect(chunksAfterSecond.length).toBe(chunksAfterFirst.length);
+    expect(vectorsAfterSecond).toBe(vectorsAfterFirst);
+    expect(chunksAfterSecond).toEqual(chunksAfterFirst);
+    const jobs = await metadata.listIngestJobs('tenant-a', 'dedup-test');
+    expect(jobs.filter((j) => j.status === 'succeeded')).toHaveLength(1);
+  });
+
+  it('skips ingest when the job is already locked by another active lease', async () => {
+    const repo = new MemoryRepository();
+    const metadata = new MemoryMetadataRepository();
+    const rawDocs = new FakeR2Bucket();
+    const vectorize = new FakeVectorize();
+    const queue = new FakeQueue();
+    const options = { makeRepository: () => repo, makeMetadataRepository: () => metadata };
+    const app = createApp(options);
+    const worker = createWorker(options);
+    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket, queue);
+    const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
+    const form = new FormData();
+    form.set('domain', 'lease-test');
+    form.set('file', new File(['title,content\nt1,hello'], 'lease.csv', { type: 'text/csv' }));
+    const inferred = await app.request('/v1/kb/schemas/infer-upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    const inferredBody = (await inferred.json()) as { spec: DomainSchema };
+    await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
+
+    const queued = await app.request('/v1/kb/ingest/run', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ domain: 'lease-test', run_id: 'run-lease-1' }),
+    }, env);
+    expect(queued.status).toBe(202);
+
+    const jobsBefore = await metadata.listIngestJobs('tenant-a', 'lease-test');
+    const runJob = jobsBefore.find((j) => j.workflow_id === 'run-lease-1');
+    expect(runJob).toBeDefined();
+    await metadata.updateIngestJob(runJob!.id, { status: 'running', stage: 'parse', lockedBy: 'another-invocation' });
+
+    const retried: string[] = [];
+    const acked: string[] = [];
+    const message = {
+      id: 'msg-lease-1', timestamp: new Date(0), attempts: 1, body: queue.sent[0],
+      ack: () => { acked.push('msg-lease-1'); },
+      retry: () => { retried.push('msg-lease-1'); },
+    } as Message<KbIngestQueueMessage>;
+    await worker.queue({ messages: [message], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
+
+    expect(acked).toEqual(['msg-lease-1']);
+    expect(retried).toEqual([]);
+    expect(metadata.chunks.size).toBe(0);
+    expect(vectorize.vectors.size).toBe(0);
+    const jobsAfter = await metadata.listIngestJobs('tenant-a', 'lease-test');
+    const runJobAfter = jobsAfter.find((j) => j.workflow_id === 'run-lease-1');
+    expect(runJobAfter).toBeDefined();
+    expect(runJobAfter!.locked_by).toBe('another-invocation');
+    expect(runJobAfter!.status).toBe('running');
+  });
+
+  it('acks poison-input messages after the max attempt threshold without retrying', async () => {
+    const repo = new MemoryRepository();
+    const metadata = new MemoryMetadataRepository();
+    const rawDocs = new FakeR2Bucket();
+    const vectorize = new FakeVectorize();
+    const queue = new FakeQueue();
+    const options = { makeRepository: () => repo, makeMetadataRepository: () => metadata };
+    const app = createApp(options);
+    const worker = createWorker(options);
+    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket, queue);
+
+    await metadata.registerFile({
+      id: 'file-poison', project: 'tenant-a', domain: 'poison-test',
+      filename: 'poison.txt', mime: 'text/plain', bytes: 5,
+      contentHash: 'sha256-poison', objectKey: 'raw/poison-test/sha256-poison',
+    });
+    const message: KbIngestQueueMessage = {
+      kind: 'kb_ingest', project: 'tenant-a', domain: 'poison-test', run_id: 'run-poison-1',
+    };
+    const retried: string[] = [];
+    const acked: string[] = [];
+    const poisonMessage = {
+      id: 'msg-poison-1', timestamp: new Date(0), attempts: 99, body: message,
+      ack: () => { acked.push('msg-poison-1'); },
+      retry: () => { retried.push('msg-poison-1'); },
+    } as Message<KbIngestQueueMessage>;
+    await worker.queue({ messages: [poisonMessage], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
+
+    expect(acked).toEqual(['msg-poison-1']);
+    expect(retried).toEqual([]);
+  });
+
+  it('replays a failed ingest via the reprocess route and succeeds', async () => {
+    const repo = new MemoryRepository();
+    const metadata = new MemoryMetadataRepository();
+    const rawDocs = new FakeR2Bucket();
+    const vectorize = new FakeVectorize();
+    const queue = new FakeQueue();
+    const options = { makeRepository: () => repo, makeMetadataRepository: () => metadata };
+    const app = createApp(options);
+    const worker = createWorker(options);
+    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket, queue);
+    const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
+    const form = new FormData();
+    form.set('domain', 'replay-test');
+    form.set('file', new File(['title,content\nt1,hello replay'], 'replay.csv', { type: 'text/csv' }));
+    const inferred = await app.request('/v1/kb/schemas/infer-upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    const inferredBody = (await inferred.json()) as { spec: DomainSchema };
+    await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
+
+    const queued = await app.request('/v1/kb/ingest/run', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ domain: 'replay-test', run_id: 'run-replay-1' }),
+    }, env);
+    expect(queued.status).toBe(202);
+
+    const jobsBefore = await metadata.listIngestJobs('tenant-a', 'replay-test');
+    const runJob = jobsBefore.find((j) => j.workflow_id === 'run-replay-1');
+    expect(runJob).toBeDefined();
+    const fileId = runJob!.file_id;
+    const file = await metadata.getFile('tenant-a', fileId);
+    expect(file).not.toBeNull();
+    const objectKey = file!.object_key;
+    const savedBytes = rawDocs.objects.get(objectKey);
+    rawDocs.objects.delete(objectKey);
+
+    const retried: string[] = [];
+    const acked: string[] = [];
+    const failMessage = {
+      id: 'msg-replay-fail', timestamp: new Date(0), attempts: 1, body: queue.sent[0],
+      ack: () => { acked.push('msg-replay-fail'); },
+      retry: () => { retried.push('msg-replay-fail'); },
+    } as Message<KbIngestQueueMessage>;
+    await worker.queue({ messages: [failMessage], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
+
+    expect(acked).toEqual(['msg-replay-fail']);
+    expect(retried).toEqual([]);
+    const jobsAfterFail = await metadata.listIngestJobs('tenant-a', 'replay-test');
+    const failedJob = jobsAfterFail.find((j) => j.workflow_id === 'run-replay-1');
+    expect(failedJob).toBeDefined();
+    expect(failedJob!.status).toBe('failed');
+
+    rawDocs.objects.set(objectKey, savedBytes!);
+    const reprocess = await app.request(`/v1/kb/files/${fileId}/reprocess`, { method: 'POST', headers: auth }, env);
+    expect(reprocess.status).toBe(200);
+    const reprocessBody = await reprocess.json();
+    const replayJob = (reprocessBody as { job: IngestJobRecord }).job;
+    expect(replayJob.status).toBe('queued');
+
+    const replayAcked: string[] = [];
+    const replayRetried: string[] = [];
+    const replayMessage: KbIngestQueueMessage = {
+      kind: 'kb_ingest', project: 'tenant-a', domain: 'replay-test',
+      run_id: 'run-replay-2', file_ids: [fileId],
+    };
+    const replayMsg = {
+      id: 'msg-replay-2', timestamp: new Date(0), attempts: 1, body: replayMessage,
+      ack: () => { replayAcked.push('msg-replay-2'); },
+      retry: () => { replayRetried.push('msg-replay-2'); },
+    } as Message<KbIngestQueueMessage>;
+    await worker.queue({ messages: [replayMsg], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
+
+    expect(replayAcked).toEqual(['msg-replay-2']);
+    expect(replayRetried).toEqual([]);
+    expect(metadata.chunks.size).toBeGreaterThan(0);
+    const jobsAfterReplay = await metadata.listIngestJobs('tenant-a', 'replay-test');
+    const replayedJob = jobsAfterReplay.find((j) => j.file_id === fileId && j.schema_id !== null);
+    expect(replayedJob).toBeDefined();
+    expect(replayedJob!.status).toBe('succeeded');
+  });
 
   it('rejects queued knowledgebase ingestion before enqueue when the configured free-ai default model is not live', async () => {
     const repo = new MemoryRepository();

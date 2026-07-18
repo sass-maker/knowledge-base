@@ -1,0 +1,50 @@
+name: docs
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "STATUS.md"
+      - "AGENTS.md"
+      - "README.md"
+      - "blume.config.ts"
+      - "package.json"
+      - "scripts/docs-check-links.mjs"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "STATUS.md"
+      - "AGENTS.md"
+      - "README.md"
+      - "blume.config.ts"
+      - "package.json"
+      - "scripts/docs-check-links.mjs"
+      - ".github/workflows/docs.yml"
+
+jobs:
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # Link checker uses only Node built-ins — no install needed.
+      - run: node scripts/docs-check-links.mjs
+
+  docs-build:
+    runs-on: ubuntu-latest
+    needs: docs-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # No pnpm-lock.yaml committed for the root docs package yet. Use a plain
+      # install here; switch to --frozen-lockfile once a lockfile is committed.
+      - run: pnpm install
+      - run: pnpm run docs:build

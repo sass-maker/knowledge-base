@@ -3,6 +3,11 @@
 > Historical review of the initial Python service. The active product runtime is
 > now the Cloudflare Worker in `cloudflare/worker`; the reviewed Python
 > `src/kb` runtime has been retired.
+>
+> **Archived snapshot.** The durable defensive-parsing and loud-logging lessons
+> from this review are re-homed in
+> [`docs/knowledge/learnings.md`](../learnings.md); the resolved bugs are
+> captured in [`docs/knowledge/failed-approaches.md`](../failed-approaches.md).
 
 **Generated:** 2026-05-26  
 **Source:** Full initial codebase review (fresh repository)  

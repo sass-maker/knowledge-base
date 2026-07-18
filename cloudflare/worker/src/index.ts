@@ -55,6 +55,9 @@ const WORKER_VERSION = '0.1.0';
 const WORKER_DEPLOY_FINGERPRINT = 'knowledgebase-a-plus-evidence-2026-06-23';
 const LEXICAL_SCORING_VERSION = 'bm25_fuzzy_sparse_v3';
 const MAX_RERANK_CONTEXT_CHARS = 1200;
+const INGEST_JOB_LEASE_MS = 5 * 60 * 1000;
+const INGEST_PARSE_TIMEOUT_MS = 45 * 1000;
+const INGEST_QUEUE_MAX_ATTEMPTS = 5;
 const MAX_RECORD_INDEX_TEXT_CHARS = 1800;
 const STOP_WORDS = new Set([
   'a',
@@ -1890,6 +1893,8 @@ function classifyIngestFailure(error: unknown): JsonRecord {
   } else if (lower.includes('no parseable text') || lower.includes('empty file') || lower.includes('text must be non-empty')) {
     category = 'parse_empty';
     retryable = false;
+  } else if (lower.includes('parse timed out') || lower.includes('parse timeout')) {
+    category = 'parse_timeout';
   } else if (lower.includes('schema')
     || lower.includes('domain is required')
     || lower.includes('document content is required')
@@ -1902,6 +1907,23 @@ function classifyIngestFailure(error: unknown): JsonRecord {
     retryable,
     message: message.slice(0, 500),
   };
+}
+
+function isIngestJobLeaseActive(job: IngestJobRecord, now: number, leaseMs: number, lockedBy: string): boolean {
+  if (job.status !== 'running' || !job.locked_by || job.locked_by === lockedBy) return false;
+  if (!job.locked_at) return false;
+  const lockedAt = Date.parse(job.locked_at);
+  if (!Number.isFinite(lockedAt)) return false;
+  return now - lockedAt < leaseMs;
+}
+
+function withParseTimeout<T>(promise: Promise<T>, timeoutMs: number, filename: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`parse timed out after ${timeoutMs}ms for ${filename}`)), timeoutMs),
+    ),
+  ]);
 }
 
 function chunkPreviewFromChunks(chunks: Array<{ id?: string; content?: string; chunkIndex?: number; chunk_index?: number }>, limit = 3): JsonRecord[] {
@@ -4863,18 +4885,39 @@ export function createApp(options: AppOptions = {}) {
 	        stage: 'parse',
 	        workflowId: runId,
 	      });
+      if (isIngestJobLeaseActive(job, Date.now(), INGEST_JOB_LEASE_MS, lockedBy)) {
+        results.push({
+          job_id: job.id,
+          file_id: file.id,
+          filename: file.filename,
+          status: 'skipped',
+          reason: 'lease_active',
+          locked_by: job.locked_by,
+          ingest_safety: ingestSafetyEvidence({
+            contentHash: file.content_hash,
+            replayRoute: `/v1/kb/files/${file.id}/reprocess`,
+            idempotentReplay: true,
+          }),
+        });
+        continue;
+      }
+      const fileStarted = Date.now();
       try {
         await metadataRepo.updateIngestJob(job.id, { status: 'running', stage: 'parse', lockedBy });
         await metadataRepo.setFileStatus(tenant, file.id, 'indexing');
         const object = await env.RAW_DOCS.get(file.object_key);
         if (!object) throw new Error(`R2 object not found: ${file.object_key}`);
-        const parsed = await parseUploadBytesWithCloudflare(
+        const parsed = await withParseTimeout(
+          parseUploadBytesWithCloudflare(
+            file.filename,
+            file.mime,
+            await object.arrayBuffer(),
+            env.AI,
+            body.markdown_conversion ?? env.RAG_MARKDOWN_CONVERSION ?? 'auto',
+            body.vision_ocr_model ?? env.RAG_VISION_OCR_MODEL ?? '',
+          ),
+          INGEST_PARSE_TIMEOUT_MS,
           file.filename,
-          file.mime,
-          await object.arrayBuffer(),
-          env.AI,
-          body.markdown_conversion ?? env.RAG_MARKDOWN_CONVERSION ?? 'auto',
-          body.vision_ocr_model ?? env.RAG_VISION_OCR_MODEL ?? '',
         );
         if (parsed.documents.length === 0 || !parsed.text) throw new Error(`file has no parseable text content via ${parsed.parser}`);
         const docs = parsed.documents.map((doc) => ({
@@ -4954,6 +4997,15 @@ export function createApp(options: AppOptions = {}) {
         }
         await metadataRepo.setFileStatus(tenant, file.id, 'ready');
         await metadataRepo.updateIngestJob(job.id, { status: 'succeeded', stage: 'indexed', lockedBy: null });
+        console.log('knowledgebase ingest file succeeded', {
+          job_id: job.id,
+          file_id: file.id,
+          project: tenant,
+          domain,
+          locked_by: lockedBy,
+          duration_ms: Date.now() - fileStarted,
+          chunks_created: ingested.reduce((sum, entry) => sum + entry.chunks.length, 0),
+        });
         results.push({
           job_id: job.id,
           file_id: file.id,
@@ -4979,6 +5031,16 @@ export function createApp(options: AppOptions = {}) {
 	          lockedBy: null,
 	          incrementAttempts: true,
 	        });
+        console.error('knowledgebase ingest file failed', {
+          job_id: job.id,
+          file_id: file.id,
+          project: tenant,
+          domain,
+          locked_by: lockedBy,
+          duration_ms: Date.now() - fileStarted,
+          error: message,
+          failure_classification: classifyIngestFailure(message),
+        });
         results.push({
           job_id: job.id,
           file_id: file.id,
@@ -6547,6 +6609,18 @@ export function createApp(options: AppOptions = {}) {
         message.ack();
         continue;
       }
+      const messageStarted = Date.now();
+      if (message.attempts > INGEST_QUEUE_MAX_ATTEMPTS) {
+        console.error('knowledgebase ingest queue poison input dropped', {
+          message_id: message.id,
+          project: body.project,
+          domain: body.domain,
+          attempts: message.attempts,
+          run_id: body.run_id ?? null,
+        });
+        message.ack();
+        continue;
+      }
       try {
 	        const ingestBody: KbIngestRunBody = {
 	          domain: body.domain,
@@ -6557,13 +6631,25 @@ export function createApp(options: AppOptions = {}) {
         if (body.vision_ocr_model !== undefined) ingestBody.vision_ocr_model = body.vision_ocr_model;
         if (body.chunking !== undefined) ingestBody.chunking = body.chunking;
         await runKbIngest(env, body.project, ingestBody, 'worker-queue');
+        console.log('knowledgebase ingest queue succeeded', {
+          message_id: message.id,
+          project: body.project,
+          domain: body.domain,
+          attempts: message.attempts,
+          duration_ms: Date.now() - messageStarted,
+        });
         message.ack();
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('knowledgebase ingest queue failed', {
           message_id: message.id,
           project: body.project,
           domain: body.domain,
-          error: error instanceof Error ? error.message : String(error),
+          attempts: message.attempts,
+          run_id: body.run_id ?? null,
+          duration_ms: Date.now() - messageStarted,
+          error: errorMessage,
+          failure_classification: classifyIngestFailure(errorMessage),
         });
         message.retry({ delaySeconds: Math.min(300, 10 * Math.max(1, message.attempts)) });
       }
