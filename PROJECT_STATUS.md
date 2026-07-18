@@ -226,7 +226,7 @@ Worker: Fleet consumer → Hono → free-ai/Workers AI embed → Vectorize query
 | Product | Surface | Role |
 | --- | --- | --- |
 | Cloudflare RAG_SERVICE | Worker `/v1/*` + hosted `/ui` | Fleet-shared index/query/metadata API with tenant isolation |
-| Landing page | `https://search.sassmaker.com` (`landing-astro/`) | Public marketing surface for Private Agent Search |
+| Landing page | `https://knowledgebase.sassmaker.com` (`landing-astro/`) | Public marketing surface for Private Agent Search |
 | Dashboard app | `https://search.sassmaker.com` (`app/`) | Operator/admin UI for service-key-backed domain, ingest, query, trace, and eval workflows |
 | Demo domains | SEC (25-question eval) + Legal/SPDX (12-question eval) | Same code, two reference corpora |
 | Agent contracts | `docs/agent-tool-contract.md`, `docs/agent-integration-examples.md` | External agent integration specs |
