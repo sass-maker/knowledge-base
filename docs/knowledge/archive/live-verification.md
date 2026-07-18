@@ -2,6 +2,10 @@
 
 > Historical verification log from the Python reference phase. Current release
 > verification is the Worker-local gate under `cloudflare/worker`.
+>
+> **Archived snapshot.** Current release/verification commands live in
+> [`docs/development/testing.md`](../../development/testing.md) and
+> [`docs/operations/runbook.md`](../../operations/runbook.md).
 
 > **Update 2026-05-27 — Step 7 (cross-model + bug-sweep round)**
 >

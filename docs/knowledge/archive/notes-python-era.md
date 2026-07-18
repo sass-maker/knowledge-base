@@ -3,6 +3,12 @@
 > Historical engineering notes for the original Python implementation and its
 > migration path. The active product runtime is now the Cloudflare Worker in
 > `cloudflare/worker`.
+>
+> **Archived snapshot.** Distilled durable lessons live in
+> [`docs/knowledge/learnings.md`](../learnings.md); durable architectural
+> decisions live in [`docs/architecture/decisions.md`](../../architecture/decisions.md).
+> Internal references to other root-level docs (e.g. `NOTES.md`, `LEARNING.md`)
+> below refer to sibling files in this archive folder.
 
 This file is a single-source reference for talking through this codebase.
 It covers (a) every decision and why, (b) the research and primary sources

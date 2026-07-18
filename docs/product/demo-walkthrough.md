@@ -66,7 +66,7 @@ While it runs, narrate:
 
 This is the strongest impression you can leave: an *honest* engineer.
 
-Open `LEARNING.md` § "Part 4: Decision log" and walk through:
+Open [`docs/knowledge/archive/learning-python-era.md`](../knowledge/archive/learning-python-era.md) § "Part 4: Decision log" and walk through:
 - **D-6**: `duckdb` was missing from `pyproject.toml` — every prior aggregate question 500'd
 - **D-7**: Most FinancialMetric entities lacked `ticker` — DuckDB SQL returned NULL
 - **D-8**: Metric names are inconsistent across companies — even the ticker-fixed SQL didn't find rows

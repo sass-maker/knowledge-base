@@ -2,6 +2,13 @@
 
 > Historical learning log spanning the original Python service and migration.
 > Current runtime and checks live under `cloudflare/worker`.
+>
+> **Archived snapshot.** The five distilled lessons are re-homed in
+> [`docs/knowledge/learnings.md`](../learnings.md); the methodology bugs and
+> failed approaches are re-homed in
+> [`docs/knowledge/failed-approaches.md`](../failed-approaches.md). Internal
+> references to `NOTES.md`, `DESIGN.md`, etc. below refer to sibling files in
+> this archive folder.
 
 This is the **one document** to read end-to-end and understand everything we did, every decision made, every bug found, every number recorded.
 

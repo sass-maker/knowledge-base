@@ -1,0 +1,19 @@
+{
+  "name": "knowledgebase-docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Docs tooling only (Blume presentation layer + markdown link checker). This is NOT a workspace for the product packages — cloudflare/worker, app, and landing-astro each keep their own pnpm-lock.yaml. Install here only to build/validate docs.",
+  "scripts": {
+    "docs:check": "node scripts/docs-check-links.mjs",
+    "docs:build": "blume build",
+    "docs:preview": "blume preview",
+    "docs:dev": "blume dev"
+  },
+  "devDependencies": {
+    "blume": "0.8.0"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

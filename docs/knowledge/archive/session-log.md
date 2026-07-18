@@ -2,6 +2,10 @@
 
 > Historical session log from the Python reference era. Current runtime and UI
 > live in the Cloudflare Worker under `cloudflare/worker`.
+>
+> **Archived snapshot.** The `(project, kind)` data model and ingestion API
+> shape described here are now realized in the Worker `/v1/kb/*` routes (see
+> [`cloudflare/worker/README.md`](../../../cloudflare/worker/README.md)).
 
 A working log of the work done after the original submission landed. Reading order: top to bottom.
 For commit-level detail, `git log --oneline dd141e1..HEAD`.

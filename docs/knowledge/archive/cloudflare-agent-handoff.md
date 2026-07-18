@@ -1,5 +1,10 @@
 # Cloudflare Migration Agent Handoff
 
+> **Archived snapshot (2026-06-22).** Preserved for handoff/audit history.
+> Current migration state lives in [`STATUS.md`](../../../STATUS.md); durable
+> Cloudflare-port decisions live in
+> [`docs/architecture/cloudflare-full-port.md`](../../architecture/cloudflare-full-port.md).
+
 Last updated: 2026-06-22
 
 ## Cloudflare Migration Complete Live

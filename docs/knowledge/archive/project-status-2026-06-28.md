@@ -1,4 +1,10 @@
-# knowledgebase — PROJECT STATUS
+# knowledgebase — PROJECT STATUS (snapshot 2026-06-28)
+
+> **Archived snapshot.** Preserved as the detailed status log as of 2026-06-28.
+> The short live-status view is [`STATUS.md`](../../../STATUS.md); the product
+> thesis and surfaces are in
+> [`docs/product/overview.md`](../../product/overview.md); durable deferred/blocked
+> items are carried forward in `STATUS.md`.
 
 Last updated: 2026-06-28
 
