@@ -11,7 +11,9 @@
     "docs:dev": "blume dev"
   },
   "devDependencies": {
-    "blume": "0.8.0"
+    "astro": "5.18.2",
+    "blume": "0.8.0",
+    "sharp": "0.34.3"
   },
   "engines": {
     "node": ">=22.12"
