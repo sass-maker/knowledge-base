@@ -1,0 +1,26 @@
+# Private Agent Search — full agent brief
+
+Cited search + grounded answers over private, specialized document collections (RAG).
+
+## Index
+
+# Private Agent Search
+
+Cited RAG search over private collections.
+
+## Product links
+
+
+## Machine surfaces
+
+- https://search.sassmaker.com/llms.txt
+- https://search.sassmaker.com/llms-full.txt
+- https://search.sassmaker.com/api/ai
+- https://search.sassmaker.com/index.md
+- https://search.sassmaker.com/sitemap.xml
+- https://search.sassmaker.com/robots.txt
+
+## Contact / fleet
+
+- Fleet: https://sassmaker.com
+- Agent email for directory verification: sarthakagrawal@agentmail.to

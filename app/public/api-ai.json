@@ -1,0 +1,26 @@
+{
+  "name": "Private Agent Search",
+  "version": "1",
+  "url": "https://search.sassmaker.com",
+  "llms": "https://search.sassmaker.com/llms.txt",
+  "llmsFull": "https://search.sassmaker.com/llms-full.txt",
+  "sitemap": "https://search.sassmaker.com/sitemap.xml",
+  "robots": "https://search.sassmaker.com/robots.txt",
+  "markdown": {
+    "suffix": ".md",
+    "negotiation": true
+  },
+  "surfaces": [
+    {
+      "id": "home",
+      "url": "https://search.sassmaker.com/",
+      "md": "https://search.sassmaker.com/index.md",
+      "kind": "static",
+      "description": "Product home"
+    }
+  ],
+  "auth": {
+    "public": true,
+    "notes": "Auth-walled app routes are not agent-indexed unless listed here."
+  }
+}

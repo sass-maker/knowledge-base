@@ -1,0 +1,16 @@
+# Private Agent Search
+
+> Cited search + grounded answers over private, specialized document collections (RAG).
+
+## Product
+
+
+## Machine surfaces
+
+- [Agent catalog](https://search.sassmaker.com/api/ai): JSON inventory of public surfaces
+- [Homepage markdown](https://search.sassmaker.com/index.md): Product brief without JS
+- [This index](https://search.sassmaker.com/llms.txt)
+
+## Optional
+
+- [Foundry](https://sassmaker.com): Parent fleet showcase
