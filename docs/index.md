@@ -25,6 +25,7 @@ explicit schemas and `(file, page, excerpt)` provenance for agents.
 | If you want to… | Read |
 | --- | --- |
 | Understand what this product is and is not | [`product/overview.md`](product/overview.md) |
+| See how it works end to end (ingest + query) | [`architecture/how-it-works.md`](architecture/how-it-works.md) |
 | See the runtime shape and storage split | [`architecture/overview.md`](architecture/overview.md) |
 | Understand the non-obvious architectural choices | [`architecture/decisions.md`](architecture/decisions.md) |
 | Run the Worker locally / ship a change | [`development/workflows.md`](development/workflows.md) |
@@ -47,6 +48,7 @@ explicit schemas and `(file, page, excerpt)` provenance for agents.
 
 ### Architecture
 
+- [`architecture/how-it-works.md`](architecture/how-it-works.md) — code-grounded end-to-end walkthrough: components, ingest path, query path
 - [`architecture/overview.md`](architecture/overview.md) — runtime, ingestion, retrieval, testing surface
 - [`architecture/decisions.md`](architecture/decisions.md) — durable architectural decisions and the why behind each
 - [`architecture/cloudflare-full-port.md`](architecture/cloudflare-full-port.md) — what Cloudflare can/cannot fill, with status
