@@ -44,7 +44,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: pnpm
       # No pnpm-lock.yaml committed for the root docs package yet. Use a plain
       # install here; switch to --frozen-lockfile once a lockfile is committed.
       - run: pnpm install
