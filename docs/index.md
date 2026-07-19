@@ -64,6 +64,7 @@ explicit schemas and `(file, page, excerpt)` provenance for agents.
 - [`operations/hosting-personal.md`](operations/hosting-personal.md) — personal hosting checklist
 - [`operations/highsignal-integration.md`](operations/highsignal-integration.md) — fleet consumer integration notes
 - [`operations/jobs.md`](operations/jobs.md) — async ingestion (Queues + Workflows); no scheduled jobs
+- [`operations/automation-inventory.md`](operations/automation-inventory.md) — automation inventory and Foundry evidence contract (auth-safe health, sanitized evidence, storage ownership, maintenance-only authority)
 
 ### Knowledge
 
