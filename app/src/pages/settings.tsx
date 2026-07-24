@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect } from "react";
 import {
   getServiceKey,
@@ -12,11 +10,10 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardTitle } from "@/components/card";
 import { Button } from "@/components/button";
 import { Check, AlertCircle, Loader2, LogOut, RotateCcw } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { navigate } from "@/lib/router";
 import { resetOnboarding } from "@/components/onboarding";
 
 export default function SettingsPage() {
-  const router = useRouter();
   const [url, setUrl] = useState("");
   const [key, setKey] = useState("");
   const [saved, setSaved] = useState(false);
@@ -152,7 +149,7 @@ export default function SettingsPage() {
                 {testResult.message}
                 {testResult.ok && (
                   <button
-                    onClick={() => router.push("/")}
+                    onClick={() => navigate("/")}
                     className="ml-auto text-xs font-medium underline-offset-4 hover:underline"
                   >
                     Go to dashboard →
@@ -183,7 +180,7 @@ export default function SettingsPage() {
             variant="secondary"
             onClick={() => {
               resetOnboarding();
-              router.push("/");
+              navigate("/");
             }}
           >
             <RotateCcw className="size-4" /> Reset onboarding

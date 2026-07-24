@@ -18,7 +18,7 @@ Install per package.
 | Package | Path | Stack | Build |
 | --- | --- | --- | --- |
 | RAG Worker | `cloudflare/worker/` | Hono, Workers AI, Vectorize, D1, R2 | `wrangler` |
-| Dashboard app | `app/` | Next.js 16, OpenNext | `next build` → `opennextjs-cloudflare` |
+| Dashboard app | `app/` | Vite + React (static) | `tsc --noEmit` → `vite build` |
 | Landing page | `landing-astro/` | Astro (static) | `astro build` |
 
 Legacy Python artifacts (`src/kb/`, `migrations/01_*..07_*`, Docker Compose)
@@ -39,11 +39,12 @@ pnpm deploy              # wrangler deploy — ASK before touching prod
 
 # App (from app/)
 pnpm install
-pnpm dev                 # next dev
-pnpm build               # next build
-pnpm typecheck           # next typegen && tsc --noEmit
+pnpm dev                 # vite
+pnpm build               # typecheck + static dist build
+pnpm typecheck           # tsc --noEmit
 pnpm check               # typecheck + lint
-pnpm deploy:cf           # OpenNext build + deploy — ASK before touching prod
+pnpm preview:cf          # build + local Pages preview
+pnpm deploy:cf           # Pages direct upload — ASK before touching prod
 
 # Landing (from landing-astro/)
 pnpm install

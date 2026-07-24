@@ -1,7 +1,5 @@
-"use client";
-
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 import {
   ApiError,
   api,

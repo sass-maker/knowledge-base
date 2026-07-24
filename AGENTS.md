@@ -29,7 +29,7 @@ root workspace. Each package has its own `pnpm-lock.yaml` — install per packag
 | Package | Path | Stack |
 | --- | --- | --- |
 | RAG Worker (the product) | `cloudflare/worker/` | Hono, Workers AI, Vectorize, D1, R2, Queues, Workflows |
-| Dashboard app | `app/` | Next.js 16 → Cloudflare Workers (OpenNext) |
+| Dashboard app | `app/` | Vite + React (static) → Cloudflare Pages |
 | Landing page | `landing-astro/` | Astro (static) → Cloudflare Pages |
 
 Retired reference: `src/kb/` (Python), root `migrations/` (legacy Postgres),

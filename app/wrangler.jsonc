@@ -1,23 +1,10 @@
-// Cloudflare Workers config for opennextjs-cloudflare deploy.
-// Run `pnpm deploy:cf` to publish.
+// Cloudflare Pages configuration for the static Vite dashboard.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "knowledgebase-app",
-  "main": ".open-next/worker.js",
+  "pages_build_output_dir": "dist",
   "compatibility_date": "2026-06-20",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  "routes": [
-    { "pattern": "search.sassmaker.com", "custom_domain": true }
-  ],
-  "assets": {
-    "binding": "ASSETS",
-    "directory": ".open-next/assets"
-  },
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 1
-  },
   "vars": {
-    "NEXT_PUBLIC_RAG_SERVICE_URL": "https://knowledgebase.sarthakagrawal927.workers.dev"
+    "VITE_RAG_SERVICE_URL": "https://knowledgebase.sarthakagrawal927.workers.dev"
   }
 }

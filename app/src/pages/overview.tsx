@@ -1,11 +1,9 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { api, type KbStatus, type Domain, ApiError } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
 import { StatCard, Card, CardTitle, Skeleton } from "@/components/card";
 import { formatTime } from "@/lib/utils";
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 import { Database, Search, FlaskConical, ArrowRight } from "lucide-react";
 import { Onboarding, isOnboardingDone } from "@/components/onboarding";
 

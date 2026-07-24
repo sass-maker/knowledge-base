@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useCallback } from "react";
 import {
   api,
@@ -13,7 +11,7 @@ import { Card, CardTitle } from "@/components/card";
 import { Button } from "@/components/button";
 import { formatMs, formatScore, cn } from "@/lib/utils";
 import { Search, Sparkles, Loader2, Database } from "lucide-react";
-import Link from "next/link";
+import { AppLink as Link } from "@/components/app-link";
 
 type Tab = "search" | "answer";
 

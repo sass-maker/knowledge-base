@@ -41,7 +41,7 @@ wrong answers, enforced as a data invariant across every retrieval path
 | RAG Worker (fleet `RAG_SERVICE`) | `cloudflare/worker/` | Hono Worker, Workers AI, Vectorize, D1, R2, Queues, Workflows | `https://knowledgebase.sarthakagrawal927.workers.dev` |
 | Worker testing UI | Worker `/` and `/ui` | Inline HTML in Worker | same Worker |
 | Landing page | `landing-astro/` | Astro (static) → Cloudflare Pages | `https://knowledgebase.sassmaker.com` |
-| Dashboard app | `app/` | Next.js 16 → Cloudflare Workers (OpenNext) | `https://search.sassmaker.com` |
+| Dashboard app | `app/` | Vite + React (static) → Cloudflare Pages | `https://search.sassmaker.com` |
 | Demo domains | `domains/sec/`, `domains/legal/` | YAML schema + config + eval sets | ingested into the Worker |
 
 The Worker `/v1/*` API is the canonical integration surface. The dashboard and

@@ -36,8 +36,8 @@ export function getServiceUrl(): string {
   if (typeof window === "undefined") return "";
   return (
     localStorage.getItem(URL_STORAGE) ??
-    process.env.NEXT_PUBLIC_RAG_SERVICE_URL ??
-    ""
+    import.meta.env.VITE_RAG_SERVICE_URL ??
+    "https://knowledgebase.sarthakagrawal927.workers.dev"
   );
 }
 
@@ -121,7 +121,9 @@ function extractLatencyMs(headers: Headers): number {
     try {
       const timing = JSON.parse(timingHeader) as Record<string, unknown>;
       if (typeof timing.total_ms === "number") return Math.round(timing.total_ms);
-    } catch {}
+    } catch {
+      // Ignore malformed optional timing metadata; the response body remains usable.
+    }
   }
   return 0;
 }

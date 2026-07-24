@@ -1,5 +1,3 @@
-"use client";
-
 import { useState, useEffect, useCallback } from "react";
 import { api, type Domain, ApiError } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
