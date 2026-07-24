@@ -6,7 +6,7 @@
 > change. Do not let deploy-version snapshots accumulate here — put those in
 > the archive.
 
-Last updated: 2026-07-24
+Last updated: 2026-07-25
 
 ## Objective
 
@@ -34,9 +34,11 @@ the non-negotiable product invariant.
   `kb-query`, ingestion, observability, hosted UI). Final benchmark p95s:
   lexical 99.46 ms, semantic 550.73 ms; query eval hit/citation rates 1.0.
 - **Frontend surfaces:** Astro landing on Cloudflare Pages; Vite + React
-  dashboard source builds as a static Cloudflare Pages artifact; Worker `/ui`
-  operator testing surface. The existing OpenNext dashboard deployment remains
-  live until a separately approved Pages preview and domain cutover.
+  dashboard deployed on Cloudflare Pages at `search.sassmaker.com`; Worker
+  `/ui` operator testing surface. The former OpenNext Worker remains available
+  on its `workers.dev` hostname as a rollback target, but no longer owns the
+  production custom domain. Home, operator configuration, navigation, and
+  direct `/domains` deep-link smoke passed after the 2026-07-25 cutover.
 - **Deployed corpus is opt-in.** The cutover shipped code + infra parity, not
   a full demo-corpus backfill. Demo `legal`/`sec` query corpora need an
   explicit ingestion run before they answer production questions.
@@ -76,23 +78,20 @@ the non-negotiable product invariant.
 
 ## Next steps
 
-1. Preview the static dashboard on Cloudflare Pages, verify deep links and
-   operator configuration, then explicitly approve the
-   `search.sassmaker.com` cutover from the existing OpenNext Worker.
-2. Close the `/api/ai` vs `/api-ai.json` mismatch in `app/public/` (see
+1. Close the `/api/ai` vs `/api-ai.json` mismatch in `app/public/` (see
    Unresolved questions).
-3. Complete live S-grade consumer proof once session cookies are available:
+2. Complete live S-grade consumer proof once session cookies are available:
    `KARTE_SESSION_COOKIE=<cookie> STARBOARD_SESSION_COOKIE=<cookie> pnpm run
    smoke:consumer-auth -- --require-authenticated`, then re-run `proof:s`.
-4. Add first-class ingest idempotency / failure-classification proof so the
+3. Add first-class ingest idempotency / failure-classification proof so the
    ingestion category can move from A+ to S without relying on route presence.
-5. Keep post-cutover regression gates current whenever Worker routes,
+4. Keep post-cutover regression gates current whenever Worker routes,
    parser/OCR behavior, or fleet RAG consumers change: `pnpm run check`,
    `pnpm run gaps:full-port -- --json`, `pnpm run audit:sibling-rag-service
    -- --json`, deployed `smoke:legacy-routes --require-complete`.
-6. Richer eval trend views per project/kind/filter on top of persisted Worker
+5. Richer eval trend views per project/kind/filter on top of persisted Worker
    eval reports.
-7. Framework-specific agent integration examples + an HTTP contract
+6. Framework-specific agent integration examples + an HTTP contract
    compatibility test around the stable `/v1/kb/query` contract.
 
 ## Deferred (durable)
