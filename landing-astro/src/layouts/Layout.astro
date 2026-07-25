@@ -41,6 +41,8 @@ const API_URL = 'https://knowledgebase.sarthakagrawal927.workers.dev/v1/kb/searc
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
 
+    <script type="application/ld+json" set:html={JSON.stringify({"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://sassmaker.com/#org","name":"SaaS Maker (Foundry)","url":"https://sassmaker.com"},{"@type":"WebSite","@id":"https://knowledgebase.sassmaker.com/#website","name":"Knowledgebase","url":"https://knowledgebase.sassmaker.com","description":"Any structure in. Cited answers out.","publisher":{"@id":"https://sassmaker.com/#org"}}]})} />
+
     <style is:inline>
       :root {
         --font-geist-sans: 'Geist Variable', system-ui, -apple-system, sans-serif;
