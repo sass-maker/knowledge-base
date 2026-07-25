@@ -43,13 +43,18 @@ the non-negotiable product invariant.
   hostnames; its server-side proxy uses a dedicated tenant-scoped Worker
   credential. Live Data, Query History, and cited-query verification passed.
 - **Deployed corpus is live.** The `legal` and `sec` domains contain queryable
-  files, entities, relationships, and recorded traces.
+  files, entities, relationships, and recorded traces, but they are evaluation
+  fixtures rather than SaaS Maker project data.
 
 ## Active work
 
 - Docs consolidation (this branch): unify scattered root-level and `docs/`
   markdown into one canonical knowledge system with Blume as the presentation
   layer only. See `docs/index.md`.
+- SaaS Maker child-project operator view (local, not deployed): keep this repo
+  and deployment independent, let the dedicated dashboard credential switch
+  project scopes, and hide demo/test/proof data by default. See OpenSpec change
+  `2026-07-25-saas-maker-child-project-operator-view`.
 
 ## Blockers
 

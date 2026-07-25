@@ -6,12 +6,14 @@ description: Cloudflare Access and Pages Function configuration for the private 
 # Internal dashboard access
 
 The dashboard at `search.sassmaker.com` is the canonical human operator
-surface. Operators authenticate with Cloudflare Access. Browser requests stay
-same-origin under `/api`; a Pages Function verifies the Access JWT and adds the
-Worker service key server-side.
+surface for SaaS Maker project knowledge. Operators authenticate with
+Cloudflare Access. Browser requests stay same-origin under `/api`; a Pages
+Function verifies the Access JWT and adds the dedicated dashboard key
+server-side.
 
-The Worker service-key contract remains unchanged for fleet agents and backend
-integrations.
+The dashboard may send a non-secret `X-KB-Project` scope through the proxy.
+Only keys configured in `RAG_SERVICE_DASHBOARD_KEYS` may use that override.
+Ordinary product and proof keys remain bound to one tenant.
 
 ## Trust boundary
 
@@ -36,7 +38,7 @@ Configure these on the `knowledgebase-app` Pages project:
 | `CF_ACCESS_TEAM_DOMAIN` | variable | `https://<team>.cloudflareaccess.com` issuer and JWK host |
 | `CF_ACCESS_AUD` | variable | Access application audience tag |
 | `RAG_SERVICE_URL` | variable | Knowledgebase Worker origin |
-| `RAG_SERVICE_KEY` | secret | Tenant-scoped Worker credential used only by the Function |
+| `RAG_SERVICE_KEY` | secret | Dedicated dashboard credential whose key is also present in Worker `RAG_SERVICE_DASHBOARD_KEYS` |
 
 Do not commit real values. The Function fails closed with `503` when required
 configuration is absent.

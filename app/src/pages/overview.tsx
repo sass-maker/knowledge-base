@@ -62,7 +62,7 @@ export default function OverviewPage() {
     <>
       <PageHeader
         title="Overview"
-        description="Internal control surface for private corpus search"
+        description="Private retrieval operations for SaaS Maker projects"
       />
       <div className="flex flex-col gap-6 p-6">
         {error && (

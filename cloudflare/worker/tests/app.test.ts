@@ -1370,6 +1370,71 @@ describe('knowledgebase RAG Worker app', () => {
     expect((await res.json()) as { data: IndexRecord[] }).toEqual({ data: [] });
   });
 
+  it('allows only dashboard credentials to select and enumerate project scopes', async () => {
+    const metadata = new MemoryMetadataRepository();
+    await metadata.upsertProject('default', 'Showcase');
+    await metadata.upsertProject('starboard', 'Starboard knowledge');
+    const app = createApp({ makeMetadataRepository: () => metadata });
+    const env = makeEnv(new FakeVectorize());
+    env.RAG_SERVICE_DASHBOARD_KEYS = JSON.stringify({ 'dashboard-key': 'default' });
+
+    const selected = await app.request(
+      '/v1/kb/projects',
+      {
+        headers: {
+          Authorization: 'Bearer dashboard-key',
+          'X-KB-Project': 'starboard',
+        },
+      },
+      env,
+    );
+    const inventory = await app.request(
+      '/v1/kb/operator/projects',
+      { headers: { Authorization: 'Bearer dashboard-key' } },
+      env,
+    );
+    const consumerInventory = await app.request(
+      '/v1/kb/operator/projects',
+      { headers: { Authorization: 'Bearer key-a' } },
+      env,
+    );
+    const consumerOverride = await app.request(
+      '/v1/kb/projects',
+      {
+        headers: {
+          Authorization: 'Bearer key-a',
+          'X-KB-Project': 'starboard',
+        },
+      },
+      env,
+    );
+    const invalidOverride = await app.request(
+      '/v1/kb/projects',
+      {
+        headers: {
+          Authorization: 'Bearer dashboard-key',
+          'X-KB-Project': '../starboard',
+        },
+      },
+      env,
+    );
+
+    expect(selected.status).toBe(200);
+    expect(await selected.json()).toMatchObject({
+      data: [{ name: 'starboard', project: 'starboard' }],
+    });
+    expect(inventory.status).toBe(200);
+    expect(await inventory.json()).toMatchObject({
+      data: [
+        { name: 'default', project: 'default' },
+        { name: 'starboard', project: 'starboard' },
+      ],
+    });
+    expect(consumerInventory.status).toBe(403);
+    expect(consumerOverride.status).toBe(403);
+    expect(invalidOverride.status).toBe(400);
+  });
+
   it('lists embedding profiles and creates indexes with configured free-ai dimensions', async () => {
     const repo = new MemoryRepository();
     const app = createApp({ makeRepository: () => repo });

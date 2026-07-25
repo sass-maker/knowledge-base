@@ -71,9 +71,16 @@ function walkFiles(root) {
   const stack = [root];
   while (stack.length > 0) {
     const current = stack.pop();
-    const stat = statSync(current);
+    const name = current.split('/').pop() ?? '';
+    if (SKIP_DIRS.has(name)) continue;
+    let stat;
+    try {
+      stat = statSync(current);
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') continue;
+      throw error;
+    }
     if (stat.isDirectory()) {
-      if (SKIP_DIRS.has(current.split('/').pop() ?? '')) continue;
       for (const item of readdirSync(current)) stack.push(resolve(current, item));
       continue;
     }

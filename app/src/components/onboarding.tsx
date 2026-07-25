@@ -198,7 +198,7 @@ export function Onboarding({
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-foreground">
-            Welcome to Knowledgebase
+            Connect a SaaS Maker project
           </h1>
           <button
             onClick={handleSkip}

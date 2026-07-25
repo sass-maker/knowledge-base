@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -238,6 +238,29 @@ describe('audit-sibling-rag-service', () => {
     mkdirSync(resolve(app, '.symphony/fleet-production-smoke'), { recursive: true });
     writeFileSync(resolve(app, '.symphony/fleet-production-smoke/latest.json'), JSON.stringify({
       prodUrl: 'https://rag-service.sarthakagrawal927.workers.dev',
+    }));
+
+    const report = auditSiblingRagService({
+      fleetRoot,
+      repoRoot,
+      siblingPath: resolve(fleetRoot, 'missing-rag-service'),
+      externalRepos: [app],
+    });
+
+    expect(report.ok).toBe(true);
+    expect(report.active_external_references).toEqual([]);
+  });
+
+  it('ignores missing generated node_modules targets during fleet scans', () => {
+    const { fleetRoot, repoRoot } = makeFleet();
+    const app = resolve(fleetRoot, 'generated-docs');
+    mkdirSync(resolve(app, '.blume-verify'), { recursive: true });
+    symlinkSync(
+      resolve(app, 'missing-node-modules'),
+      resolve(app, '.blume-verify/node_modules'),
+    );
+    writeFileSync(resolve(app, 'wrangler.jsonc'), JSON.stringify({
+      services: [{ binding: 'RAG_SERVICE', service: 'knowledgebase' }],
     }));
 
     const report = auditSiblingRagService({

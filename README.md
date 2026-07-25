@@ -1,22 +1,22 @@
-# Private Agent Search
+# SaaS Maker Knowledgebase
 
 [![CI](https://github.com/sass-maker/knowledge-base/actions/workflows/ci.yml/badge.svg)](https://github.com/sass-maker/knowledge-base/actions/workflows/ci.yml)
 [![worker-tests](https://img.shields.io/badge/worker_tests-passing-brightgreen)](#)
 
-Exa-style search for private, specialized document collections, with schemas,
-citations, and provenance for agents.
+Private shared retrieval infrastructure for SaaS Maker projects, with schemas,
+citations, and provenance for agents. This repository and its Cloudflare
+deployment remain independent; it is not a public standalone product.
 
-This repo also owns the Cloudflare-native shared RAG Worker in
-`cloudflare/worker`. That Worker is the fleet `RAG_SERVICE`: service-key
+This repo owns the Cloudflare-native shared RAG Worker in
+`cloudflare/worker`. That Worker is the SaaS Maker `RAG_SERVICE`: service-key
 authenticated ingestion/query APIs backed by the fleet `free-ai` gateway
 (embeddings + synthesis), Workers AI (fallback + rerank/OCR), Vectorize, D1, and
 R2.
 
-Bring your own project and documents, or start from the included SEC/legal
-templates. Drop in research papers, company private information, spreadsheets,
-manuals, contracts, notes, filings, and other niche sources; infer/confirm a
-schema; then expose them through a cited search API (`/search`) and a grounded
-answer API (`/query`).
+Each child project receives an isolated scope for its private information and
+uses the cited search API (`/search`) or grounded answer API (`/query`). The
+internal dashboard discovers real project scopes and hides demonstration,
+smoke, proof, and performance data by default.
 
 The wedge is intentionally narrower than "generic RAG":
 
@@ -118,7 +118,11 @@ flowchart LR
     class D1,Vectorize,R2,FreeAI,AI store
 ```
 
-Two demo domains (SEC + Legal) run on the **same code** with completely different schemas, sources, and eval sets — proves domain-agnosticism empirically, not aspirationally. See [`docs/product/onboard-new-domain.md`](docs/product/onboard-new-domain.md) for a 30-minute walkthrough of adding a third.
+The SEC and Legal domains remain checked-in evaluation fixtures that prove the
+same pipeline works across unrelated schemas. They are not SaaS Maker product
+data and are hidden from the default operator view. See
+[`docs/product/onboard-new-domain.md`](docs/product/onboard-new-domain.md) for
+the reusable onboarding workflow.
 
 ## Worker Commands
 

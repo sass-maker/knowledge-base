@@ -3,9 +3,14 @@ import type { Env } from './types';
 
 export interface Variables {
   tenant: string;
+  credentialKind: CredentialKind;
 }
 
+export type CredentialKind = 'service' | 'append' | 'dashboard' | 'proof';
+
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
+
+const PROJECT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 function constantTimeEqual(a: string, b: string): boolean {
   const enc = new TextEncoder();
@@ -46,15 +51,24 @@ function parseKeyMap(raw: string | undefined): Record<string, string> {
 
 export async function requireServiceKey(c: AppContext, next: Next): Promise<Response | void> {
   const presented = readPresentedKey(c);
-  const keyMap = {
-    ...parseKeyMap(c.env.RAG_SERVICE_KEYS),
-    ...parseKeyMap(c.env.RAG_SERVICE_KEYS_APPEND),
-    ...parseKeyMap(c.env.RAG_SERVICE_DASHBOARD_KEYS),
-    ...parseKeyMap(c.env.RAG_SERVICE_PROOF_KEYS),
-  };
-  for (const [candidate, tenant] of Object.entries(keyMap)) {
-    if (presented && constantTimeEqual(presented, candidate)) {
-      c.set('tenant', tenant);
+  const sources: Array<{ kind: CredentialKind; keys: Record<string, string> }> = [
+    { kind: 'proof', keys: parseKeyMap(c.env.RAG_SERVICE_PROOF_KEYS) },
+    { kind: 'dashboard', keys: parseKeyMap(c.env.RAG_SERVICE_DASHBOARD_KEYS) },
+    { kind: 'append', keys: parseKeyMap(c.env.RAG_SERVICE_KEYS_APPEND) },
+    { kind: 'service', keys: parseKeyMap(c.env.RAG_SERVICE_KEYS) },
+  ];
+  for (const source of sources) {
+    for (const [candidate, configuredTenant] of Object.entries(source.keys)) {
+      if (!presented || !constantTimeEqual(presented, candidate)) continue;
+      const requestedProject = c.req.header('X-KB-Project')?.trim() ?? '';
+      if (requestedProject && source.kind !== 'dashboard') {
+        return c.json({ error: 'Project override requires a dashboard credential' }, 403);
+      }
+      if (requestedProject && !PROJECT_ID_PATTERN.test(requestedProject)) {
+        return c.json({ error: 'Invalid project identifier' }, 400);
+      }
+      c.set('tenant', requestedProject || configuredTenant);
+      c.set('credentialKind', source.kind);
       await next();
       return undefined;
     }

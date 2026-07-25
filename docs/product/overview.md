@@ -10,10 +10,14 @@ description: What knowledgebase is, the wedge, the surfaces, and what is real to
 
 ## Thesis
 
-**Private Agent Search** — Exa-style cited search over project-scoped private
-corpora. Users create domains, infer/confirm schemas, ingest files, and expose
-`/search` and `/query` APIs for agents. The wedge is intentionally narrower
-than "generic RAG":
+**SaaS Maker Knowledgebase** — private, project-scoped cited search for SaaS
+Maker child products. The repository, Worker, storage, and internal dashboard
+remain independently owned and deployed; product runtimes integrate through
+service bindings or the HTTP contract.
+
+Projects create domains, infer/confirm schemas, ingest files, and expose
+`/search` and `/query` APIs for agents. The capability is intentionally
+narrower than "generic RAG":
 
 - Exa searches the open web; this searches your private/specialized corpus.
 - Agents get ranked cited evidence directly, not only a chat response.
@@ -32,6 +36,8 @@ wrong answers, enforced as a data invariant across every retrieval path
 - A complete enterprise knowledge platform.
 - A connector-first sync product.
 - A generic document-chat app.
+- A public standalone SaaS Maker product.
+- A runtime embedded in SaaS Maker or Fleet Ops.
 - A guaranteed parser for every arbitrary file on day one.
 
 ## Surfaces
@@ -41,7 +47,7 @@ wrong answers, enforced as a data invariant across every retrieval path
 | RAG Worker (fleet `RAG_SERVICE`) | `cloudflare/worker/` | Hono Worker, Workers AI, Vectorize, D1, R2, Queues, Workflows | `https://knowledgebase.sarthakagrawal927.workers.dev` |
 | Worker testing UI | Worker `/` and `/ui` | Inline HTML in Worker | same Worker |
 | Dashboard app | `app/` | Vite + React (static) → Cloudflare Pages | `https://search.sassmaker.com` |
-| Demo domains | `domains/sec/`, `domains/legal/` | YAML schema + config + eval sets | ingested into the Worker |
+| Evaluation fixtures | `domains/sec/`, `domains/legal/` | YAML schema + config + eval sets | hidden from the default operator view |
 
 The Worker `/v1/*` API is the canonical agent integration surface. The
 Cloudflare Access-protected dashboard is the canonical human operator surface;
@@ -75,7 +81,9 @@ duplicate it here.
   readiness.
 - Operator visibility: the dashboard exposes tenant-scoped Data views for
   files, chunks, jobs, entities, and relationships plus cross-domain Query
-  History with citations and quality drilldown.
+  History with citations and quality drilldown. Its dashboard-only credential
+  can switch between actual project scopes; ordinary consumer keys remain
+  isolated to one project.
 
 ## Empirical headline
 
@@ -92,8 +100,9 @@ The full cross-domain × cross-model matrix and methodology live in
 
 ## Fleet role
 
-`knowledgebase` is the **only** fleet RAG service codebase. The sibling
+`knowledgebase` is the **only** SaaS Maker/fleet RAG service codebase. The sibling
 `../rag-service` repo was retired on 2026-06-21; do not recreate it. Fleet
-consumers (SaaS Maker, Linkchat, Starboard) integrate through
+consumers integrate through
 `RAG_SERVICE_URL` / service bindings and `RAG_SERVICE_KEY`, not by embedding a
-runtime. See [`operations/highsignal-integration.md`](../operations/highsignal-integration.md).
+runtime. The operator inventory reflects scopes that actually exist; a project
+is not described as integrated merely because a future integration note exists.

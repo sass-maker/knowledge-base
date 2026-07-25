@@ -42,7 +42,7 @@ export default function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Internal identity and dashboard connection"
+        description="Internal identity, selected project, and Worker connection"
       />
       <div className="flex max-w-2xl flex-col gap-6 p-6">
         <Card>
@@ -113,7 +113,9 @@ export default function SettingsPage() {
           <p className="text-sm leading-relaxed text-muted-foreground">
             Dashboard requests use a same-origin Pages Function. Your verified
             Access identity is checked before the Function adds the Worker
-            service key server-side; no Worker credential is stored in this browser.
+            dashboard key and selected project server-side; no Worker credential
+            is stored in this browser. Product service keys remain isolated to
+            their own project.
           </p>
         </Card>
 

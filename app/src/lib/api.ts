@@ -17,6 +17,13 @@
 // - POST /v1/kb/ingest/text → { file_id, ... } (200/201)
 // - POST /v1/kb/ingest/run → { run_id, ... } (202)
 
+import {
+  getApiProject,
+  isInternalDomain,
+  isInternalScopeVisible,
+  type OperatorProject,
+} from "@/lib/project-scope";
+
 const API_BASE = "/api";
 
 export class ApiError extends Error {
@@ -35,6 +42,8 @@ async function request<T>(
 ): Promise<T> {
   const isFormData = init.body instanceof FormData;
   const headers = new Headers(init.headers);
+  const project = getApiProject();
+  if (project) headers.set("X-KB-Project", project);
   if (!isFormData && init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
@@ -60,6 +69,8 @@ async function requestWithHeaders<T>(
 ): Promise<{ body: T; headers: Headers }> {
   const isFormData = init.body instanceof FormData;
   const headers = new Headers(init.headers);
+  const project = getApiProject();
+  if (project) headers.set("X-KB-Project", project);
   if (!isFormData && init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
@@ -548,6 +559,11 @@ export const api = {
   getSession: (): Promise<OperatorSession> =>
     request<OperatorSession>("/session"),
 
+  getOperatorProjects: async (): Promise<OperatorProject[]> => {
+    const res = await request<{ data: OperatorProject[] }>("/v1/kb/operator/projects");
+    return res.data ?? [];
+  },
+
   getStatus: async (): Promise<KbStatus> => {
     const [res, schemas, drafts, entities, relationships, traces, reports] =
       await Promise.all([
@@ -559,17 +575,29 @@ export const api = {
         request<{ traces: RawQueryTraceRecord[] }>("/v1/kb/query/traces?limit=50"),
         request<{ reports: RawEvalReportRecord[] }>("/v1/kb/evals/reports?limit=50"),
       ]);
-    const entries = res.data ?? [];
-    const recentTraces = traces.traces?.length ?? 0;
-    const recentReports = reports.reports?.length ?? 0;
+    const entries = (res.data ?? []).filter((entry) => !isInternalDomain(entry.domain));
+    const recentTraces = (traces.traces ?? []).filter(
+      (trace) => !isInternalDomain(trace.domain),
+    ).length;
+    const recentReports = (reports.reports ?? []).filter(
+      (report) => !report.domain || !isInternalDomain(report.domain),
+    ).length;
     return {
       domains: entries.length,
       files: entries.reduce((sum, e) => sum + e.file_count, 0),
       jobs: entries.reduce((sum, e) => sum + e.active_jobs + e.failed_jobs, 0),
-      schemas: schemas.data?.filter((s) => s.is_active === 1).length ?? 0,
-      schema_drafts: drafts.data?.length ?? 0,
-      entities: entities.entities?.length ?? 0,
-      relationships: relationships.relationships?.length ?? 0,
+      schemas: schemas.data?.filter(
+        (schema) => schema.is_active === 1 && !isInternalDomain(schema.domain),
+      ).length ?? 0,
+      schema_drafts: drafts.data?.filter(
+        (draft) => !isInternalDomain(draft.domain),
+      ).length ?? 0,
+      entities: entities.entities?.filter(
+        (entity) => !isInternalDomain(entity.domain),
+      ).length ?? 0,
+      relationships: relationships.relationships?.filter(
+        (relationship) => !isInternalDomain(relationship.domain),
+      ).length ?? 0,
       traces: recentTraces,
       eval_reports: recentReports,
       recent_traces: recentTraces,
@@ -582,13 +610,15 @@ export const api = {
       "/v1/kb/domains",
     );
     return {
-      domains: (res.data ?? []).map((d) => ({
-        name: d.name,
-        description: d.description,
-        embedding_model: d.embedding_model,
-        embedding_provider: d.embedding_provider,
-        created_at: d.created_at,
-      })),
+      domains: (res.data ?? [])
+        .filter((domain) => !isInternalDomain(domain.name))
+        .map((d) => ({
+          name: d.name,
+          description: d.description,
+          embedding_model: d.embedding_model,
+          embedding_provider: d.embedding_provider,
+          created_at: d.created_at,
+        })),
     };
   },
 
@@ -608,7 +638,9 @@ export const api = {
       `/v1/kb/files${query}`,
     );
     return {
-      files: (res.data ?? []).map(toFile),
+      files: (res.data ?? [])
+        .filter((file) => !isInternalDomain(file.domain))
+        .map(toFile),
     };
   },
 
@@ -619,7 +651,9 @@ export const api = {
       `/v1/kb/jobs?${params}`,
     );
     return {
-      jobs: (res.jobs ?? []).map(toJob),
+      jobs: (res.jobs ?? [])
+        .filter((job) => !isInternalDomain(job.domain))
+        .map(toJob),
     };
   },
 
@@ -630,14 +664,21 @@ export const api = {
       `/v1/kb/query/traces?${params}`,
     );
     return {
-      traces: (res.traces ?? []).map(toTrace),
+      traces: (res.traces ?? [])
+        .filter((trace) => !isInternalDomain(trace.domain))
+        .map(toTrace),
     };
   },
 
-  exportTraces: (domain?: string): Promise<TraceExport> => {
+  exportTraces: async (domain?: string): Promise<TraceExport> => {
     const params = new URLSearchParams({ limit: "50" });
     if (domain) params.set("domain", domain);
-    return request<TraceExport>(`/v1/kb/query/traces/export?${params}`);
+    const result = await request<TraceExport>(`/v1/kb/query/traces/export?${params}`);
+    if (isInternalScopeVisible()) return result;
+    return {
+      ...result,
+      traces: result.traces.filter((trace) => !isInternalDomain(trace.domain)),
+    };
   },
 
   getTraceDrilldown: (id: string): Promise<TraceDrilldown> =>
@@ -669,6 +710,7 @@ export const api = {
   getSchemas: async (domain?: string): Promise<SchemaRecord[]> => {
     const res = await request<{ data: RawSchemaRecord[] }>("/v1/kb/schemas");
     return (res.data ?? [])
+      .filter((schema) => !isInternalDomain(schema.domain))
       .filter((s) => !domain || s.domain === domain)
       .map((s) => ({
         id: s.id,
@@ -779,7 +821,7 @@ export const api = {
     const res = await request<{ entities: RawEntityRecord[] }>(
       `/v1/kb/entities?${params}`,
     );
-    return res.entities ?? [];
+    return (res.entities ?? []).filter((entity) => !isInternalDomain(entity.domain));
   },
 
   getRelationships: async (domain?: string): Promise<RelationshipRecord[]> => {
@@ -788,7 +830,9 @@ export const api = {
     const res = await request<{ relationships: RawRelationshipRecord[] }>(
       `/v1/kb/relationships?${params}`,
     );
-    return res.relationships ?? [];
+    return (res.relationships ?? []).filter(
+      (relationship) => !isInternalDomain(relationship.domain),
+    );
   },
 
   getChunks: async (domain?: string, fileId?: string): Promise<ChunkEntry[]> => {
@@ -798,7 +842,7 @@ export const api = {
     const res = await request<{ chunks: RawChunkRecord[] }>(
       `/v1/kb/chunks?${params}`,
     );
-    return res.chunks ?? [];
+    return (res.chunks ?? []).filter((chunk) => !isInternalDomain(chunk.domain));
   },
 
   backfillRelationships: (domain: string) =>

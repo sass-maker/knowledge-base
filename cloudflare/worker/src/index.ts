@@ -3582,6 +3582,20 @@ export function createApp(options: AppOptions = {}) {
 
   app.use('/v1/*', requireServiceKey);
 
+  app.get('/v1/kb/operator/projects', async (c) => {
+    if (c.get('credentialKind') !== 'dashboard') {
+      return c.json({ error: 'Dashboard credential required' }, 403);
+    }
+    const repo = makeMetadataRepository(c.env);
+    const projects = await repo.listProjects();
+    return c.json({
+      data: projects.map((project) => ({
+        ...project,
+        project: project.name,
+      })),
+    });
+  });
+
   app.get('/v1/kb/projects', async (c) => {
     const tenant = c.get('tenant');
     const repo = makeMetadataRepository(c.env);

@@ -1,19 +1,18 @@
 ---
-title: Knowledgebase docs
-description: Private Agent Search — cited RAG over private, specialized corpora. Product, architecture, operations, and durable learnings for the knowledgebase fleet RAG service.
+title: SaaS Maker Knowledgebase docs
+description: Private shared cited RAG for SaaS Maker projects. Product, architecture, operations, and durable learnings for the independent Knowledgebase service.
 ---
 
-# Knowledgebase docs
+# SaaS Maker Knowledgebase docs
 
 > Source of truth is the Markdown in this `docs/` tree (plus the code).
 > Blume renders it; it does not own it. See
 > [`docs/maintenance.md`](maintenance.md) for how to edit this knowledge system.
 
-**Knowledgebase** is the fleet `RAG_SERVICE`: a Cloudflare Worker that does
-cited search and grounded answers over private, specialized document
-collections. Exa-style search for corpora the open web cannot reach — research
-papers, company private information, filings, contracts, manuals, notes — with
-explicit schemas and `(file, page, excerpt)` provenance for agents.
+**Knowledgebase** is SaaS Maker's private shared `RAG_SERVICE`: an independently
+deployed Cloudflare Worker that gives child projects cited search and grounded
+answers over private, specialized document collections. Every useful response
+retains `(file, page, excerpt)` provenance for agents.
 
 - **Live status:** [`STATUS.md`](../STATUS.md)
 - **Agent bootloader:** [`AGENTS.md`](../AGENTS.md)

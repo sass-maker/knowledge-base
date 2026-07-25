@@ -17,7 +17,7 @@ interface ProxyContext {
   };
 }
 
-const REQUEST_HEADERS = ["accept", "content-type", "if-match"];
+const REQUEST_HEADERS = ["accept", "content-type", "if-match", "x-kb-project"];
 const RESPONSE_HEADERS = [
   "cache-control",
   "content-disposition",
