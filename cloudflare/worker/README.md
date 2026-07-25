@@ -57,6 +57,8 @@ wrangler r2 bucket create rag-raw-docs
 wrangler secret put RAG_SERVICE_KEYS
 # Optional, non-disruptive extra key map for temporary verification/cutover keys:
 wrangler secret put RAG_SERVICE_KEYS_APPEND
+# Optional, non-disruptive key map for the internal operator dashboard:
+wrangler secret put RAG_SERVICE_DASHBOARD_KEYS
 # Optional, non-disruptive key map for short-lived proof/eval runs:
 wrangler secret put RAG_SERVICE_PROOF_KEYS
 ```
@@ -72,10 +74,11 @@ the `knowledgebase_rag_events` dataset on first write.
 }
 ```
 
-`RAG_SERVICE_KEYS_APPEND` and `RAG_SERVICE_PROOF_KEYS` have the same shape and
-are merged after `RAG_SERVICE_KEYS`. Use append for temporary cutover keys and
-proof keys for short-lived verification/eval runs when you must avoid
-overwriting primary or consumer key maps.
+`RAG_SERVICE_KEYS_APPEND`, `RAG_SERVICE_DASHBOARD_KEYS`, and
+`RAG_SERVICE_PROOF_KEYS` have the same shape and are merged after
+`RAG_SERVICE_KEYS`. Use append for temporary cutover keys, dashboard keys for
+the internal operator surface, and proof keys for short-lived verification/eval
+runs without overwriting primary or consumer key maps.
 
 Do not commit real keys.
 

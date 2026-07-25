@@ -62,7 +62,8 @@ the retired sibling RAG service.
 **Fail-closed auth:** `app.use('/v1/*', requireServiceKey)` runs after the
 public health routes. Invalid/missing key → `401`. `RAG_SERVICE_KEYS` is a
 JSON map of `{key: tenant}`; `RAG_SERVICE_KEYS_APPEND` and
-`RAG_SERVICE_PROOF_KEYS` extend it. Constant-time comparison.
+`RAG_SERVICE_DASHBOARD_KEYS` and `RAG_SERVICE_PROOF_KEYS` extend it.
+Constant-time comparison.
 
 **Cited-or-it-didn't-happen invariant:** every retrieval/answer route
 terminates at a retrievable `(file_id, page, excerpt)` triple. The stored-chunk

@@ -157,8 +157,9 @@ idempotent because retries can deliver the same message multiple times.
 
 **Decision:** `Authorization: Bearer <key>` or `X-RAG-Key`. `RAG_SERVICE_KEYS`
 maps keys to tenant names. `RAG_SERVICE_KEYS_APPEND` allows temporary cutover
-keys without overwriting the primary map; `RAG_SERVICE_PROOF_KEYS` is for
-short-lived proof/eval runs.
+keys without overwriting the primary map; `RAG_SERVICE_DASHBOARD_KEYS` isolates
+the internal operator credential; `RAG_SERVICE_PROOF_KEYS` is for short-lived
+proof/eval runs.
 
 **Why:** Fleet consumers share one Worker; tenant isolation is enforced at the
 index/chunk/metadata level. Append-only keys let verification happen without
