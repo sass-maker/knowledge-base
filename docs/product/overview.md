@@ -40,13 +40,12 @@ wrong answers, enforced as a data invariant across every retrieval path
 | --- | --- | --- | --- |
 | RAG Worker (fleet `RAG_SERVICE`) | `cloudflare/worker/` | Hono Worker, Workers AI, Vectorize, D1, R2, Queues, Workflows | `https://knowledgebase.sarthakagrawal927.workers.dev` |
 | Worker testing UI | Worker `/` and `/ui` | Inline HTML in Worker | same Worker |
-| Landing page | `landing-astro/` | Astro (static) → Cloudflare Pages | `https://knowledgebase.sassmaker.com` |
 | Dashboard app | `app/` | Vite + React (static) → Cloudflare Pages | `https://search.sassmaker.com` |
 | Demo domains | `domains/sec/`, `domains/legal/` | YAML schema + config + eval sets | ingested into the Worker |
 
 The Worker `/v1/*` API is the canonical integration surface. The dashboard and
-testing UI are operator tools; the landing page is public marketing. The
-detailed route inventory lives in
+testing UI are operator tools. There is no separate public marketing surface.
+The detailed route inventory lives in
 [`cloudflare/worker/README.md`](../../cloudflare/worker/README.md) — do not
 duplicate it here.
 

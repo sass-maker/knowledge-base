@@ -33,12 +33,12 @@ the non-negotiable product invariant.
   overall A+ (readiness, scoped query eval, lexical `kb-search`, semantic
   `kb-query`, ingestion, observability, hosted UI). Final benchmark p95s:
   lexical 99.46 ms, semantic 550.73 ms; query eval hit/citation rates 1.0.
-- **Frontend surfaces:** Astro landing on Cloudflare Pages; Vite + React
-  dashboard deployed on Cloudflare Pages at `search.sassmaker.com`; Worker
-  `/ui` operator testing surface. The former OpenNext Worker remains available
-  on its `workers.dev` hostname as a rollback target, but no longer owns the
-  production custom domain. Home, operator configuration, navigation, and
-  direct `/domains` deep-link smoke passed after the 2026-07-25 cutover.
+- **Frontend surfaces:** Vite + React dashboard deployed on Cloudflare Pages at
+  `search.sassmaker.com`; Worker `/ui` operator testing surface. The former
+  OpenNext Worker remains available on its `workers.dev` hostname as a rollback
+  target, but no longer owns the production custom domain. Home, operator
+  configuration, navigation, and direct `/domains` deep-link smoke passed after
+  the 2026-07-25 cutover.
 - **Deployed corpus is opt-in.** The cutover shipped code + infra parity, not
   a full demo-corpus backfill. Demo `legal`/`sec` query corpora need an
   explicit ingestion run before they answer production questions.

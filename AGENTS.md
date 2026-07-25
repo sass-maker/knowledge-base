@@ -23,14 +23,14 @@ repo is retired; do not recreate it.
 
 ## Repo shape
 
-Monorepo, **three independently-built packages**, no root `package.json`, no
-root workspace. Each package has its own `pnpm-lock.yaml` — install per package.
+Monorepo with **two independently-built product packages** and separate root
+docs tooling. There is no root workspace. Each package has its own
+`pnpm-lock.yaml` — install per package.
 
 | Package | Path | Stack |
 | --- | --- | --- |
 | RAG Worker (the product) | `cloudflare/worker/` | Hono, Workers AI, Vectorize, D1, R2, Queues, Workflows |
 | Dashboard app | `app/` | Vite + React (static) → Cloudflare Pages |
-| Landing page | `landing-astro/` | Astro (static) → Cloudflare Pages |
 
 Retired reference: `src/kb/` (Python), root `migrations/` (legacy Postgres),
 `data/` (local corpus, gitignored). Active D1 migrations:
@@ -49,7 +49,6 @@ pnpm run predeploy:local # the full local pre-deploy gate (asks for sibling repo
 pnpm deploy              # wrangler deploy — ASK before touching prod
 
 # App (from app/)            pnpm install / pnpm dev / pnpm build / pnpm typecheck
-# Landing (from landing-astro/)  pnpm install / pnpm build / pnpm preview
 
 # Docs (from repo root)
 pnpm install --frozen-lockfile

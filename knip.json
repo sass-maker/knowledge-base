@@ -32,7 +32,6 @@
     "**/examples/**",
     "app/**",
     "cloudflare/**",
-    "landing-astro/**",
     "src/**",
     "migrations/**",
     "domains/**",

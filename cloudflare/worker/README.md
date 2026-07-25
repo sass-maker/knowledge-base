@@ -11,19 +11,17 @@ custom-input, search, and query contract present.
 
 ## Frontend surfaces
 
-This repo has three frontend surfaces, each independently deployed:
+This repo has two operator frontend surfaces:
 
 | Surface | Path | Stack | Deploy |
 | --- | --- | --- | --- |
-| **Landing page** | `landing-astro/` | Astro (static) → Cloudflare Pages | `https://search.sassmaker.com` |
-| **Dashboard app** | `app/` | Next.js 16 → Cloudflare Workers (OpenNext) | `https://search.sassmaker.com` |
+| **Dashboard app** | `app/` | Vite + React (static) → Cloudflare Pages | `https://search.sassmaker.com` |
 | **Operator testing UI** | Worker `/` and `/ui` | Inline HTML in Worker | `https://knowledgebase.sarthakagrawal927.workers.dev/ui` |
 
-The landing page is the public marketing surface. The dashboard app is the
-operator/admin UI for managing domains, ingesting files, running queries,
-and viewing evals — it talks to this Worker's `/v1/*` API from the browser
-using a user-provided service key. The Worker `/ui` remains as the
-low-level operator testing surface for direct API control.
+The dashboard app is the operator/admin UI for managing domains, ingesting
+files, running queries, and viewing evals — it talks to this Worker's `/v1/*`
+API from the browser using a user-provided service key. The Worker `/ui` remains
+as the low-level operator testing surface for direct API control.
 
 ## Local Checks
 
