@@ -19,9 +19,12 @@ This repo has two operator frontend surfaces:
 | **Operator testing UI** | Worker `/` and `/ui` | Inline HTML in Worker | `https://knowledgebase.sarthakagrawal927.workers.dev/ui` |
 
 The dashboard app is the operator/admin UI for managing domains, ingesting
-files, running queries, and viewing evals — it talks to this Worker's `/v1/*`
-API from the browser using a user-provided service key. The Worker `/ui` remains
-as the low-level operator testing surface for direct API control.
+files, inspecting stored data, running queries, reviewing query history, and
+viewing evals. Cloudflare Access authenticates the human; a same-origin Pages
+Function validates that identity and adds the Worker service key server-side.
+The Worker `/ui` remains as the low-level operator testing surface for direct
+API control. See
+[`docs/operations/dashboard-access.md`](../../docs/operations/dashboard-access.md).
 
 ## Local Checks
 
@@ -248,6 +251,7 @@ public health/readiness/metrics probes.
 - `POST /v1/kb/files/:file_id/reprocess`
 - `DELETE /v1/kb/files/:file_id`
 - `POST /v1/kb/files/upload`
+- `GET /v1/kb/chunks`
 - `GET /v1/kb/sources`
 - `POST /v1/kb/sources/import`
 - `GET /v1/kb/source-sets`

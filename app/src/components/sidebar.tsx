@@ -1,40 +1,44 @@
 import { AppLink as Link } from "@/components/app-link";
 import { usePathname } from "@/lib/router";
 import { cn } from "@/lib/utils";
+import { useOperator } from "@/components/access-guard";
 import {
   LayoutDashboard,
   Database,
   Search,
   FileUp,
   FlaskConical,
-  Activity,
+  History,
   Settings,
+  TableProperties,
 } from "lucide-react";
 
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/data", label: "Data", icon: TableProperties },
+  { href: "/history", label: "Query history", icon: History },
   { href: "/domains", label: "Domains", icon: Database },
   { href: "/query", label: "Query", icon: Search },
   { href: "/ingest", label: "Ingest", icon: FileUp },
   { href: "/evals", label: "Evals", icon: FlaskConical },
-  { href: "/traces", label: "Traces", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const operator = useOperator();
   return (
-    <aside className="flex h-svh w-60 flex-col border-r border-border bg-card">
-      <div className="flex items-center gap-2.5 border-b border-border px-5 py-4">
+    <aside className="flex h-svh w-16 shrink-0 flex-col border-r border-border bg-card sm:w-60">
+      <div className="flex items-center gap-2.5 border-b border-border px-4 py-4 sm:px-5">
         <span
           className="flex size-8 items-center justify-center rounded-lg font-mono text-sm font-bold"
           style={{ backgroundColor: "var(--accent)", color: "var(--accent-foreground)" }}
         >
           KB
         </span>
-        <div className="flex flex-col">
+        <div className="hidden flex-col sm:flex">
           <span className="text-sm font-semibold text-foreground">Knowledgebase</span>
-          <span className="text-xs text-muted-foreground">Dashboard</span>
+          <span className="text-xs text-muted-foreground">Internal operator</span>
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 p-3">
@@ -48,19 +52,24 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              aria-label={item.label}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                "flex min-h-10 items-center justify-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 sm:justify-start",
                 active
                   ? "nav-item-active bg-primary/10 text-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground hover:translate-x-0.5",
               )}
             >
               <Icon className={cn("size-4 transition-transform", active && "text-accent")} />
-              {item.label}
+              <span className="hidden sm:inline">{item.label}</span>
             </Link>
           );
         })}
       </nav>
+      <div className="hidden border-t border-border px-4 py-3 sm:block">
+        <p className="truncate text-xs font-medium text-foreground">{operator.email}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">Access verified</p>
+      </div>
     </aside>
   );
 }

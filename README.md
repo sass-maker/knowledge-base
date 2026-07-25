@@ -60,6 +60,7 @@ have:
 
 **Operator-flavored**
 - [`docs/operations/runbook.md`](docs/operations/runbook.md) — operator runbook
+- [`docs/operations/dashboard-access.md`](docs/operations/dashboard-access.md) — internal dashboard identity and proxy setup
 - [`docs/product/demo-walkthrough.md`](docs/product/demo-walkthrough.md) — guided demo
 - [`docs/product/onboard-new-domain.md`](docs/product/onboard-new-domain.md) — adding a third domain in ~30 min
 - [`docs/product/agent-search-direction.md`](docs/product/agent-search-direction.md) — product direction + gap map

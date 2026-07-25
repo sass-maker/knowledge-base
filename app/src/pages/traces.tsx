@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   api,
@@ -7,51 +7,112 @@ import {
   type TraceDrilldown,
 } from "@/lib/api";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardTitle } from "@/components/card";
 import { Button } from "@/components/button";
 import { formatMs, formatScore, formatTime } from "@/lib/utils";
 import {
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Download,
+  History,
   Loader2,
   Microscope,
+  Search,
 } from "lucide-react";
 
-export default function TracesPage() {
+const PAGE_SIZE = 15;
+
+function downloadJson(filename: string, value: unknown) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function QueryHistoryPage() {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [domain, setDomain] = useState("");
+  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState("");
   const [traces, setTraces] = useState<Trace[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [exportSummary, setExportSummary] = useState<Record<string, unknown> | null>(null);
   const [drilldowns, setDrilldowns] = useState<Record<string, TraceDrilldown>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(0);
 
   useEffect(() => {
-    api.getDomains().then((d) => {
-      setDomains(d.domains ?? []);
-      if (d.domains?.length > 0 && !domain) setDomain(d.domains[0].name);
-    }).catch(() => {});
-  }, [domain]);
+    api.getDomains()
+      .then((result) => setDomains(result.domains ?? []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
-    if (!domain) return;
+    let cancelled = false;
     setLoading(true);
     setError(null);
-    setExportSummary(null);
-    api.getTraces(domain)
-      .then((r) => setTraces(r.traces ?? []))
-      .catch((e) =>
-        setError(e instanceof ApiError ? `API error ${e.status}` : String(e)),
-      )
-      .finally(() => setLoading(false));
-  }, [domain]);
+    api.getTraces()
+      .then((result) => {
+        if (cancelled) return;
+        setTraces(result.traces ?? []);
+        const requested = new URLSearchParams(window.location.search).get("trace");
+        if (requested && result.traces.some((trace) => trace.id === requested)) {
+          setExpanded(new Set([requested]));
+        }
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setError(cause instanceof ApiError ? `API error ${cause.status}` : String(cause));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setPage(0);
+  }, [domain, mode, query]);
+
+  const modes = useMemo(
+    () => [...new Set(traces.map((trace) => trace.mode).filter(Boolean))].sort(),
+    [traces],
+  );
+
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return traces.filter((trace) =>
+      (!domain || trace.domain === domain)
+      && (!mode || trace.mode === mode)
+      && (
+        !normalized
+        || trace.question.toLowerCase().includes(normalized)
+        || (trace.answer ?? "").toLowerCase().includes(normalized)
+        || trace.citations.some((citation) =>
+          citation.document.toLowerCase().includes(normalized)
+          || citation.content.toLowerCase().includes(normalized),
+        )
+      ),
+    );
+  }, [domain, mode, query, traces]);
+
+  const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
   function toggle(id: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
+    setExpanded((current) => {
+      const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
@@ -59,14 +120,16 @@ export default function TracesPage() {
   }
 
   async function handleExport() {
-    if (!domain) return;
     setBusy("export");
     setError(null);
+    setNotice(null);
     try {
-      const exported = await api.exportTraces(domain);
-      setExportSummary(exported.summary);
-    } catch (e) {
-      setError(e instanceof ApiError ? `API error ${e.status}` : String(e));
+      const exported = await api.exportTraces(domain || undefined);
+      const filename = `knowledgebase-query-history-${domain || "all"}-${new Date().toISOString().slice(0, 10)}.json`;
+      downloadJson(filename, exported);
+      setNotice(`Exported ${exported.traces.length} query traces`);
+    } catch (cause) {
+      setError(cause instanceof ApiError ? `API error ${cause.status}` : String(cause));
     } finally {
       setBusy(null);
     }
@@ -77,10 +140,10 @@ export default function TracesPage() {
     setError(null);
     try {
       const drilldown = await api.getTraceDrilldown(id);
-      setDrilldowns((prev) => ({ ...prev, [id]: drilldown }));
-      setExpanded((prev) => new Set(prev).add(id));
-    } catch (e) {
-      setError(e instanceof ApiError ? `API error ${e.status}` : String(e));
+      setDrilldowns((current) => ({ ...current, [id]: drilldown }));
+      setExpanded((current) => new Set(current).add(id));
+    } catch (cause) {
+      setError(cause instanceof ApiError ? `API error ${cause.status}` : String(cause));
     } finally {
       setBusy(null);
     }
@@ -89,13 +152,13 @@ export default function TracesPage() {
   return (
     <>
       <PageHeader
-        title="Traces"
-        description="Query history, citations, and answer support drilldown"
+        title="Query history"
+        description="Inspect questions, answers, citations, and retrieval quality"
         action={
           <Button
             size="sm"
             variant="secondary"
-            disabled={!domain || busy === "export"}
+            disabled={busy === "export" || loading}
             onClick={handleExport}
           >
             {busy === "export" ? (
@@ -103,158 +166,260 @@ export default function TracesPage() {
             ) : (
               <Download className="size-4" />
             )}
-            Export
+            Export JSON
           </Button>
         }
       />
-      <div className="flex flex-col gap-6 p-6">
+      <div className="flex flex-col gap-5 p-4 sm:p-6">
         {error && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         )}
-
-        <label className="flex max-w-xs flex-col gap-1.5">
-          <span className="text-sm font-medium text-foreground">Domain</span>
-          <select
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            className="h-10 rounded-md border border-input bg-background px-3 font-mono text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            {domains.map((d) => (
-              <option key={d.name} value={d.name}>{d.name}</option>
-            ))}
-          </select>
-        </label>
-
-        {exportSummary && (
-          <Card>
-            <CardTitle>Export summary</CardTitle>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {Object.entries(exportSummary).map(([key, value]) => (
-                <div
-                  key={key}
-                  className="rounded-lg border border-border bg-background/50 px-3 py-2"
-                >
-                  <div className="text-xs text-muted-foreground">{key}</div>
-                  <div className="truncate font-mono text-sm text-foreground">
-                    {typeof value === "object" ? JSON.stringify(value) : String(value)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {loading ? (
-          <div className="text-sm text-muted-foreground">Loading traces…</div>
-        ) : traces.length === 0 ? (
-          <Card>
-            <p className="text-sm text-muted-foreground">
-              No traces for this domain yet. Run a query to generate one.
-            </p>
-          </Card>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {traces.slice(0, 50).map((t) => {
-              const isOpen = expanded.has(t.id);
-              const drilldown = drilldowns[t.id];
-              const quality = drilldown?.quality ?? {};
-              const supportScore = quality.support_score;
-              return (
-                <div
-                  key={t.id}
-                  className="overflow-hidden rounded-lg border border-border bg-card"
-                >
-                  <button
-                    onClick={() => toggle(t.id)}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50"
-                  >
-                    {isOpen ? (
-                      <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                    )}
-                    <span className="flex-1 truncate text-sm text-foreground">
-                      {t.question}
-                    </span>
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                      {t.mode}
-                    </span>
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                      {t.citations.length} cites
-                    </span>
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                      {formatMs(t.latency_ms)}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatTime(t.created_at)}
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <div className="expand-down flex flex-col gap-4 border-t border-border px-4 py-3">
-                      {t.answer && (
-                        <p className="text-sm leading-relaxed text-foreground">
-                          {t.answer}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span className="font-mono">{t.id.slice(0, 12)}</span>
-                        {typeof supportScore === "number" && (
-                          <span className="rounded border border-border px-2 py-1 font-mono">
-                            support {formatScore(supportScore)}
-                          </span>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={busy === t.id}
-                          onClick={() => handleDrilldown(t.id)}
-                        >
-                          {busy === t.id ? (
-                            <Loader2 className="size-4 spin" />
-                          ) : (
-                            <Microscope className="size-4" />
-                          )}
-                          Drilldown
-                        </Button>
-                      </div>
-
-                      {t.citations.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                          {t.citations.map((citation, i) => (
-                            <div
-                              key={`${citation.chunk_id}-${i}`}
-                              className="rounded-lg border border-border bg-background/50 px-3 py-2"
-                            >
-                              <div className="mb-1 flex items-center justify-between gap-3 text-xs">
-                                <span className="truncate font-mono text-foreground">
-                                  {citation.document}
-                                </span>
-                                <span className="font-mono text-muted-foreground">
-                                  {formatScore(citation.score)}
-                                </span>
-                              </div>
-                              <p className="line-clamp-3 text-sm text-muted-foreground">
-                                {citation.content}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {drilldown && (
-                        <pre className="max-h-80 overflow-auto rounded-lg border border-border bg-background/50 p-3 font-mono text-xs text-foreground">
-                          {JSON.stringify(quality, null, 2)}
-                        </pre>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+        {notice && (
+          <div className="rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">
+            {notice}
           </div>
         )}
+
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+          <label className="flex min-w-52 flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Domain</span>
+            <select
+              value={domain}
+              onChange={(event) => setDomain(event.target.value)}
+              className="h-10 rounded-md border border-input bg-background px-3 font-mono text-sm text-foreground"
+            >
+              <option value="">All domains</option>
+              {domains.map((item) => (
+                <option key={item.name} value={item.name}>{item.name}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex min-w-64 flex-1 flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Search history</span>
+            <span className="relative">
+              <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Question, answer, or cited source…"
+                className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground"
+              />
+            </span>
+          </label>
+
+          <label className="flex min-w-44 flex-col gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Route</span>
+            <select
+              value={mode}
+              onChange={(event) => setMode(event.target.value)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            >
+              <option value="">All routes</option>
+              {modes.map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          {loading ? (
+            <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+              <Loader2 className="size-4 spin" />
+              Loading query history…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex min-h-64 flex-col items-center justify-center gap-2 px-6 text-center">
+              <History className="size-6 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">No matching queries</p>
+              <p className="max-w-md text-sm text-muted-foreground">
+                {query || domain || mode
+                  ? "Clear the filters to widen this view."
+                  : "Run a cited query to create the first trace."}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-[960px] w-full text-left text-sm">
+                  <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
+                    <tr>
+                      <th className="w-10 px-3 py-2.5"><span className="sr-only">Expand</span></th>
+                      <th className="px-3 py-2.5 font-medium">Question</th>
+                      <th className="px-3 py-2.5 font-medium">Domain</th>
+                      <th className="px-3 py-2.5 font-medium">Route</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Citations</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Latency</th>
+                      <th className="px-4 py-2.5 text-right font-medium">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {pageRows.map((trace) => {
+                      const isOpen = expanded.has(trace.id);
+                      const drilldown = drilldowns[trace.id];
+                      const supportScore = drilldown?.quality?.support_score;
+                      return (
+                        <Fragment key={trace.id}>
+                          <tr className="hover:bg-muted/20">
+                            <td className="px-3 py-3">
+                              <button
+                                type="button"
+                                aria-label={isOpen ? "Collapse trace" : "Expand trace"}
+                                aria-expanded={isOpen}
+                                onClick={() => toggle(trace.id)}
+                                className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                              >
+                                {isOpen ? (
+                                  <ChevronUp className="size-4" />
+                                ) : (
+                                  <ChevronDown className="size-4" />
+                                )}
+                              </button>
+                            </td>
+                            <td className="max-w-xl px-3 py-3">
+                              <button
+                                type="button"
+                                onClick={() => toggle(trace.id)}
+                                className="line-clamp-2 text-left font-medium leading-relaxed text-foreground"
+                              >
+                                {trace.question}
+                              </button>
+                              <p className="mt-1 font-mono text-[11px] text-muted-foreground">{trace.id}</p>
+                            </td>
+                            <td className="px-3 py-3 font-mono text-xs">{trace.domain}</td>
+                            <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{trace.mode}</td>
+                            <td className="px-3 py-3 text-right font-mono text-xs">{trace.citations.length}</td>
+                            <td className="px-3 py-3 text-right font-mono text-xs">{formatMs(trace.latency_ms)}</td>
+                            <td className="px-4 py-3 text-right text-xs text-muted-foreground">
+                              {formatTime(trace.created_at)}
+                            </td>
+                          </tr>
+                          {isOpen && (
+                            <tr className="bg-background/40">
+                              <td colSpan={7} className="px-4 py-5 sm:px-12">
+                                <div className="flex flex-col gap-5">
+                                  <section>
+                                    <h3 className="text-xs font-semibold text-muted-foreground">Answer</h3>
+                                    <p className="mt-2 max-w-4xl whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                                      {trace.answer || "No synthesized answer was recorded."}
+                                    </p>
+                                  </section>
+
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {typeof supportScore === "number" && (
+                                      <span className="rounded-full bg-accent/10 px-2.5 py-1 font-mono text-xs text-accent">
+                                        support {formatScore(supportScore)}
+                                      </span>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      disabled={busy === trace.id}
+                                      onClick={() => handleDrilldown(trace.id)}
+                                    >
+                                      {busy === trace.id ? (
+                                        <Loader2 className="size-4 spin" />
+                                      ) : (
+                                        <Microscope className="size-4" />
+                                      )}
+                                      Quality drilldown
+                                    </Button>
+                                  </div>
+
+                                  <section>
+                                    <h3 className="text-xs font-semibold text-muted-foreground">
+                                      Citations ({trace.citations.length})
+                                    </h3>
+                                    {trace.citations.length === 0 ? (
+                                      <p className="mt-2 text-sm text-destructive">
+                                        No citations were recorded for this trace.
+                                      </p>
+                                    ) : (
+                                      <div className="mt-2 divide-y divide-border rounded-lg border border-border">
+                                        {trace.citations.map((citation, index) => (
+                                          <div
+                                            key={`${trace.id}-${citation.chunk_id}-${index}`}
+                                            className="grid gap-2 px-3 py-3 md:grid-cols-[minmax(0,1fr)_auto]"
+                                          >
+                                            <div>
+                                              <p className="text-sm leading-relaxed text-foreground">
+                                                {citation.content}
+                                              </p>
+                                              <p className="mt-2 font-mono text-[11px] text-muted-foreground">
+                                                {citation.document} · file {citation.file_id ?? "unknown"} ·
+                                                {" "}page {citation.page_start === citation.page_end
+                                                  ? citation.page_start
+                                                  : `${citation.page_start}–${citation.page_end}`}
+                                              </p>
+                                            </div>
+                                            <span className="font-mono text-xs text-muted-foreground">
+                                              {formatScore(citation.score)}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </section>
+
+                                  {drilldown && (
+                                    <details>
+                                      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                                        Raw quality signals
+                                      </summary>
+                                      <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs text-foreground">
+                                        {JSON.stringify(drilldown.quality, null, 2)}
+                                      </pre>
+                                    </details>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
+                <span>
+                  {page * PAGE_SIZE + 1}–{Math.min(filtered.length, (page + 1) * PAGE_SIZE)} of {filtered.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label="Previous page"
+                    disabled={page === 0}
+                    onClick={() => setPage((value) => value - 1)}
+                  >
+                    <ChevronLeft className="size-4" />
+                  </Button>
+                  <span className="font-mono">{page + 1}/{pages}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label="Next page"
+                    disabled={page + 1 >= pages}
+                    onClick={() => setPage((value) => value + 1)}
+                  >
+                    <ChevronRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Query History loads the latest 50 traces for this tenant. Export uses
+          the same authenticated history boundary.
+        </p>
       </div>
     </>
   );

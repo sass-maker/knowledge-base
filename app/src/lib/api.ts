@@ -1,9 +1,8 @@
-// API client for the Knowledgebase RAG Worker.
+// API client for the Knowledgebase internal operator dashboard.
 //
-// The Worker uses service-key auth (Authorization: Bearer). The key is
-// entered by the operator in the dashboard UI and stored in localStorage
-// — same pattern as the existing Worker testing-ui. This is an
-// operator/admin tool, not a public-facing app.
+// Browser requests stay same-origin under /api. A Cloudflare Pages Function
+// validates the operator's Access identity and adds Worker service-key auth
+// server-side, so the service key never enters browser storage or JavaScript.
 //
 // Response shapes are mapped from the actual Worker API responses:
 // - GET /v1/kb/status → { data: CorpusStatusRecord[] }
@@ -18,52 +17,7 @@
 // - POST /v1/kb/ingest/text → { file_id, ... } (200/201)
 // - POST /v1/kb/ingest/run → { run_id, ... } (202)
 
-const KEY_STORAGE = "kb_service_key";
-const URL_STORAGE = "kb_service_url";
-
-export function getServiceKey(): string {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem(KEY_STORAGE) ?? "";
-}
-
-export function setServiceKey(key: string): void {
-  if (typeof window === "undefined") return;
-  if (key) localStorage.setItem(KEY_STORAGE, key);
-  else localStorage.removeItem(KEY_STORAGE);
-}
-
-export function getServiceUrl(): string {
-  if (typeof window === "undefined") return "";
-  return (
-    localStorage.getItem(URL_STORAGE) ??
-    import.meta.env.VITE_RAG_SERVICE_URL ??
-    "https://knowledgebase.sarthakagrawal927.workers.dev"
-  );
-}
-
-export function setServiceUrl(url: string): void {
-  if (typeof window === "undefined") return;
-  if (url) localStorage.setItem(URL_STORAGE, url);
-  else localStorage.removeItem(URL_STORAGE);
-}
-
-export function isConfigured(): boolean {
-  return getServiceKey().length > 0 && getServiceUrl().length > 0;
-}
-
-function baseUrl(): string {
-  const url = getServiceUrl().replace(/\/+$/, "");
-  if (!url) throw new Error("Service URL not configured");
-  return url;
-}
-
-function authHeaders(json = true): Record<string, string> {
-  const h: Record<string, string> = {
-    Authorization: `Bearer ${getServiceKey()}`,
-  };
-  if (json) h["Content-Type"] = "application/json";
-  return h;
-}
+const API_BASE = "/api";
 
 export class ApiError extends Error {
   status: number;
@@ -80,9 +34,14 @@ async function request<T>(
   init: RequestInit = {},
 ): Promise<T> {
   const isFormData = init.body instanceof FormData;
-  const res = await fetch(`${baseUrl()}${path}`, {
+  const headers = new Headers(init.headers);
+  if (!isFormData && init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { ...authHeaders(!isFormData && Boolean(init.body)), ...init.headers },
+    headers,
+    credentials: "same-origin",
   });
   const text = await res.text();
   let body: unknown;
@@ -100,9 +59,14 @@ async function requestWithHeaders<T>(
   init: RequestInit = {},
 ): Promise<{ body: T; headers: Headers }> {
   const isFormData = init.body instanceof FormData;
-  const res = await fetch(`${baseUrl()}${path}`, {
+  const headers = new Headers(init.headers);
+  if (!isFormData && init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { ...authHeaders(!isFormData && Boolean(init.body)), ...init.headers },
+    headers,
+    credentials: "same-origin",
   });
   const text = await res.text();
   let body: unknown;
@@ -142,6 +106,14 @@ export interface DomainList {
   domains: Domain[];
 }
 
+export interface OperatorSession {
+  operator: {
+    email: string;
+    subject: string;
+    expiresAt: number | null;
+  };
+}
+
 export interface CorpusStatusEntry {
   domain: string;
   has_schema: number;
@@ -177,6 +149,7 @@ export interface Job {
   status: string;
   stage: string;
   created_at: string;
+  updated_at: string;
   error: string | null;
   failure_classification?: string | null;
   replay_route?: string | null;
@@ -190,14 +163,29 @@ export interface FileEntry {
   id: string;
   domain: string;
   filename: string;
+  mime: string | null;
   content_hash: string;
   size: number;
   status: string;
   created_at: string;
+  updated_at: string;
+  error: string | null;
 }
 
 export interface FileList {
   files: FileEntry[];
+}
+
+export interface ChunkEntry {
+  id: string;
+  domain: string;
+  file_id: string;
+  vector_id: string;
+  page_start: number;
+  page_end: number;
+  text: string;
+  content_hash: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface SearchResults {
@@ -240,6 +228,9 @@ export interface Trace {
     document: string;
     content: string;
     score: number;
+    file_id: string | null;
+    page_start: number;
+    page_end: number;
   }>;
   confidence: Record<string, unknown> | null;
 }
@@ -360,6 +351,7 @@ interface RawFileRecord {
   bytes: number;
   content_hash: string;
   status: string;
+  last_error: string | null;
   uploaded_at: string;
   updated_at: string;
 }
@@ -390,6 +382,8 @@ interface RawCitationRecord {
   chunk_id: string;
   file_id: string | null;
   filename: string | null;
+  page_start: number;
+  page_end: number;
   excerpt: string;
   span_terms?: string[];
   score: number;
@@ -477,6 +471,19 @@ interface RawRelationshipRecord {
   evidence_page?: number | null;
 }
 
+interface RawChunkRecord {
+  id: string;
+  project: string;
+  domain: string;
+  file_id: string;
+  vector_id: string;
+  page_start: number;
+  page_end: number;
+  text: string;
+  content_hash: string | null;
+  metadata: Record<string, unknown>;
+}
+
 function toJob(j: RawJobRecord): Job {
   return {
     id: j.id,
@@ -485,6 +492,7 @@ function toJob(j: RawJobRecord): Job {
     status: j.status,
     stage: j.stage,
     created_at: j.created_at,
+    updated_at: j.updated_at,
     error: j.last_error,
   };
 }
@@ -494,10 +502,13 @@ function toFile(f: RawFileRecord): FileEntry {
     id: f.id,
     domain: f.domain,
     filename: f.filename,
+    mime: f.mime,
     content_hash: f.content_hash,
     size: f.bytes,
     status: f.status,
     created_at: f.uploaded_at,
+    updated_at: f.updated_at,
+    error: f.last_error,
   };
 }
 
@@ -524,6 +535,9 @@ function toTrace(t: RawQueryTraceRecord): Trace {
       document: c.filename ?? c.document_id,
       content: c.excerpt,
       score: c.score,
+      file_id: c.file_id,
+      page_start: c.page_start,
+      page_end: c.page_end,
     })),
   };
 }
@@ -531,6 +545,9 @@ function toTrace(t: RawQueryTraceRecord): Trace {
 // ── API methods ────────────────────────────────────────────────
 
 export const api = {
+  getSession: (): Promise<OperatorSession> =>
+    request<OperatorSession>("/session"),
+
   getStatus: async (): Promise<KbStatus> => {
     const [res, schemas, drafts, entities, relationships, traces, reports] =
       await Promise.all([
@@ -585,37 +602,43 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getFiles: async (domain: string): Promise<FileList> => {
+  getFiles: async (domain?: string): Promise<FileList> => {
+    const query = domain ? `?domain=${encodeURIComponent(domain)}` : "";
     const res = await request<{ data: RawFileRecord[] }>(
-      `/v1/kb/files?domain=${encodeURIComponent(domain)}`,
+      `/v1/kb/files${query}`,
     );
     return {
       files: (res.data ?? []).map(toFile),
     };
   },
 
-  getJobs: async (domain: string): Promise<JobList> => {
+  getJobs: async (domain?: string): Promise<JobList> => {
+    const params = new URLSearchParams({ limit: "500" });
+    if (domain) params.set("domain", domain);
     const res = await request<{ jobs: RawJobRecord[] }>(
-      `/v1/kb/jobs?domain=${encodeURIComponent(domain)}`,
+      `/v1/kb/jobs?${params}`,
     );
     return {
       jobs: (res.jobs ?? []).map(toJob),
     };
   },
 
-  getTraces: async (domain: string): Promise<TraceList> => {
+  getTraces: async (domain?: string): Promise<TraceList> => {
+    const params = new URLSearchParams({ limit: "50" });
+    if (domain) params.set("domain", domain);
     const res = await request<{ traces: RawQueryTraceRecord[] }>(
-      `/v1/kb/query/traces?domain=${encodeURIComponent(domain)}`,
+      `/v1/kb/query/traces?${params}`,
     );
     return {
       traces: (res.traces ?? []).map(toTrace),
     };
   },
 
-  exportTraces: (domain: string): Promise<TraceExport> =>
-    request<TraceExport>(
-      `/v1/kb/query/traces/export?domain=${encodeURIComponent(domain)}&limit=50`,
-    ),
+  exportTraces: (domain?: string): Promise<TraceExport> => {
+    const params = new URLSearchParams({ limit: "50" });
+    if (domain) params.set("domain", domain);
+    return request<TraceExport>(`/v1/kb/query/traces/export?${params}`);
+  },
 
   getTraceDrilldown: (id: string): Promise<TraceDrilldown> =>
     request<TraceDrilldown>(`/v1/kb/query/trace/${encodeURIComponent(id)}/drilldown`),
@@ -750,18 +773,32 @@ export const api = {
     };
   },
 
-  getEntities: async (domain: string): Promise<EntityRecord[]> => {
+  getEntities: async (domain?: string): Promise<EntityRecord[]> => {
+    const params = new URLSearchParams({ limit: "500" });
+    if (domain) params.set("domain", domain);
     const res = await request<{ entities: RawEntityRecord[] }>(
-      `/v1/kb/entities?domain=${encodeURIComponent(domain)}&limit=50`,
+      `/v1/kb/entities?${params}`,
     );
     return res.entities ?? [];
   },
 
-  getRelationships: async (domain: string): Promise<RelationshipRecord[]> => {
+  getRelationships: async (domain?: string): Promise<RelationshipRecord[]> => {
+    const params = new URLSearchParams({ limit: "500" });
+    if (domain) params.set("domain", domain);
     const res = await request<{ relationships: RawRelationshipRecord[] }>(
-      `/v1/kb/relationships?domain=${encodeURIComponent(domain)}&limit=50`,
+      `/v1/kb/relationships?${params}`,
     );
     return res.relationships ?? [];
+  },
+
+  getChunks: async (domain?: string, fileId?: string): Promise<ChunkEntry[]> => {
+    const params = new URLSearchParams({ limit: "500" });
+    if (domain) params.set("domain", domain);
+    if (fileId) params.set("file_id", fileId);
+    const res = await request<{ chunks: RawChunkRecord[] }>(
+      `/v1/kb/chunks?${params}`,
+    );
+    return res.chunks ?? [];
   },
 
   backfillRelationships: (domain: string) =>

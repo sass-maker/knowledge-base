@@ -4,4 +4,5 @@ node_modules/
 dist/
 cloudflare-env.d.ts
 .wrangler/
+.dev.vars*
 *.tsbuildinfo
