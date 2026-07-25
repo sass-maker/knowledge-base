@@ -11,15 +11,14 @@ description: Per-package commands, pre-commit hooks, CI, and branching for the k
 
 ## Repo shape
 
-Monorepo with **three independently-built packages** and no root
-`package.json` / no root workspace. Each package has its own `pnpm-lock.yaml`.
+Monorepo with **two independently-built product packages** plus separate root
+docs tooling and no root workspace. Each package has its own `pnpm-lock.yaml`.
 Install per package.
 
 | Package | Path | Stack | Build |
 | --- | --- | --- | --- |
 | RAG Worker | `cloudflare/worker/` | Hono, Workers AI, Vectorize, D1, R2 | `wrangler` |
 | Dashboard app | `app/` | Vite + React (static) | `tsc --noEmit` → `vite build` |
-| Landing page | `landing-astro/` | Astro (static) | `astro build` |
 
 Legacy Python artifacts (`src/kb/`, `migrations/01_*..07_*`, Docker Compose)
 are retired reference material. The active D1 migrations live in
@@ -43,14 +42,14 @@ pnpm dev                 # vite
 pnpm build               # typecheck + static dist build
 pnpm typecheck           # tsc --noEmit
 pnpm check               # typecheck + lint
-pnpm preview:cf          # build + local Pages preview
+pnpm preview:cf          # build + full Pages Functions preview (uses ignored .dev.vars)
 pnpm deploy:cf           # Pages direct upload — ASK before touching prod
-
-# Landing (from landing-astro/)
-pnpm install
-pnpm build               # astro build
-pnpm preview             # astro preview
 ```
+
+`pnpm dev` serves only the Vite shell; authenticated `/api` calls require the
+Pages Functions runtime. See
+[`operations/dashboard-access.md`](../operations/dashboard-access.md) for the
+ignored local bindings and production Access configuration.
 
 The root `Makefile` wraps the most common Worker gates (`make worker-check`,
 `make worker-preflight`, `make worker-gaps`, `make worker-predeploy-local`,
@@ -111,6 +110,9 @@ build). See [`maintenance.md`](../maintenance.md).
   credentials, kube configs, and production configs are off-limits. The
   pre-commit `detect-private-key` hook guards PEM-style keys; it is not a
   substitute for judgment.
+- **Dashboard credentials are server-side.** Never expose `RAG_SERVICE_KEY`
+  through a `VITE_*` variable or browser storage. The Pages Function owns the
+  Worker credential; Cloudflare Access owns human identity.
 - **Do not recreate a sibling `rag-service`.** `audit:sibling-rag-service
   --require-retired` is a release gate. See
   [`architecture/decisions.md`](../architecture/decisions.md) A1.

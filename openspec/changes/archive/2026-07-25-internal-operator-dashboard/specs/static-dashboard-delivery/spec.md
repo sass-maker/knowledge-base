@@ -1,15 +1,4 @@
-# static-dashboard-delivery Specification
-
-## Purpose
-TBD - created by archiving change migrate-dashboard-to-vite. Update Purpose after archive.
-## Requirements
-### Requirement: Static dashboard build
-The dashboard SHALL build as a static Vite and React artifact without requiring
-a Next.js or server runtime.
-
-#### Scenario: Production build
-- **WHEN** the dashboard production build runs
-- **THEN** it emits a self-contained `dist/` directory suitable for Cloudflare Pages
+## MODIFIED Requirements
 
 ### Requirement: Dashboard route parity
 
@@ -48,11 +37,3 @@ store, or transmit the service key in browser code.
 
 - **WHEN** the operator has no valid Cloudflare Access session
 - **THEN** protected dashboard data is not rendered and no Worker request is forwarded
-
-### Requirement: Public agent assets
-The static dashboard SHALL continue serving its public `llms.txt`,
-`llms-full.txt`, `index.md`, robots, and JSON agent-description assets.
-
-#### Scenario: Agent fetches a public asset
-- **WHEN** an unauthenticated client requests a published agent asset
-- **THEN** the static host returns the checked-in file without loading the dashboard application

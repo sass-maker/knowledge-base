@@ -4017,6 +4017,21 @@ export function createApp(options: AppOptions = {}) {
     return c.json(file);
   });
 
+  app.get('/v1/kb/chunks', async (c) => {
+    const repo = makeMetadataRepository(c.env);
+    const domain = c.req.query('domain')?.trim() || undefined;
+    const fileId = c.req.query('file_id')?.trim() || undefined;
+    const requestedLimit = Number(c.req.query('limit') ?? 100);
+    const limit = Number.isFinite(requestedLimit) ? requestedLimit : 100;
+    const chunks = await repo.listKbChunks(c.get('tenant'), domain, fileId, limit);
+    return c.json({
+      project: c.get('tenant'),
+      domain: domain ?? null,
+      file_id: fileId ?? null,
+      chunks,
+    });
+  });
+
   app.post('/v1/kb/files/:file_id/reprocess', async (c) => {
     const tenant = c.get('tenant');
     const repo = makeMetadataRepository(c.env);

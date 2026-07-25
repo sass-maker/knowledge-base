@@ -1,6 +1,7 @@
-import { ConfigGuard } from "@/components/config-guard";
+import { AccessGuard } from "@/components/access-guard";
 import { Sidebar } from "@/components/sidebar";
 import { isAppPath, usePathname } from "@/lib/router";
+import DataPage from "@/pages/data";
 import DomainsPage from "@/pages/domains";
 import EvalsPage from "@/pages/evals";
 import IngestPage from "@/pages/ingest";
@@ -11,10 +12,12 @@ import TracesPage from "@/pages/traces";
 
 const PAGES = {
   "/": OverviewPage,
+  "/data": DataPage,
   "/domains": DomainsPage,
   "/query": QueryPage,
   "/ingest": IngestPage,
   "/evals": EvalsPage,
+  "/history": TracesPage,
   "/traces": TracesPage,
   "/settings": SettingsPage,
 } as const;
@@ -36,15 +39,15 @@ export default function App() {
   const Page = isAppPath(pathname) ? PAGES[pathname] : NotFoundPage;
 
   return (
-    <div className="flex min-h-svh w-full">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="page-fade flex flex-1 flex-col overflow-y-auto">
-          <ConfigGuard>
+    <AccessGuard>
+      <div className="flex min-h-svh w-full">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="page-fade flex min-w-0 flex-1 flex-col overflow-y-auto">
             <Page />
-          </ConfigGuard>
+          </div>
         </div>
       </div>
-    </div>
+    </AccessGuard>
   );
 }

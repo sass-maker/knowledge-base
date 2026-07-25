@@ -4,7 +4,13 @@ import { PageHeader } from "@/components/page-header";
 import { StatCard, Card, CardTitle, Skeleton } from "@/components/card";
 import { formatTime } from "@/lib/utils";
 import { AppLink as Link } from "@/components/app-link";
-import { Database, Search, FlaskConical, ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  Database,
+  History,
+  Search,
+  TableProperties,
+} from "lucide-react";
 import { Onboarding, isOnboardingDone } from "@/components/onboarding";
 
 export default function OverviewPage() {
@@ -56,7 +62,7 @@ export default function OverviewPage() {
     <>
       <PageHeader
         title="Overview"
-        description="Fleet RAG service status at a glance"
+        description="Internal control surface for private corpus search"
       />
       <div className="flex flex-col gap-6 p-6">
         {error && (
@@ -154,25 +160,25 @@ export default function OverviewPage() {
                 <CardTitle>Quick actions</CardTitle>
                 <div className="flex flex-col gap-2">
                   <Link
+                    href="/data"
+                    className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm"
+                  >
+                    <TableProperties className="size-4 text-muted-foreground" />
+                    <span className="text-foreground">Inspect corpus data</span>
+                  </Link>
+                  <Link
+                    href="/history"
+                    className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm"
+                  >
+                    <History className="size-4 text-muted-foreground" />
+                    <span className="text-foreground">Review query history</span>
+                  </Link>
+                  <Link
                     href="/query"
                     className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm"
                   >
                     <Search className="size-4 text-muted-foreground" />
-                    <span className="text-foreground">Run a query</span>
-                  </Link>
-                  <Link
-                    href="/ingest"
-                    className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm"
-                  >
-                    <FlaskConical className="size-4 text-muted-foreground" />
-                    <span className="text-foreground">Ingest files</span>
-                  </Link>
-                  <Link
-                    href="/evals"
-                    className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm"
-                  >
-                    <FlaskConical className="size-4 text-muted-foreground" />
-                    <span className="text-foreground">Run an eval</span>
+                    <span className="text-foreground">Run a cited query</span>
                   </Link>
                 </div>
               </Card>

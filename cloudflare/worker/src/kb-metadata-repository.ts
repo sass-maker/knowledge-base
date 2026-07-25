@@ -128,6 +128,19 @@ export interface KbChunkInput {
   metadata?: JsonRecord;
 }
 
+export interface KbChunkRecord {
+  id: string;
+  project: string;
+  domain: string;
+  file_id: string;
+  vector_id: string;
+  page_start: number;
+  page_end: number;
+  text: string;
+  content_hash: string | null;
+  metadata: JsonRecord;
+}
+
 export interface EntityRecord {
   id: string;
   project: string;
@@ -292,6 +305,7 @@ export interface MetadataRepository {
   getFile(project: string, id: string): Promise<FileRecord | null>;
   setFileStatus(project: string, id: string, status: string, error?: string | null): Promise<void>;
   listKbChunkVectorIds(project: string, fileIds: string[]): Promise<string[]>;
+  listKbChunks(project: string, domain?: string, fileId?: string, limit?: number): Promise<KbChunkRecord[]>;
   deleteFiles(project: string, fileIds: string[]): Promise<FileRecord[]>;
   upsertParseArtifact(input: {
     contentHash: string;
@@ -360,6 +374,7 @@ type StoredQueryTrace = Omit<QueryTraceRecord, 'filters' | 'retrieved' | 'citati
 };
 type StoredEntity = Omit<EntityRecord, 'fields'> & { fields: string };
 type StoredRelationship = EntityRelationshipRecord;
+type StoredKbChunk = Omit<KbChunkRecord, 'metadata'> & { metadata: string };
 type StoredLineageAncestor = {
   id: string;
   type: string;
@@ -433,6 +448,10 @@ function rowToEntity(row: StoredEntity): EntityRecord {
 
 function rowToRelationship(row: StoredRelationship): EntityRelationshipRecord {
   return row;
+}
+
+function rowToKbChunk(row: StoredKbChunk): KbChunkRecord {
+  return { ...row, metadata: parseJson<JsonRecord>(row.metadata, {}) };
 }
 
 function rowToEvalReport(row: StoredEvalReport): EvalReportRecord {
@@ -994,6 +1013,37 @@ export class D1MetadataRepository implements MetadataRepository {
       .bind(project, ...ids)
       .all<{ vector_id: string }>();
     return (result.results ?? []).map((row) => row.vector_id).filter(Boolean);
+  }
+
+  async listKbChunks(
+    project: string,
+    domain?: string,
+    fileId?: string,
+    limit = 100,
+  ): Promise<KbChunkRecord[]> {
+    const clauses = ['project = ?'];
+    const values: Array<string | number> = [project];
+    if (domain) {
+      clauses.push('domain = ?');
+      values.push(domain);
+    }
+    if (fileId) {
+      clauses.push('file_id = ?');
+      values.push(fileId);
+    }
+    values.push(Math.min(Math.max(Math.trunc(limit), 1), 500));
+    const result = await this.db
+      .prepare(
+        `SELECT id, project, domain, file_id, vector_id, page_start, page_end,
+                text, content_hash, metadata
+           FROM kb_chunks
+          WHERE ${clauses.join(' AND ')}
+          ORDER BY rowid DESC
+          LIMIT ?`,
+      )
+      .bind(...values)
+      .all<StoredKbChunk>();
+    return (result.results ?? []).map(rowToKbChunk);
   }
 
   async deleteFiles(project: string, fileIds: string[]): Promise<FileRecord[]> {

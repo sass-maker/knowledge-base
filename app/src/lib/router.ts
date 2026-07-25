@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 
 export const ROUTES = [
   "/",
+  "/data",
   "/domains",
+  "/history",
   "/query",
   "/ingest",
   "/evals",

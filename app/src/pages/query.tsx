@@ -286,7 +286,7 @@ export default function QueryPage() {
                 )}
                 {queryResult.trace_id && (
                   <Link
-                    href="/traces"
+                    href={`/history?trace=${encodeURIComponent(queryResult.trace_id)}`}
                     className="text-accent underline-offset-4 hover:underline"
                   >
                     Trace: {queryResult.trace_id.slice(0, 8)}

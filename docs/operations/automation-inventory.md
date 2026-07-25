@@ -49,6 +49,7 @@ the retired sibling RAG service.
 | Domains | `GET/POST /v1/kb/domains` | service key | domain name, embedding model — no corpus text |
 | Schemas | `GET/POST /v1/kb/schemas`, `GET /v1/kb/schemas/:domain/active`, `POST /v1/kb/schemas/:domain/reprocess`, `POST /v1/kb/schemas/infer[-upload]`, `GET/POST /v1/kb/schemas/drafts[/:draft_id/(apply\|discard)]` | service key | schema spec, draft status — no source document bodies |
 | Files | `GET/POST /v1/kb/files`, `GET /v1/kb/files/:file_id`, `POST /v1/kb/files/:file_id/reprocess`, `DELETE /v1/kb/files/:file_id`, `POST /v1/kb/files/upload` | service key | file metadata, status, last_error (truncated 500 chars) — no chunk text |
+| Stored chunks | `GET /v1/kb/chunks` | service key | bounded tenant-scoped excerpts with file and page provenance; private corpus content, operator-only |
 | Status / jobs | `GET /v1/kb/status`, `GET /v1/kb/jobs`, `GET /v1/kb/ingest/jobs/:job_id`, `GET /v1/kb/ingest/runs/:run_id` | service key | job status, stage, attempts, `failure_classification` — no document contents |
 | Sources | `GET /v1/kb/sources`, `POST /v1/kb/sources/import`, `GET/POST /v1/kb/source-sets[/:id/actions]` | service key | source metadata, action receipts — no corpus text |
 | Ingest | `POST /v1/kb/ingest/record`, `POST /v1/kb/ingest/text`, `POST /v1/kb/ingest/run` | service key | job id, enqueued count, queue backlog, workflow instance id — no source text in durable evidence |
@@ -64,9 +65,10 @@ JSON map of `{key: tenant}`; `RAG_SERVICE_KEYS_APPEND` and
 `RAG_SERVICE_PROOF_KEYS` extend it. Constant-time comparison.
 
 **Cited-or-it-didn't-happen invariant:** every retrieval/answer route
-terminates at a retrievable `(file_id, page, excerpt)` triple. Durable
-evidence (job/trace/eval routes) stores metadata + latency + failure class
-only — **no prompts, retrieved chunks, or corpus content**.
+terminates at a retrievable `(file_id, page, excerpt)` triple. The stored-chunk
+route makes that evidence inspectable to an authenticated operator. Foundry
+evidence snapshots must still exclude prompts, retrieved chunks, and corpus
+content.
 
 ## Background and index lifecycle
 

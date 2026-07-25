@@ -31,6 +31,7 @@ explicit schemas and `(file, page, excerpt)` provenance for agents.
 | Run the Worker locally / ship a change | [`development/workflows.md`](development/workflows.md) |
 | Run tests, evals, smokes, readiness gates | [`development/testing.md`](development/testing.md) |
 | Operate or debug a deployment | [`operations/runbook.md`](operations/runbook.md) |
+| Configure the internal operator dashboard | [`operations/dashboard-access.md`](operations/dashboard-access.md) |
 | Add a new corpus domain | [`product/onboard-new-domain.md`](product/onboard-new-domain.md) |
 | Call the API from an agent | [`product/agent-tool-contract.md`](product/agent-tool-contract.md) |
 
@@ -61,6 +62,7 @@ explicit schemas and `(file, page, excerpt)` provenance for agents.
 ### Operations
 
 - [`operations/runbook.md`](operations/runbook.md) — worker checks, deployed smoke, parse eval, failure modes
+- [`operations/dashboard-access.md`](operations/dashboard-access.md) — Cloudflare Access, Pages proxy, local preview, and release order
 - [`operations/hosting-personal.md`](operations/hosting-personal.md) — personal hosting checklist
 - [`operations/highsignal-integration.md`](operations/highsignal-integration.md) — fleet consumer integration notes
 - [`operations/jobs.md`](operations/jobs.md) — async ingestion (Queues + Workflows); no scheduled jobs

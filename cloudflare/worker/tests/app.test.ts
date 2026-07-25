@@ -16,6 +16,7 @@ import type {
   InsertEvalReportInput,
   InsertQueryTraceInput,
   KbChunkInput,
+  KbChunkRecord,
   MetadataRepository,
   ParseArtifactRecord,
   ProjectRecord,
@@ -435,6 +436,33 @@ class MemoryMetadataRepository implements MetadataRepository {
       .filter((chunk) => chunk.project === project && selected.has(chunk.fileId))
       .map((chunk) => chunk.vectorId)
       .filter(Boolean);
+  }
+
+  async listKbChunks(
+    project: string,
+    domain?: string,
+    fileId?: string,
+    limit = 100,
+  ): Promise<KbChunkRecord[]> {
+    return [...this.chunks.values()]
+      .filter((chunk) =>
+        chunk.project === project
+        && (!domain || chunk.domain === domain)
+        && (!fileId || chunk.fileId === fileId),
+      )
+      .slice(0, Math.min(Math.max(Math.trunc(limit), 1), 500))
+      .map((chunk) => ({
+        id: chunk.id,
+        project: chunk.project,
+        domain: chunk.domain,
+        file_id: chunk.fileId,
+        vector_id: chunk.vectorId,
+        page_start: chunk.pageStart,
+        page_end: chunk.pageEnd,
+        text: chunk.text,
+        content_hash: chunk.contentHash ?? null,
+        metadata: chunk.metadata ?? {},
+      }));
   }
 
   async deleteFiles(project: string, fileIds: string[]): Promise<FileRecord[]> {
@@ -2899,6 +2927,79 @@ describe('knowledgebase RAG Worker app', () => {
     expect(rawDocs.deletes).toContain('raw/manuals/sha256-guide');
     expect(rawDocs.deletes).toContain('parse/manuals/sha256-guide.json');
     expect(afterDelete.status).toBe(404);
+  });
+
+  it('lists stored chunks with tenant, domain, file, and limit boundaries', async () => {
+    const metadata = new MemoryMetadataRepository();
+    const app = createApp({ makeMetadataRepository: () => metadata });
+    const env = makeEnv(new FakeVectorize());
+    metadata.chunks.set('tenant-a-1', {
+      id: 'tenant-a-1',
+      project: 'tenant-a',
+      domain: 'manuals',
+      fileId: 'file-a',
+      vectorId: 'vector-a-1',
+      pageStart: 2,
+      pageEnd: 3,
+      text: 'Operator-visible cited excerpt',
+      metadata: { section: 'Setup' },
+    });
+    metadata.chunks.set('tenant-a-2', {
+      id: 'tenant-a-2',
+      project: 'tenant-a',
+      domain: 'contracts',
+      fileId: 'file-b',
+      vectorId: 'vector-a-2',
+      pageStart: 1,
+      pageEnd: 1,
+      text: 'Different domain',
+    });
+    metadata.chunks.set('tenant-b-1', {
+      id: 'tenant-b-1',
+      project: 'tenant-b',
+      domain: 'manuals',
+      fileId: 'file-c',
+      vectorId: 'vector-b-1',
+      pageStart: 9,
+      pageEnd: 9,
+      text: 'Must remain isolated',
+    });
+
+    const invalidLimit = await app.request(
+      '/v1/kb/chunks?domain=manuals&limit=not-a-number',
+      { headers: { Authorization: 'Bearer key-a' } },
+      env,
+    );
+    expect(invalidLimit.status).toBe(200);
+    await expect(invalidLimit.json()).resolves.toEqual(
+      expect.objectContaining({
+        chunks: [expect.objectContaining({ id: 'tenant-a-1' })],
+      }),
+    );
+
+    const response = await app.request(
+      '/v1/kb/chunks?domain=manuals&file_id=file-a&limit=1',
+      { headers: { Authorization: 'Bearer key-a' } },
+      env,
+    );
+    const body = (await response.json()) as { chunks: KbChunkRecord[] };
+
+    expect(response.status).toBe(200);
+    expect(body.chunks).toEqual([
+      expect.objectContaining({
+        id: 'tenant-a-1',
+        project: 'tenant-a',
+        domain: 'manuals',
+        file_id: 'file-a',
+        page_start: 2,
+        page_end: 3,
+        text: 'Operator-visible cited excerpt',
+        metadata: { section: 'Setup' },
+      }),
+    ]);
+    expect(body.chunks).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ project: 'tenant-b' })]),
+    );
   });
 
   it('gets entity detail, lineage, and relationship aliases', async () => {
