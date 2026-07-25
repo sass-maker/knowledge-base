@@ -45,16 +45,18 @@ the non-negotiable product invariant.
 - **Deployed corpus is live.** The `legal` and `sec` domains contain queryable
   files, entities, relationships, and recorded traces, but they are evaluation
   fixtures rather than SaaS Maker project data.
+- **SaaS Maker project operator view:** live. The Access-protected dashboard
+  discovers project scopes through a dashboard-only Worker route, selects
+  Research Papers by default, switches independently to Starboard, and hides
+  demo/test/proof scopes unless the operator enables them. Deployed from
+  `777c39e`: Worker version `ec4b9572-9942-4009-9716-3d723106acca`; Pages
+  deployment `07c5c2b9-7c37-4e08-8213-4efbacd708ab`.
 
 ## Active work
 
 - Docs consolidation (this branch): unify scattered root-level and `docs/`
   markdown into one canonical knowledge system with Blume as the presentation
   layer only. See `docs/index.md`.
-- SaaS Maker child-project operator view (local, not deployed): keep this repo
-  and deployment independent, let the dedicated dashboard credential switch
-  project scopes, and hide demo/test/proof data by default. See OpenSpec change
-  `2026-07-25-saas-maker-child-project-operator-view`.
 
 ## Blockers
 
