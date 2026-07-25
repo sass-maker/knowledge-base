@@ -38,29 +38,21 @@ the non-negotiable product invariant.
   OpenNext Worker remains available on its `workers.dev` hostname as a rollback
   target, but no longer owns the production custom domain. Home, operator
   configuration, navigation, and direct `/domains` deep-link smoke passed after
-  the 2026-07-25 cutover. The deployed dashboard still uses the prior
-  browser-provided service-key flow until the internal-operator change is
-  configured and released.
-- **Deployed corpus is opt-in.** The cutover shipped code + infra parity, not
-  a full demo-corpus backfill. Demo `legal`/`sec` query corpora need an
-  explicit ingestion run before they answer production questions.
+  the 2026-07-25 cutover. The internal dashboard is now protected by Cloudflare
+  Access with a single-email allow policy on the custom, Pages, and preview
+  hostnames; its server-side proxy uses a dedicated tenant-scoped Worker
+  credential. Live Data, Query History, and cited-query verification passed.
+- **Deployed corpus is live.** The `legal` and `sec` domains contain queryable
+  files, entities, relationships, and recorded traces.
 
 ## Active work
 
 - Docs consolidation (this branch): unify scattered root-level and `docs/`
   markdown into one canonical knowledge system with Blume as the presentation
   layer only. See `docs/index.md`.
-- Internal operator dashboard (local, not deployed): Cloudflare Access identity,
-  server-side Pages proxy, tenant-scoped Data inspection, and cross-domain Query
-  History. See archived OpenSpec change
-  `2026-07-25-internal-operator-dashboard`.
 
 ## Blockers
 
-- **Internal dashboard release:** Pages still needs the Access application,
-  `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `RAG_SERVICE_URL`, and the
-  server-side `RAG_SERVICE_KEY` secret. The Worker chunk route must deploy
-  before the dashboard. See `docs/operations/dashboard-access.md`.
 - **S-grade proof:** missing `KARTE_SESSION_COOKIE` and
   `STARBOARD_SESSION_COOKIE` for authenticated product-session smokes. This
   is not a Cloudflare runtime gap. Without them `smoke:consumer-auth` reports
@@ -81,20 +73,18 @@ the non-negotiable product invariant.
 
 ## Next steps
 
-1. Configure and release the internal operator dashboard in Worker-then-Pages
-   order, then verify identity, Data, Query History, and one cited query.
-2. Complete live S-grade consumer proof once session cookies are available:
+1. Complete live S-grade consumer proof once session cookies are available:
    `KARTE_SESSION_COOKIE=<cookie> STARBOARD_SESSION_COOKIE=<cookie> pnpm run
    smoke:consumer-auth -- --require-authenticated`, then re-run `proof:s`.
-3. Add first-class ingest idempotency / failure-classification proof so the
+2. Add first-class ingest idempotency / failure-classification proof so the
    ingestion category can move from A+ to S without relying on route presence.
-4. Keep post-cutover regression gates current whenever Worker routes,
+3. Keep post-cutover regression gates current whenever Worker routes,
    parser/OCR behavior, or fleet RAG consumers change: `pnpm run check`,
    `pnpm run gaps:full-port -- --json`, `pnpm run audit:sibling-rag-service
    -- --json`, deployed `smoke:legacy-routes --require-complete`.
-5. Richer eval trend views per project/kind/filter on top of persisted Worker
+4. Richer eval trend views per project/kind/filter on top of persisted Worker
    eval reports.
-6. Framework-specific agent integration examples + an HTTP contract
+5. Framework-specific agent integration examples + an HTTP contract
    compatibility test around the stable `/v1/kb/query` contract.
 
 ## Deferred (durable)
