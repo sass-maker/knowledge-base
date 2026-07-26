@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --local",
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --tag \"$(git rev-parse HEAD)\"",
     "deploy:dry-run": "wrangler deploy --dry-run",
     "predeploy:local": "node scripts/predeploy-local.mjs",
     "benchmark:rag": "node scripts/benchmark-rag.mjs",
