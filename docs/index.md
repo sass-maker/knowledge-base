@@ -63,7 +63,6 @@ retains `(file, page, excerpt)` provenance for agents.
 - [`operations/runbook.md`](operations/runbook.md) — worker checks, deployed smoke, parse eval, failure modes
 - [`operations/dashboard-access.md`](operations/dashboard-access.md) — Cloudflare Access, Pages proxy, local preview, and release order
 - [`operations/hosting-personal.md`](operations/hosting-personal.md) — personal hosting checklist
-- [`operations/highsignal-integration.md`](operations/highsignal-integration.md) — fleet consumer integration notes
 - [`operations/jobs.md`](operations/jobs.md) — async ingestion (Queues + Workflows); no scheduled jobs
 - [`operations/automation-inventory.md`](operations/automation-inventory.md) — automation inventory and Foundry evidence contract (auth-safe health, sanitized evidence, storage ownership, maintenance-only authority)
 
@@ -73,6 +72,7 @@ retains `(file, page, excerpt)` provenance for agents.
 - [`knowledge/failed-approaches.md`](knowledge/failed-approaches.md) — methodology bugs, ghost features, and resolved traps
 - [`knowledge/new-things.md`](knowledge/new-things.md) — study queue for non-standard tech in this repo
 - [`knowledge/archive/`](knowledge/archive/) — preserved snapshots (Python-era notes, submission brief, external review, status log)
+- [`knowledge/archive/highsignal-integration-cancelled-2026-07-25.md`](knowledge/archive/highsignal-integration-cancelled-2026-07-25.md) — cancelled High Signal integration proposal
 
 ### Meta
 

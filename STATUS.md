@@ -51,6 +51,10 @@ the non-negotiable product invariant.
   demo/test/proof scopes unless the operator enables them. Deployed from
   `777c39e`: Worker version `ec4b9572-9942-4009-9716-3d723106acca`; Pages
   deployment `07c5c2b9-7c37-4e08-8213-4efbacd708ab`.
+- **Consumer boundary:** Karte remains an active Knowledgebase consumer for
+  indexed profile memory. High Signal integration is cancelled: its current
+  public-evidence workflow already has product-owned Git + D1 retrieval and
+  does not need private-corpus search.
 
 ## Active work
 
@@ -69,14 +73,6 @@ the non-negotiable product invariant.
 - **Semantic p99 < 300 ms on completely unique cold misses:** query-result and
   normalized embedding caches cover hot/repeated questions across isolates, not
   first-seen misses.
-
-## Unresolved questions
-
-- Does HighSignal need a dedicated schema template, or can it use Worker
-  schema inference? (phase-2 integration; see
-  `docs/operations/highsignal-integration.md`)
-- Should signal publication store knowledgebase trace IDs alongside generated
-  claims? (same)
 
 ## Next steps
 
@@ -99,8 +95,6 @@ the non-negotiable product invariant.
 - Public multi-user hosting (until auth, per-project authorization, upload
   limits, rate limits, job cancellation, backup drills, log redaction).
 - Connector marketplace (manual/private corpus search remains the wedge).
-- High Signal integration (phase-2; storage/ingest ownership must be decided
-  first).
 - Per-project service-key rotation UI.
 - Queue/workflow ingestion at scale on Worker.
 - Exact Qdrant BM42 model equivalence on Worker (Cloudflare Vectorize is not

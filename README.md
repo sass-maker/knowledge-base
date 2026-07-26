@@ -78,7 +78,7 @@ have:
 - [`docs/knowledge/archive/session-log.md`](docs/knowledge/archive/session-log.md) — post-submission session log.
 - [`docs/knowledge/archive/project-status-2026-06-28.md`](docs/knowledge/archive/project-status-2026-06-28.md) — detailed status snapshot.
 - [`docs/knowledge/archive/cloudflare-agent-handoff.md`](docs/knowledge/archive/cloudflare-agent-handoff.md) — migration handoff snapshot.
-- [`docs/operations/highsignal-integration.md`](docs/operations/highsignal-integration.md) — fleet consumer integration notes.
+- [`docs/knowledge/archive/highsignal-integration-cancelled-2026-07-25.md`](docs/knowledge/archive/highsignal-integration-cancelled-2026-07-25.md) — cancelled High Signal integration proposal.
 
 **Maintaining the docs themselves**
 - [`docs/maintenance.md`](docs/maintenance.md) — how to edit this knowledge system, validate links, and build with Blume.
