@@ -15,7 +15,7 @@
   "devDependencies": {
     "astro": "5.18.2",
     "blume": "0.8.0",
-    "knip": "^6.6.3",
+    "knip": "^6.29.0",
     "sharp": "0.34.3"
   },
   "engines": {
