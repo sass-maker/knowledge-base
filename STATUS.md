@@ -55,6 +55,9 @@ the non-negotiable product invariant.
   indexed profile memory. High Signal integration is cancelled: its current
   public-evidence workflow already has product-owned Git + D1 retrieval and
   does not need private-corpus search.
+- **Owned release history:** the Access-protected dashboard now includes a
+  same-origin `/changelog` with verified editorial milestones. Planned work
+  remains in GitHub Issues; Source points to the canonical organization repo.
 
 ## Active work
 

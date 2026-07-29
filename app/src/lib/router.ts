@@ -10,6 +10,7 @@ export const ROUTES = [
   "/evals",
   "/traces",
   "/settings",
+  "/changelog",
 ] as const;
 
 export type AppPath = (typeof ROUTES)[number];
