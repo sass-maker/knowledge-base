@@ -1,7 +1,8 @@
 # AGENTS.md — knowledgebase
 
 > Concise agent bootloader. Depth lives in `docs/` (see
-> [`docs/index.md`](docs/index.md)). Live state in [`STATUS.md`](STATUS.md).
+> [`docs/index.md`](docs/index.md)). Current/shipped product truth is in
+> [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
 
 ## Shared fleet standard
 
@@ -79,7 +80,8 @@ Root `Makefile` wraps common Worker gates (`make worker-check`,
 
 ## Documentation navigation
 
-- **Live status:** [`STATUS.md`](STATUS.md)
+- **Current/shipped product truth:** [`PROJECT_STATUS.md`](PROJECT_STATUS.md)
+- **Open work and blockers:** GitHub Issues
 - **Docs home:** [`docs/index.md`](docs/index.md)
 - **Product:** [`docs/product/overview.md`](docs/product/overview.md)
 - **Architecture + decisions:** [`docs/architecture/overview.md`](docs/architecture/overview.md) · [`docs/architecture/decisions.md`](docs/architecture/decisions.md)
