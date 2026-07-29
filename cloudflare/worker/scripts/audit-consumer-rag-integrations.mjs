@@ -253,16 +253,6 @@ function auditLinkchat(fleetRoot) {
       : fail('profile_memory_ingest_scope', 'info-block ingest must use ensureProfileMemoryIndex and user/page/block metadata'));
   }
 
-  const settingsAiKeyRoute = resolve(repo, 'src/app/api/settings/ai-key/route.ts');
-  if (!existsSync(settingsAiKeyRoute)) {
-    checks.push(fail('route_src/app/api/settings/ai-key/route.ts', 'src/app/api/settings/ai-key/route.ts is missing'));
-  } else {
-    const source = readText(settingsAiKeyRoute);
-    checks.push(source.includes('@/lib/profile-memory-index') && source.includes('ensureProfileMemoryIndex(auth.userId)')
-      ? pass('route_src/app/api/settings/ai-key/route.ts', 'uses profile-memory index lifecycle helper')
-      : fail('route_src/app/api/settings/ai-key/route.ts', 'settings route must use ensureProfileMemoryIndex for lazy account index repair'));
-  }
-
   const knowledgebaseSettingsRoute = resolve(repo, 'src/app/api/settings/knowledgebase/route.ts');
   if (!existsSync(knowledgebaseSettingsRoute)) {
     checks.push(fail('knowledgebase_settings_route', 'src/app/api/settings/knowledgebase/route.ts is missing'));

@@ -52,7 +52,6 @@ function writeHealthyLinkchat(fleetRoot: string, dirname = 'linkchat') {
     'export async function GET() { return Response.json({ hasIndex: true, indexId: "idx" }); }',
     'export async function POST() { const indexId = await ensureProfileMemoryIndex(auth.userId); return Response.json({ hasIndex: true, indexId }); }',
   ].join('\n'));
-  write(resolve(repo, 'src/app/api/settings/ai-key/route.ts'), 'import { ensureProfileMemoryIndex } from "@/lib/profile-memory-index";\nensureProfileMemoryIndex(auth.userId);\n');
   for (const route of [
     'src/app/api/pages/[pageId]/info/route.ts',
     'src/app/api/pages/[pageId]/info/[blockId]/route.ts',
