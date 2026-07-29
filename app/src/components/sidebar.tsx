@@ -13,6 +13,7 @@ import {
   History,
   Settings,
   TableProperties,
+  ScrollText,
 } from "lucide-react";
 
 const NAV = [
@@ -24,6 +25,7 @@ const NAV = [
   { href: "/ingest", label: "Ingest", icon: FileUp },
   { href: "/evals", label: "Evals", icon: FlaskConical },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/changelog", label: "Changelog", icon: ScrollText },
 ];
 
 export function Sidebar() {

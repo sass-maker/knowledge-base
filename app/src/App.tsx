@@ -10,6 +10,7 @@ import OverviewPage from "@/pages/overview";
 import QueryPage from "@/pages/query";
 import SettingsPage from "@/pages/settings";
 import TracesPage from "@/pages/traces";
+import ChangelogPage from "@/pages/changelog";
 
 const PAGES = {
   "/": OverviewPage,
@@ -21,6 +22,7 @@ const PAGES = {
   "/history": TracesPage,
   "/traces": TracesPage,
   "/settings": SettingsPage,
+  "/changelog": ChangelogPage,
 } as const;
 
 function NotFoundPage() {

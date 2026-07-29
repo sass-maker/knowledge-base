@@ -5,7 +5,7 @@
 > Update this file when durable current or shipped product truth changes. Do
 > not let deploy-version snapshots accumulate here — put those in the archive.
 
-Last updated: 2026-07-25
+Last updated: 2026-07-30
 
 ## Why / What
 
@@ -22,6 +22,9 @@ the non-negotiable product invariant.
 
 ## Timeline
 
+- **2026-07-30** — Added a product-owned changelog to the operator dashboard
+  with verified release history and canonical Roadmap and Source links.
+
 Historical milestones live in
 [`docs/knowledge/archive/project-status-2026-06-28.md`](docs/knowledge/archive/project-status-2026-06-28.md).
 
@@ -29,6 +32,7 @@ Historical milestones live in
 
 - Worker RAG API and operator `/ui`.
 - Access-protected dashboard at `https://search.sassmaker.com`.
+- Product-owned release history at `https://search.sassmaker.com/changelog`.
 
 ## Features (shipped)
 
@@ -70,6 +74,9 @@ Historical milestones live in
   indexed profile memory. High Signal integration is cancelled: its current
   public-evidence workflow already has product-owned Git + D1 retrieval and
   does not need private-corpus search.
+- **Owned release history:** the dashboard includes a same-origin `/changelog`
+  with verified editorial milestones. Planned work remains in GitHub Issues;
+  Source points to the canonical organization repository.
 
 ### Deploy fingerprint
 

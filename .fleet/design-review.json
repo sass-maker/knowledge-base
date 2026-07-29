@@ -1,0 +1,66 @@
+{
+  "$schema": "fleet.design-review.v1",
+  "version": 1,
+  "project": "knowledge-base",
+  "target": "Knowledgebase changelog",
+  "mode": "preserve",
+  "register": "product",
+  "context": {
+    "product": "PRODUCT.md",
+    "design": "DESIGN.md"
+  },
+  "direction": {
+    "references": [],
+    "probes": [],
+    "selected": "existing-design",
+    "approval": "not-required",
+    "before": ".fleet/evidence/changelog/before-1440.png"
+  },
+  "evidence": {
+    "screenshots": [
+      {
+        "width": 390,
+        "path": ".fleet/evidence/changelog/after-390.png"
+      },
+      {
+        "width": 768,
+        "path": ".fleet/evidence/changelog/after-768.png"
+      },
+      {
+        "width": 1440,
+        "path": ".fleet/evidence/changelog/after-1440.png"
+      }
+    ],
+    "projectCheck": {
+      "command": "cd app && pnpm build",
+      "status": "pass"
+    },
+    "critique": {
+      "score": 35,
+      "maximum": 40
+    },
+    "audit": {
+      "score": 19,
+      "maximum": 20
+    },
+    "unresolved": {
+      "p0": 0,
+      "p1": 0
+    },
+    "detector": {
+      "posture": "advisory",
+      "findings": []
+    },
+    "browserReview": {
+      "tool": "Playwright with mocked local read-only session/project responses",
+      "viewports": [390, 768, 1440],
+      "horizontalOverflow": false,
+      "consoleErrors": 0,
+      "note": "The Access-protected changelog was inspected at all required widths without production credentials. The existing icon-only mobile sidebar retains aria labels; the new content and links remain fully visible."
+    }
+  },
+  "ownerFeedback": {
+    "decision": "delegated",
+    "note": "Owner explicitly delegated agents to build first-party changelogs across all projects."
+  }
+}
