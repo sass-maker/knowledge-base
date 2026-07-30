@@ -40,6 +40,19 @@ export interface KnowledgebaseResult {
   metadata?: Record<string, unknown>;
 }
 
+export interface KnowledgebaseCitation {
+  index: number;
+  document_id: string;
+  chunk_id: string;
+  file_id: string | null;
+  filename: string | null;
+  page_start: number;
+  page_end: number;
+  excerpt: string;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
 export interface KnowledgebaseAnswer {
   project: string;
   domain: string;
@@ -52,7 +65,7 @@ export interface KnowledgebaseAnswer {
   answer_model: string | null;
   question: string;
   answer: string;
-  citations: Array<Record<string, unknown>>;
+  citations: KnowledgebaseCitation[];
   confidence: Record<string, unknown>;
   data: KnowledgebaseResult[];
 }

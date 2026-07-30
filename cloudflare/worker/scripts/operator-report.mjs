@@ -359,10 +359,12 @@ export async function runOperatorReport(options = {}) {
     ...report.capabilities,
     project_data_api: projects.ok && domains.ok && files.ok && jobs.ok,
     ingest_contracts: files.ok && jobs.ok && sourceSets.ok ? ['text', 'record', 'url', 'file'] : [],
-    idempotent_ingest: files.ok && jobs.ok,
-    chunk_preview: files.ok && jobs.ok,
-    replayable_jobs: files.ok && jobs.ok,
-    failure_classification: files.ok && jobs.ok,
+    // These require exercised ingest responses. Route/inventory availability
+    // alone is not evidence that replay and failure contracts still work.
+    idempotent_ingest: false,
+    chunk_preview: false,
+    replayable_jobs: false,
+    failure_classification: false,
     trace_export: traceExport?.ok === true,
     trace_drilldown: traceDrilldown?.ok === true,
     stage_timings: traceRows.some(traceHasStageTimings),

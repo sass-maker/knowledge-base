@@ -122,6 +122,7 @@ function buildPlan(options) {
       'deploy-readiness',
       ...(requiresS ? ['consumer-auth-smokes'] : []),
       'seed-eval-corpus',
+      ...(requiresS ? ['ingest-safety-proof'] : []),
       'benchmark:kb-search:lexical',
       'benchmark:kb-query:semantic',
       'query-eval',
@@ -300,6 +301,73 @@ export async function seedProofCorpus(options) {
   };
 }
 
+export async function runIngestSafetyProof(options) {
+  const documents = proofDocuments(options.input);
+  const document = documents[0];
+  if (!document) throw new Error('proof input documents are required for ingest safety proof');
+  const seededDocument = options.seedReport?.documents?.find((item) => item.id === document.id);
+  const seededSafety = seededDocument?.ingest_safety ?? {};
+  const embeddingSelection = proofEmbeddingSelection(options.input);
+  const replay = await requestJson(`${options.baseUrl}/v1/kb/ingest/text`, {
+    key: options.key,
+    method: 'POST',
+    body: {
+      domain: options.domain,
+      title: document.title,
+      text: document.text,
+      async: false,
+      idempotency_key: `proof:${document.id}`,
+      ...embeddingSelection,
+    },
+  });
+
+  const failureResponse = await fetch(`${options.baseUrl}/v1/kb/ingest/text`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${options.key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      domain: options.domain,
+      title: 'proof-empty-input',
+      text: '',
+      async: false,
+      idempotency_key: `proof:${document.id}:empty`,
+      ...embeddingSelection,
+    }),
+  });
+  const failure = await failureResponse.json().catch(() => ({}));
+  const replaySafety = replay?.ingest_safety ?? {};
+  const failureClassification = failure?.failure_classification ?? null;
+  const capabilities = {
+    idempotent_ingest:
+      replay?.idempotent_replay === true && replaySafety.idempotent_replay === true,
+    chunk_preview:
+      Array.isArray(seededSafety.chunk_preview) && seededSafety.chunk_preview.length > 0,
+    replayable_jobs:
+      seededSafety.replayable === true && typeof seededSafety.replay_route === 'string',
+    failure_classification:
+      failureResponse.status === 400 &&
+      failureClassification?.category === 'parse_empty' &&
+      failureClassification?.retryable === false,
+  };
+
+  return {
+    ok: Object.values(capabilities).every(Boolean),
+    capabilities,
+    replay: {
+      file_id: replay?.file_id ?? null,
+      idempotent_replay: replay?.idempotent_replay === true,
+      ingest_safety: replaySafety,
+    },
+    seed_ingest_safety: seededSafety,
+    classified_failure: {
+      status: failureResponse.status,
+      failure_classification: failureClassification,
+    },
+  };
+}
+
 export async function runQueryEvalProof(options) {
   const cases = queryEvalCases(options.input);
   if (cases.length === 0) throw new Error('benchmark input queries are required for query eval proof');
@@ -391,6 +459,15 @@ export async function runAPlusProof(options) {
     domain: options.domain,
     input,
   });
+  const ingestSafetyProof = options.requireGrade === 'S'
+    ? await runIngestSafetyProof({
+      baseUrl: options.baseUrl,
+      key: options.key,
+      domain: options.domain,
+      input,
+      seedReport,
+    })
+    : null;
   const lexicalBenchmark = await runBenchmark({
     baseUrl: options.baseUrl,
     key: options.key,
@@ -455,6 +532,7 @@ export async function runAPlusProof(options) {
       ...(consumerSmokes ? { consumer_authenticated_smokes: consumerSmokes.consumers } : {}),
       ...(consumerSmokes ? { consumer_public_smokes: consumerSmokes.public_consumers } : {}),
       consumer_eval_packs: detectConsumerEvalPacks(input),
+      ...(ingestSafetyProof?.capabilities ?? {}),
       typed_client_contract: clientContract.ok === true,
       one_command_smoke: true,
       consumer_integration_audit: consumerIntegrationAudit.ok === true,
@@ -475,6 +553,9 @@ export async function runAPlusProof(options) {
   const artifacts = {
     readiness: await writeJson(options.outputDir, 'readiness.json', readinessReport),
     seed_eval_corpus: await writeJson(options.outputDir, 'seed-eval-corpus.json', seedReport),
+    ingest_safety: ingestSafetyProof
+      ? await writeJson(options.outputDir, 'ingest-safety.json', ingestSafetyProof)
+      : null,
     query_eval: await writeJson(options.outputDir, 'query-eval.json', queryEval),
     query_evals: queryEvals.length > 1 ? await writeJson(options.outputDir, 'query-evals.json', queryEvals) : null,
     client_contract: await writeJson(options.outputDir, 'client-contract.json', clientContract),
@@ -493,6 +574,7 @@ export async function runAPlusProof(options) {
     artifacts,
     readiness: readinessReport,
     seed_eval_corpus: seedReport,
+    ingest_safety: ingestSafetyProof,
     query_eval: queryEval,
     query_evals: queryEvals,
     client_contract: clientContract,
@@ -535,4 +617,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 }
 
-export { buildPlan, parseArgs, proofDocuments, proofEmbeddingSelection, queryEvalCases, validateProofInput };
+export {
+  buildPlan,
+  parseArgs,
+  proofDocuments,
+  proofEmbeddingSelection,
+  queryEvalCases,
+  validateProofInput,
+};

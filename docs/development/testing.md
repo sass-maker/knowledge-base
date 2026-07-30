@@ -26,7 +26,7 @@ description: Worker tests, parse/query evals, smokes, and the release readiness 
 | `pnpm run readiness:embedding-model` | live free-ai embedding catalog proof | yes | no | after embedding release |
 | `pnpm run smoke:rag-crud:embedding-model` | mutating live selected-model CRUD | yes | yes | after embedding release |
 | `pnpm run readiness:full-port` | health/auth + legacy aliases + fingerprint + live NVDA OCR + preflight + sibling audit + gap matrix | yes | yes (OCR) | the final live gate |
-| `pnpm run proof:a-plus` / `proof:s` | deployed readiness + query eval + operator + benchmark + scorecard bundle | yes | yes | grade evidence |
+| `pnpm run proof:a-plus` / `proof:s` | deployed readiness + query eval + operator + benchmark + scorecard bundle; S also exercises ingest replay and classified failure | yes | yes | grade evidence |
 | `pnpm run scorecard:a-plus` / `scorecard:s` | grades the proof bundle against thresholds | no | no | grade assignment |
 
 ## The local pre-deploy gate

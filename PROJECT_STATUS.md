@@ -22,6 +22,10 @@ the non-negotiable product invariant.
 
 ## Timeline
 
+- **2026-07-31** — Replaced route-presence inference in the S-grade ingestion
+  score with exercised idempotent replay, chunk-preview/reprocess, and
+  classified-failure evidence. Added a typed `/v1/kb/query` HTTP compatibility
+  test plus current OpenAI Agents SDK and LangChain.js integration examples.
 - **2026-07-30** — Added a product-owned changelog to the operator dashboard
   with verified release history and canonical Roadmap and Source links.
 
@@ -77,6 +81,13 @@ Historical milestones live in
 - **Owned release history:** the dashboard includes a same-origin `/changelog`
   with verified editorial milestones. Planned work remains in GitHub Issues;
   Source points to the canonical organization repository.
+- **Agent integration contract:** the dependency-free `KnowledgebaseClient`
+  has an executable `/v1/kb/query` request/citation compatibility test, with
+  framework adapters documented for OpenAI Agents SDK and LangChain.js.
+- **Ingest safety proof:** S-grade proof replays a seeded document and submits
+  a controlled invalid payload, so idempotency, preview/reprocess, and failure
+  classification capabilities come from exercised responses rather than route
+  availability.
 
 ### Deploy fingerprint
 
