@@ -1,11 +1,11 @@
 {
   "name": "Private Agent Search",
   "version": "1",
-  "url": "https://search.sassmaker.com",
-  "llms": "https://search.sassmaker.com/llms.txt",
-  "llmsFull": "https://search.sassmaker.com/llms-full.txt",
-  "sitemap": "https://search.sassmaker.com/sitemap.xml",
-  "robots": "https://search.sassmaker.com/robots.txt",
+  "url": "https://knowledgebase.sassmaker.com",
+  "llms": "https://knowledgebase.sassmaker.com/llms.txt",
+  "llmsFull": "https://knowledgebase.sassmaker.com/llms-full.txt",
+  "sitemap": "https://knowledgebase.sassmaker.com/sitemap.xml",
+  "robots": "https://knowledgebase.sassmaker.com/robots.txt",
   "markdown": {
     "suffix": ".md",
     "negotiation": true
@@ -13,8 +13,8 @@
   "surfaces": [
     {
       "id": "home",
-      "url": "https://search.sassmaker.com/",
-      "md": "https://search.sassmaker.com/index.md",
+      "url": "https://knowledgebase.sassmaker.com/",
+      "md": "https://knowledgebase.sassmaker.com/index.md",
       "kind": "static",
       "description": "Product home"
     }

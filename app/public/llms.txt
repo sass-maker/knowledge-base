@@ -4,12 +4,13 @@
 
 ## Product
 
+- [Home](https://knowledgebase.sassmaker.com/): Private cited search workspace
 
 ## Machine surfaces
 
-- [Agent catalog](https://search.sassmaker.com/api/ai): JSON inventory of public surfaces
-- [Homepage markdown](https://search.sassmaker.com/index.md): Product brief without JS
-- [This index](https://search.sassmaker.com/llms.txt)
+- [Agent catalog](https://knowledgebase.sassmaker.com/api/ai): JSON inventory of public surfaces
+- [Homepage markdown](https://knowledgebase.sassmaker.com/index.md): Product brief without JS
+- [This index](https://knowledgebase.sassmaker.com/llms.txt)
 
 ## Optional
 
