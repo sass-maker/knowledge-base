@@ -33,6 +33,9 @@ the non-negotiable product invariant.
   score with exercised idempotent replay, chunk-preview/reprocess, and
   classified-failure evidence. Added a typed `/v1/kb/query` HTTP compatibility
   test plus current OpenAI Agents SDK and LangChain.js integration examples.
+- **2026-07-31** — Corrected public discovery and search/social metadata to the
+  canonical `knowledgebase.sassmaker.com` host, added an owned preview image,
+  and locally verified the app build; production deployment remains separate.
 - **2026-07-30** — Added a product-owned changelog to the operator dashboard
   with verified release history and canonical Roadmap and Source links.
 
