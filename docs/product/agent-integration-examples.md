@@ -41,33 +41,91 @@ the optional retrieval knobs above.
 
 ## TypeScript Wrapper
 
+The dependency-free typed wrapper lives at
+[`cloudflare/worker/src/client.ts`](../../cloudflare/worker/src/client.ts).
+Its HTTP compatibility test fixes the request and cited response shape at
+[`cloudflare/worker/tests/client.test.ts`](../../cloudflare/worker/tests/client.test.ts).
+
 ```ts
-export async function privateCorpusQuery(input: {
-  baseUrl: string;
-  serviceKey: string;
+import { KnowledgebaseClient } from "./src/client";
+
+const knowledgebase = new KnowledgebaseClient({
+  baseUrl: process.env.RAG_BASE_URL!,
+  serviceKey: process.env.RAG_SERVICE_KEY!,
+});
+
+export function privateCorpusQuery(input: {
   domain: string;
   question: string;
-  topK?: number;
 }) {
-  const response = await fetch(`${input.baseUrl.replace(/\/$/, "")}/v1/kb/query`, {
-    method: "POST",
-    headers: {
-      // The corpus/tenant is scoped by this service key, not a body field.
-      Authorization: `Bearer ${input.serviceKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      domain: input.domain,
-      question: input.question,
-      top_k: input.topK ?? 8,
-      mode: "hybrid",
-      answer_mode: "extractive",
-    }),
+  return knowledgebase.query({
+    domain: input.domain,
+    question: input.question,
+    top_k: 8,
+    mode: "hybrid",
+    answer_mode: "extractive",
   });
-  if (!response.ok) throw new Error(`knowledgebase query failed: ${response.status}`);
-  return response.json();
 }
 ```
+
+## OpenAI Agents SDK
+
+The current TypeScript SDK exposes local functions with `tool()` and validates
+their parameters with Zod. Return the complete cited payload so the agent sees
+the evidence, not only the synthesized answer.
+
+```ts
+import { tool } from "@openai/agents";
+import { z } from "zod";
+
+export const privateCorpusQueryTool = tool({
+  name: "private_corpus_query",
+  description: "Query private project evidence and return a cited answer.",
+  parameters: z.object({
+    domain: z.string().min(1),
+    question: z.string().min(1),
+  }),
+  async execute({ domain, question }) {
+    return privateCorpusQuery({
+      domain,
+      question,
+    });
+  },
+});
+```
+
+Reference: [OpenAI Agents SDK function tools](https://openai.github.io/openai-agents-js/guides/tools/#3-function-tools).
+
+## LangChain.js
+
+LangChain's current JavaScript tool helper accepts a function plus name,
+description, and Zod schema. JSON-stringify the complete payload when the tool
+consumer expects text.
+
+```ts
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+export const privateCorpusQueryTool = tool(
+  async ({ domain, question }) =>
+    JSON.stringify(
+      await privateCorpusQuery({
+        domain,
+        question,
+      }),
+    ),
+  {
+    name: "private_corpus_query",
+    description: "Query private project evidence and return a cited answer.",
+    schema: z.object({
+      domain: z.string().min(1),
+      question: z.string().min(1),
+    }),
+  },
+);
+```
+
+Reference: [LangChain JavaScript `tool`](https://reference.langchain.com/javascript/langchain-core/tools/tool).
 
 ## Agent Policy
 

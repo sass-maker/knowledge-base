@@ -309,3 +309,8 @@ pnpm run preflight
 No code change is required to onboard a new domain; create or infer the schema
 through the Worker, post direct records, ingest files, and query through
 `/v1/kb/search` or `/v1/kb/query`.
+
+For agent frameworks, use the checked-in
+[OpenAI Agents SDK and LangChain.js examples](docs/product/agent-integration-examples.md).
+Both preserve the complete citation payload returned by the typed client
+contract.

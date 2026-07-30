@@ -2,7 +2,18 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildPlan, parseArgs, proofDocuments, proofEmbeddingSelection, queryEvalCases, runAPlusProof, runQueryEvalProof, seedProofCorpus, validateProofInput } from '../scripts/a-plus-proof.mjs';
+import {
+  buildPlan,
+  parseArgs,
+  proofDocuments,
+  proofEmbeddingSelection,
+  queryEvalCases,
+  runAPlusProof,
+  runIngestSafetyProof,
+  runQueryEvalProof,
+  seedProofCorpus,
+  validateProofInput,
+} from '../scripts/a-plus-proof.mjs';
 
 const originalFetch = globalThis.fetch;
 
@@ -101,6 +112,7 @@ describe('a-plus-proof', () => {
         'deploy-readiness',
         'consumer-auth-smokes',
         'seed-eval-corpus',
+        'ingest-safety-proof',
         'benchmark:kb-search:lexical',
         'benchmark:kb-query:semantic',
         'query-eval',
@@ -216,6 +228,87 @@ describe('a-plus-proof', () => {
     })).toEqual({
       embedding_model: '@cf/baai/bge-small-en-v1.5',
       embedding_provider: 'workers_ai',
+    });
+  });
+
+  it('proves replay, preview, reprocess, and classified-failure behavior', async () => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    globalThis.fetch = vi.fn(
+      async (url: string | URL | Request, init?: RequestInit) => {
+        const href = typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url;
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+        calls.push({ url: href, body });
+        if (body.text === '') {
+          return new Response(
+            JSON.stringify({
+              error: 'text must be non-empty',
+              failure_classification: { category: 'parse_empty', retryable: false },
+            }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            file_id: 'file-1',
+            idempotent_replay: true,
+            ingest_safety: {
+              idempotent_replay: true,
+              chunk_preview: [{ text_preview: 'Alpha proof document.' }],
+              replayable: true,
+              replay_route: '/v1/kb/files/file-1/reprocess',
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    ) as typeof fetch;
+
+    await expect(
+      runIngestSafetyProof({
+        baseUrl: 'https://kb.example',
+        key: 'service-key',
+        domain: 'manuals',
+        input: {
+          documents: [{ external_id: 'doc-1', content: 'Alpha proof document.' }],
+        },
+        seedReport: {
+          documents: [
+            {
+              id: 'doc-1',
+              ingest_safety: {
+                chunk_preview: [{ text_preview: 'Alpha proof document.' }],
+                replayable: true,
+                replay_route: '/v1/kb/files/file-1/reprocess',
+              },
+            },
+          ],
+        },
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      capabilities: {
+        idempotent_ingest: true,
+        chunk_preview: true,
+        replayable_jobs: true,
+        failure_classification: true,
+      },
+      replay: {
+        file_id: 'file-1',
+        idempotent_replay: true,
+      },
+      classified_failure: {
+        status: 400,
+        failure_classification: { category: 'parse_empty', retryable: false },
+      },
+    });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.body).toMatchObject({
+      idempotency_key: 'proof:doc-1',
+      text: 'Alpha proof document.',
+    });
+    expect(calls[1]?.body).toMatchObject({
+      idempotency_key: 'proof:doc-1:empty',
+      text: '',
     });
   });
 

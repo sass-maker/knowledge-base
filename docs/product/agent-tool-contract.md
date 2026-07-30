@@ -41,6 +41,13 @@ latency-critical exact-term workflows.
 The agent should preserve returned citations. A cited answer is only useful when
 the final response can point back to filename/page/excerpt evidence.
 
+The stable response includes `answer`, `trace_id`, `confidence`, ranked `data`,
+and `citations`. Each citation retains `file_id`, `filename`, `page_start`,
+`page_end`, `excerpt`, and score metadata. The dependency-free
+[`KnowledgebaseClient`](../../cloudflare/worker/src/client.ts) and its
+[`/v1/kb/query` compatibility test](../../cloudflare/worker/tests/client.test.ts)
+are the executable consumer contract.
+
 If the Worker returns no relevant evidence, do not answer from memory. Ask for a
 narrower query, a different domain, or more uploaded documents.
 
