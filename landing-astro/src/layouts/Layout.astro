@@ -7,6 +7,8 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
+const socialImage =
+  "https://raw.githubusercontent.com/sass-maker/knowledge-base/main/.fleet/evidence/public-landing/after-1440.png";
 const structuredData = {
   "@context": "https://schema.org",
   "@graph": [
@@ -23,6 +25,7 @@ const structuredData = {
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web",
       url: SITE_ORIGIN,
+      image: socialImage,
       description,
     },
   ],
@@ -44,9 +47,11 @@ const structuredData = {
     <meta property="og:url" content={`${SITE_ORIGIN}/`} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content={socialImage} />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
     <script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)} />
   </head>
   <body>
