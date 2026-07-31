@@ -1,0 +1,28 @@
+{
+  "name": "knowledgebase-public-landing",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Static public product landing for Knowledgebase.",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "typecheck": "astro check",
+    "build": "astro build",
+    "agent:check": "node scripts/check-agent-surfaces.mjs",
+    "check": "pnpm run typecheck && pnpm run build && pnpm run agent:check"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.6",
+    "astro": "7.1.6",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "sharp": "0.35.0"
+    }
+  }
+}

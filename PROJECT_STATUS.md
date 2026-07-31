@@ -5,7 +5,7 @@
 > Update this file when durable current or shipped product truth changes. Do
 > not let deploy-version snapshots accumulate here — put those in the archive.
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 ## Why / What
 
@@ -22,6 +22,13 @@ the non-negotiable product invariant.
 
 ## Timeline
 
+- **2026-07-31** — Recovered an independently buildable public landing source
+  under `landing-astro/`, separate from the Access-protected dashboard and RAG
+  Worker. One typed public-route registry now drives the HTML landing,
+  substantive Markdown, `/api/ai`, `llms.txt`, robots, and an HTML-only
+  sitemap. The local production build passes the Fleet agent-readiness audit
+  at S-tier with 100% route Markdown coverage and 100% catalog integrity.
+  Production Pages configuration and deployment are unchanged.
 - **2026-07-31** — Replaced route-presence inference in the S-grade ingestion
   score with exercised idempotent replay, chunk-preview/reprocess, and
   classified-failure evidence. Added a typed `/v1/kb/query` HTTP compatibility
@@ -35,11 +42,19 @@ Historical milestones live in
 ## Products
 
 - Worker RAG API and operator `/ui`.
+- Public product landing source in `landing-astro/`, intended for the existing
+  `knowledgebase-landing` Pages project; source recovery is complete but the
+  production project has not been changed or redeployed.
 - Access-protected dashboard at `https://search.sassmaker.com`.
 - Product-owned release history at `https://search.sassmaker.com/changelog`.
 
 ## Features (shipped)
 
+- **Public discovery source:** the independently built landing keeps public
+  product truth separate from authenticated operator and retrieval surfaces.
+  Its one route has a substantive Markdown counterpart plus shared
+  `/api/ai`, `llms.txt`, robots, and sitemap coverage; local boundary checks
+  reject Worker endpoints and credential-shaped output.
 - **Runtime:** Cloudflare Worker is the only RAG runtime. Python FastAPI
   service, Python UI, Docker Compose, and the sibling `../rag-service` repo
   are retired. `audit:sibling-rag-service --require-retired` stays green.
