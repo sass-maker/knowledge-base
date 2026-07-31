@@ -2,7 +2,7 @@
   "$schema": "fleet.design-review.v1",
   "version": 1,
   "project": "knowledge-base",
-  "target": "public Knowledgebase landing recovery",
+  "target": "Knowledgebase changelog",
   "mode": "preserve",
   "register": "product",
   "context": {
@@ -14,29 +14,29 @@
     "probes": [],
     "selected": "existing-design",
     "approval": "not-required",
-    "before": ".fleet/evidence/public-landing/before-1440.png"
+    "before": ".fleet/evidence/changelog/before-1440.png"
   },
   "evidence": {
     "screenshots": [
       {
         "width": 390,
-        "path": ".fleet/evidence/public-landing/after-390.png"
+        "path": ".fleet/evidence/changelog/after-390.png"
       },
       {
         "width": 768,
-        "path": ".fleet/evidence/public-landing/after-768.png"
+        "path": ".fleet/evidence/changelog/after-768.png"
       },
       {
         "width": 1440,
-        "path": ".fleet/evidence/public-landing/after-1440.png"
+        "path": ".fleet/evidence/changelog/after-1440.png"
       }
     ],
     "projectCheck": {
-      "command": "cd landing-astro && pnpm run check",
+      "command": "cd app && pnpm build",
       "status": "pass"
     },
     "critique": {
-      "score": 36,
+      "score": 35,
       "maximum": 40
     },
     "audit": {
@@ -52,15 +52,15 @@
       "findings": []
     },
     "browserReview": {
-      "tool": "Playwright local static preview",
+      "tool": "Playwright with mocked local read-only session/project responses",
       "viewports": [390, 768, 1440],
       "horizontalOverflow": false,
       "consoleErrors": 0,
-      "note": "Preserve-mode review verified the public/private boundary, inspectable illustrative citations, keyboard focus, responsive composition, and final access CTA. The Fleet agent auditor separately passed 10/10 checks at S-tier."
+      "note": "The Access-protected changelog was inspected at all required widths without production credentials. The existing icon-only mobile sidebar retains aria labels; the new content and links remain fully visible."
     }
   },
   "ownerFeedback": {
     "decision": "delegated",
-    "note": "Owner explicitly approved all issue work in this session and delegated completion within the standing Fleet constraints."
+    "note": "Owner explicitly delegated agents to build first-party changelogs across all projects."
   }
 }
