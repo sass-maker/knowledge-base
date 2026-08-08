@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">Knowledgebase</title>
+  <desc id="description">Cited answers from private document collections.</desc>
+  <rect width="1200" height="630" fill="#111315"/>
+  <g fill="none" stroke="#83dcc1" stroke-width="8">
+    <path d="M110 170h360v300H110zM730 170h360v300H730z"/>
+    <path d="M470 250h260M470 390h260"/>
+  </g>
+  <text x="110" y="116" fill="#f1f4f3" font-family="ui-sans-serif,system-ui,sans-serif" font-size="70" font-weight="750">KNOWLEDGEBASE</text>
+  <text x="110" y="548" fill="#aebbb7" font-family="ui-sans-serif,system-ui,sans-serif" font-size="34">Cited or it didn’t happen.</text>
+</svg>

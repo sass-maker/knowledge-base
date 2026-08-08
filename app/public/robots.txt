@@ -1,7 +1,6 @@
 User-agent: *
 Allow: /
-
-Sitemap: https://search.sassmaker.com/sitemap.xml
+Sitemap: https://knowledgebase.sassmaker.com/sitemap.xml
 # Agent indexing
 Allow: /llms.txt
 Allow: /llms-full.txt

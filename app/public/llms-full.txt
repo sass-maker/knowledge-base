@@ -10,15 +10,16 @@ Cited RAG search over private collections.
 
 ## Product links
 
+- Home: https://knowledgebase.sassmaker.com/ — Private cited search workspace
 
 ## Machine surfaces
 
-- https://search.sassmaker.com/llms.txt
-- https://search.sassmaker.com/llms-full.txt
-- https://search.sassmaker.com/api/ai
-- https://search.sassmaker.com/index.md
-- https://search.sassmaker.com/sitemap.xml
-- https://search.sassmaker.com/robots.txt
+- https://knowledgebase.sassmaker.com/llms.txt
+- https://knowledgebase.sassmaker.com/llms-full.txt
+- https://knowledgebase.sassmaker.com/api/ai
+- https://knowledgebase.sassmaker.com/index.md
+- https://knowledgebase.sassmaker.com/sitemap.xml
+- https://knowledgebase.sassmaker.com/robots.txt
 
 ## Contact / fleet
 
