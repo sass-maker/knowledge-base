@@ -52,15 +52,16 @@
     "smoke:legacy-routes": "node scripts/smoke-legacy-routes.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "check": "pnpm run typecheck && pnpm test"
   },
   "dependencies": {
     "fflate": "^0.8.3",
-    "hono": "4.12.18"
+    "hono": "4.12.34"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "4.1.5",
     "typescript": "6.0.3",
     "vitest": "4.1.5",
     "wrangler": "4.103.0"

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.33.2",
   "description": "Docs tooling only (Blume presentation layer + markdown link checker). This is NOT a workspace for the product packages — cloudflare/worker and app each keep their own pnpm-lock.yaml. Install here only to build/validate docs.",
   "scripts": {
     "docs:check": "node scripts/docs-check-links.mjs",
@@ -10,12 +11,24 @@
     "docs:preview": "blume preview",
     "docs:dev": "blume dev",
     "knip": "knip --no-exit-code --reporter symbols",
-    "knip:strict": "knip --reporter symbols"
+    "knip:strict": "knip --reporter symbols",
+    "quality:format": "node scripts/check-code-health.mjs format",
+    "quality:unused": "node scripts/check-code-health.mjs unused",
+    "quality:complexity": "node scripts/check-code-health.mjs complexity",
+    "quality:duplication": "node scripts/check-code-health.mjs duplication",
+    "quality:dependencies": "node scripts/check-code-health.mjs dependencies",
+    "quality:cycles": "knip --cycles --no-config-hints",
+    "quality:suppressions": "node scripts/check-code-health.mjs suppressions",
+    "quality:hygiene": "git diff --check HEAD -- .",
+    "quality": "pnpm quality:format && pnpm docs:check && pnpm --dir app check && pnpm --dir app build && pnpm --dir app test:coverage && pnpm --dir cloudflare/worker typecheck && pnpm --dir cloudflare/worker test:coverage && pnpm --dir landing-astro check && pnpm quality:unused && pnpm quality:complexity && pnpm quality:duplication && pnpm quality:dependencies && pnpm quality:cycles && pnpm quality:suppressions && pnpm quality:hygiene",
+    "check": "pnpm quality"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.5",
     "astro": "5.18.2",
     "blume": "0.8.0",
-    "knip": "^6.29.0",
+    "jscpd": "5.0.14",
+    "knip": "6.32.2",
     "sharp": "0.34.3"
   },
   "engines": {

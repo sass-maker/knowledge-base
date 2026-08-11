@@ -75,9 +75,25 @@ The husky hook is committed; pre-commit is the cross-language orchestrator.
 
 `.github/workflows/ci.yml` runs on push to `main` and on PRs:
 
-- `worker-check` job: `pnpm install --frozen-lockfile` then `pnpm run check`
-  (typecheck + vitest) in `cloudflare/worker`. This is the comprehensive logic
-  gate that runs in single-repo CI.
+- `quality` job: installs each independent package from its own frozen lockfile,
+  then runs root `pnpm quality`. The aggregate gate covers check-only formatting,
+  docs, dashboard lint/type/build/scoped coverage, Worker type/coverage, landing
+  build and agent surfaces, unused code, complexity, duplication, dependency
+  advisories, cycles, suppressions, and repository hygiene.
+
+Run the same gate locally after installing all four dependency roots:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm --dir app install --frozen-lockfile
+pnpm --dir cloudflare/worker install --frozen-lockfile
+pnpm --dir landing-astro install --frozen-lockfile
+pnpm quality
+```
+
+Measured legacy debt is held to explicit no-regression baselines in
+`scripts/check-code-health.mjs`. Lower a baseline after cleanup; never refresh
+one automatically. Remaining debt belongs in GitHub issue #33.
 
 The local full-fleet `predeploy:local` gate (which builds sibling fleet
 products and reads repos on disk) only works in a full local fleet checkout,
