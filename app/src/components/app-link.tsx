@@ -1,5 +1,5 @@
-import type { AnchorHTMLAttributes, MouseEvent } from "react";
-import { navigate } from "@/lib/router";
+import type { AnchorHTMLAttributes, MouseEvent } from 'react';
+import { navigate } from '@/lib/router';
 
 export interface AppLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   href: string;
@@ -8,15 +8,7 @@ export interface AppLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 export function AppLink({ href, onClick, target, ...props }: AppLinkProps) {
   function handleClick(event: MouseEvent<HTMLAnchorElement>) {
     onClick?.(event);
-    if (
-      event.defaultPrevented ||
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey ||
-      target === "_blank"
-    ) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || target === '_blank') {
       return;
     }
 

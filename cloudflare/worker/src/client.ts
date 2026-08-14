@@ -102,7 +102,7 @@ export class KnowledgebaseClient {
       },
       body: JSON.stringify(body),
     });
-    const payload = await res.json().catch(() => ({})) as { error?: unknown };
+    const payload = (await res.json().catch(() => ({}))) as { error?: unknown };
     if (!res.ok) {
       const message = typeof payload?.error === 'string' ? payload.error : `Knowledgebase request failed: ${res.status}`;
       throw new Error(message);

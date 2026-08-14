@@ -190,9 +190,7 @@ export async function runDeployedLegacyRouteSmoke({ baseUrl, expectedDeployFinge
       checks.push({
         ...route,
         status: result.status,
-        deploy_fingerprint: route.path === '/healthz' && typeof result.payload?.deploy_fingerprint === 'string'
-          ? result.payload.deploy_fingerprint
-          : null,
+        deploy_fingerprint: route.path === '/healthz' && typeof result.payload?.deploy_fingerprint === 'string' ? result.payload.deploy_fingerprint : null,
         ok: route.expected.includes(result.status),
       });
     } catch (error) {
@@ -208,21 +206,22 @@ export async function runDeployedLegacyRouteSmoke({ baseUrl, expectedDeployFinge
   const fingerprintOk = deployFingerprint === expectedDeployFingerprint;
   const failed = checks.filter((item) => !item.ok);
   const healthStatusAlreadyFailed = failed.some((item) => item.path === '/healthz');
-  const failedWithFingerprint = fingerprintOk || healthStatusAlreadyFailed
-    ? failed
-    : [
-      ...failed,
-      {
-        method: 'GET',
-        path: '/healthz',
-        expected: [200],
-        status: checks.find((item) => item.path === '/healthz')?.status ?? null,
-        deploy_fingerprint: deployFingerprint,
-        expected_deploy_fingerprint: expectedDeployFingerprint,
-        ok: false,
-        error: 'unexpected deploy fingerprint',
-      },
-    ];
+  const failedWithFingerprint =
+    fingerprintOk || healthStatusAlreadyFailed
+      ? failed
+      : [
+          ...failed,
+          {
+            method: 'GET',
+            path: '/healthz',
+            expected: [200],
+            status: checks.find((item) => item.path === '/healthz')?.status ?? null,
+            deploy_fingerprint: deployFingerprint,
+            expected_deploy_fingerprint: expectedDeployFingerprint,
+            ok: false,
+            error: 'unexpected deploy fingerprint',
+          },
+        ];
   return {
     ok: failedWithFingerprint.length === 0,
     checked: checks.length,
@@ -254,10 +253,7 @@ export async function runDeployedTestingUiSmoke({ baseUrl }) {
         status: result.status,
         content_type: result.content_type,
         missing_markers,
-        ok: result.ok
-          && result.status === 200
-          && result.content_type.includes('text/html')
-          && missing_markers.length === 0,
+        ok: result.ok && result.status === 200 && result.content_type.includes('text/html') && missing_markers.length === 0,
       });
     } catch (error) {
       checks.push({
@@ -285,72 +281,89 @@ export async function runDeployReadiness(options) {
 
   const health = await requestJson(`${options.baseUrl}/v1/healthz`);
   const healthDeployFingerprint = typeof health.payload?.deploy_fingerprint === 'string' ? health.payload.deploy_fingerprint : null;
-  checks.push(check('public-health', health.ok
-    && health.payload?.ok === true
-    && health.payload?.d1 === true
-    && health.payload?.d1_schema === true
-    && health.payload?.vectorize === true
-    && health.payload?.r2 === true, {
-    status: health.status,
-    payload: health.payload,
-    deploy_fingerprint: healthDeployFingerprint,
-    d1_schema: typeof health.payload?.d1_schema === 'boolean' ? health.payload.d1_schema : null,
-    r2: typeof health.payload?.r2 === 'boolean' ? health.payload.r2 : null,
-  }));
-  checks.push(check('deployed-worker-fingerprint', healthDeployFingerprint === expectedDeployFingerprint, {
-    deploy_fingerprint: healthDeployFingerprint,
-    expected_deploy_fingerprint: expectedDeployFingerprint,
-  }));
+  checks.push(
+    check(
+      'public-health',
+      health.ok &&
+        health.payload?.ok === true &&
+        health.payload?.d1 === true &&
+        health.payload?.d1_schema === true &&
+        health.payload?.vectorize === true &&
+        health.payload?.r2 === true,
+      {
+        status: health.status,
+        payload: health.payload,
+        deploy_fingerprint: healthDeployFingerprint,
+        d1_schema: typeof health.payload?.d1_schema === 'boolean' ? health.payload.d1_schema : null,
+        r2: typeof health.payload?.r2 === 'boolean' ? health.payload.r2 : null,
+      },
+    ),
+  );
+  checks.push(
+    check('deployed-worker-fingerprint', healthDeployFingerprint === expectedDeployFingerprint, {
+      deploy_fingerprint: healthDeployFingerprint,
+      expected_deploy_fingerprint: expectedDeployFingerprint,
+    }),
+  );
 
   const protectedProbe = await requestJson(`${options.baseUrl}/v1/indexes`);
-  checks.push(check('protected-indexes-require-auth', protectedProbe.status === 401, {
-    status: protectedProbe.status,
-  }));
+  checks.push(
+    check('protected-indexes-require-auth', protectedProbe.status === 401, {
+      status: protectedProbe.status,
+    }),
+  );
 
   if (!options.key) {
-    checks.push(check('authenticated-key-present', !options.requireAuth, {
-      skipped: true,
-      reason: 'RAG_SERVICE_KEY or --key is required for authenticated checks',
-    }));
-    if (options.requireEmbeddingModel) {
-      checks.push(check('embedding-model-catalog', false, {
+    checks.push(
+      check('authenticated-key-present', !options.requireAuth, {
         skipped: true,
-        reason: 'RAG_SERVICE_KEY or --key is required for the embedding model catalog check',
-        embedding_model: options.requireEmbeddingModel,
-      }));
+        reason: 'RAG_SERVICE_KEY or --key is required for authenticated checks',
+      }),
+    );
+    if (options.requireEmbeddingModel) {
+      checks.push(
+        check('embedding-model-catalog', false, {
+          skipped: true,
+          reason: 'RAG_SERVICE_KEY or --key is required for the embedding model catalog check',
+          embedding_model: options.requireEmbeddingModel,
+        }),
+      );
     }
   } else {
     const indexes = await requestJson(`${options.baseUrl}/v1/indexes`, { key: options.key });
-    checks.push(check('authenticated-index-list', indexes.ok && Array.isArray(indexes.payload?.data), {
-      status: indexes.status,
-      count: Array.isArray(indexes.payload?.data) ? indexes.payload.data.length : null,
-    }));
+    checks.push(
+      check('authenticated-index-list', indexes.ok && Array.isArray(indexes.payload?.data), {
+        status: indexes.status,
+        count: Array.isArray(indexes.payload?.data) ? indexes.payload.data.length : null,
+      }),
+    );
 
     if (options.requireEmbeddingModel) {
       const models = await requestJson(`${options.baseUrl}/v1/embedding-models`, { key: options.key });
       const availableModels = Array.isArray(models.payload?.free_ai_models) ? models.payload.free_ai_models : [];
-      const selected = availableModels.find((item) =>
-        item?.id === options.requireEmbeddingModel || item?.aliases?.includes?.(options.requireEmbeddingModel),
-      ) ?? null;
-      checks.push(check(
-        'embedding-model-catalog',
-        models.ok
-          && models.payload?.catalog_source === 'free_ai'
-          && selected?.enabled !== false
-          && Boolean(selected)
-          && Boolean(selected?.compatible_profile)
-          && Boolean(selected?.vectorize_binding),
-        {
-          status: models.status,
-          embedding_model: options.requireEmbeddingModel,
-          catalog_source: typeof models.payload?.catalog_source === 'string' ? models.payload.catalog_source : null,
-          catalog_error: typeof models.payload?.catalog_error === 'string' ? models.payload.catalog_error : null,
-          provider: typeof selected?.provider === 'string' ? selected.provider : null,
-          dimensions: typeof selected?.dimensions === 'number' ? selected.dimensions : null,
-          compatible_profile: typeof selected?.compatible_profile === 'string' ? selected.compatible_profile : null,
-          vectorize_binding: typeof selected?.vectorize_binding === 'string' ? selected.vectorize_binding : null,
-        },
-      ));
+      const selected =
+        availableModels.find((item) => item?.id === options.requireEmbeddingModel || item?.aliases?.includes?.(options.requireEmbeddingModel)) ?? null;
+      checks.push(
+        check(
+          'embedding-model-catalog',
+          models.ok &&
+            models.payload?.catalog_source === 'free_ai' &&
+            selected?.enabled !== false &&
+            Boolean(selected) &&
+            Boolean(selected?.compatible_profile) &&
+            Boolean(selected?.vectorize_binding),
+          {
+            status: models.status,
+            embedding_model: options.requireEmbeddingModel,
+            catalog_source: typeof models.payload?.catalog_source === 'string' ? models.payload.catalog_source : null,
+            catalog_error: typeof models.payload?.catalog_error === 'string' ? models.payload.catalog_error : null,
+            provider: typeof selected?.provider === 'string' ? selected.provider : null,
+            dimensions: typeof selected?.dimensions === 'number' ? selected.dimensions : null,
+            compatible_profile: typeof selected?.compatible_profile === 'string' ? selected.compatible_profile : null,
+            vectorize_binding: typeof selected?.vectorize_binding === 'string' ? selected.vectorize_binding : null,
+          },
+        ),
+      );
     }
 
     if (options.exportInput) {
@@ -367,12 +380,14 @@ export async function runDeployReadiness(options) {
         keepIndex: false,
         dryRun: false,
       });
-      checks.push(check('authenticated-export-smoke', smoke.hit_rate === 1, {
-        hit_rate: smoke.hit_rate,
-        latency: smoke.latency,
-        attempts: smoke.attempts,
-        waited_ms: smoke.waited_ms,
-      }));
+      checks.push(
+        check('authenticated-export-smoke', smoke.hit_rate === 1, {
+          hit_rate: smoke.hit_rate,
+          latency: smoke.latency,
+          attempts: smoke.attempts,
+          waited_ms: smoke.waited_ms,
+        }),
+      );
     }
   }
 
@@ -382,104 +397,121 @@ export async function runDeployReadiness(options) {
       baseUrl: options.baseUrl,
       expectedDeployFingerprint,
     });
-    checks.push(check('deployed-legacy-route-parity', legacyRoutes.ok, {
-      checked: legacyRoutes.checked,
-      failed: Array.isArray(legacyRoutes.failed) ? legacyRoutes.failed : [],
-    }));
-    checks.push(check(
-      'deployed-worker-fingerprint',
-      legacyRoutes.deploy_fingerprint === expectedDeployFingerprint,
-      {
+    checks.push(
+      check('deployed-legacy-route-parity', legacyRoutes.ok, {
+        checked: legacyRoutes.checked,
+        failed: Array.isArray(legacyRoutes.failed) ? legacyRoutes.failed : [],
+      }),
+    );
+    checks.push(
+      check('deployed-worker-fingerprint', legacyRoutes.deploy_fingerprint === expectedDeployFingerprint, {
         deploy_fingerprint: legacyRoutes.deploy_fingerprint ?? null,
         expected_deploy_fingerprint: expectedDeployFingerprint,
-      },
-    ));
+      }),
+    );
     deployedCurrentForOcr = legacyRoutes.ok && legacyRoutes.deploy_fingerprint === expectedDeployFingerprint;
 
     if (deployedCurrentForOcr) {
       const testingUi = await (options.testingUiRunner ?? runDeployedTestingUiSmoke)({ baseUrl: options.baseUrl });
-      checks.push(check('deployed-testing-ui', testingUi.ok, {
-        checked: testingUi.checked,
-        failed: Array.isArray(testingUi.failed) ? testingUi.failed : [],
-      }));
+      checks.push(
+        check('deployed-testing-ui', testingUi.ok, {
+          checked: testingUi.checked,
+          failed: Array.isArray(testingUi.failed) ? testingUi.failed : [],
+        }),
+      );
     } else {
-      checks.push(check('deployed-testing-ui', false, {
-        skipped: true,
-        reason: 'deployed legacy aliases and deploy fingerprint must pass before checking the hosted testing UI',
-      }));
+      checks.push(
+        check('deployed-testing-ui', false, {
+          skipped: true,
+          reason: 'deployed legacy aliases and deploy fingerprint must pass before checking the hosted testing UI',
+        }),
+      );
     }
   }
 
   if (options.requireNvdaOcr) {
     if (!options.key) {
-      checks.push(check('nvda-scanned-ocr-live', false, {
-        skipped: true,
-        reason: 'RAG_SERVICE_KEY or --key is required for the live OCR eval',
-      }));
+      checks.push(
+        check('nvda-scanned-ocr-live', false, {
+          skipped: true,
+          reason: 'RAG_SERVICE_KEY or --key is required for the live OCR eval',
+        }),
+      );
     } else if (!deployedCurrentForOcr) {
-      checks.push(check('nvda-scanned-ocr-live', false, {
-        skipped: true,
-        reason: 'deployed legacy aliases and deploy fingerprint must pass before running the live OCR eval',
-      }));
+      checks.push(
+        check('nvda-scanned-ocr-live', false, {
+          skipped: true,
+          reason: 'deployed legacy aliases and deploy fingerprint must pass before running the live OCR eval',
+        }),
+      );
     } else if (!options.allowLiveOcr) {
-      checks.push(check('nvda-scanned-ocr-live', false, {
-        skipped: true,
-        reason: 'set RAG_ALLOW_LIVE_OCR=1 or pass --allow-live-ocr to run the live Workers AI OCR eval',
-      }));
+      checks.push(
+        check('nvda-scanned-ocr-live', false, {
+          skipped: true,
+          reason: 'set RAG_ALLOW_LIVE_OCR=1 or pass --allow-live-ocr to run the live Workers AI OCR eval',
+        }),
+      );
     } else {
       const ocr = await (options.nvdaOcrRunner ?? runDefaultNvdaOcrEval)({
         baseUrl: options.baseUrl,
         key: options.key,
       });
       const summary = ocr.summary && typeof ocr.summary === 'object' ? ocr.summary : {};
-      checks.push(check('nvda-scanned-ocr-live', ocr.ok, {
-        pass_rate: typeof summary.pass_rate === 'number' ? summary.pass_rate : null,
-        n: Number.isFinite(summary.n) ? summary.n : null,
-        failed: Array.isArray(summary.failed) ? summary.failed : [],
-        report_ids: Array.isArray(summary.report_ids) ? summary.report_ids : [],
-        error: ocr.error ?? null,
-        remediation: nvdaOcrRemediation(ocr.error),
-      }));
+      checks.push(
+        check('nvda-scanned-ocr-live', ocr.ok, {
+          pass_rate: typeof summary.pass_rate === 'number' ? summary.pass_rate : null,
+          n: Number.isFinite(summary.n) ? summary.n : null,
+          failed: Array.isArray(summary.failed) ? summary.failed : [],
+          report_ids: Array.isArray(summary.report_ids) ? summary.report_ids : [],
+          error: ocr.error ?? null,
+          remediation: nvdaOcrRemediation(ocr.error),
+        }),
+      );
     }
   }
 
   if (options.requireFullPort) {
     const preflight = await (options.preflightRunner ?? runWorkerPreflight)();
-    checks.push(check('worker-local-preflight', preflight.ok, {
-      errors: Number.isFinite(preflight.errors) ? preflight.errors : null,
-      warnings: Number.isFinite(preflight.warnings) ? preflight.warnings : null,
-      failed_checks: Array.isArray(preflight.checks)
-        ? preflight.checks
-          .filter((item) => item?.severity === 'error')
-          .map((item) => item.name)
-          .filter(Boolean)
-        : [],
-    }));
+    checks.push(
+      check('worker-local-preflight', preflight.ok, {
+        errors: Number.isFinite(preflight.errors) ? preflight.errors : null,
+        warnings: Number.isFinite(preflight.warnings) ? preflight.warnings : null,
+        failed_checks: Array.isArray(preflight.checks)
+          ? preflight.checks
+              .filter((item) => item?.severity === 'error')
+              .map((item) => item.name)
+              .filter(Boolean)
+          : [],
+      }),
+    );
 
     const siblingAudit = await (options.siblingAuditRunner ?? auditSiblingRagService)();
-    checks.push(check('sibling-rag-service-retired', siblingAudit.ok === true, {
-      sibling_exists: siblingAudit.sibling_exists === true,
-      sibling_deployable_surfaces: Array.isArray(siblingAudit.sibling_deployable_surfaces)
-        ? siblingAudit.sibling_deployable_surfaces
-        : [],
-      active_external_reference_count: Array.isArray(siblingAudit.active_external_references)
-        ? siblingAudit.active_external_references.length
-        : null,
-      blockers: Array.isArray(siblingAudit.blockers) ? siblingAudit.blockers : [],
-    }));
+    checks.push(
+      check('sibling-rag-service-retired', siblingAudit.ok === true, {
+        sibling_exists: siblingAudit.sibling_exists === true,
+        sibling_deployable_surfaces: Array.isArray(siblingAudit.sibling_deployable_surfaces) ? siblingAudit.sibling_deployable_surfaces : [],
+        active_external_reference_count: Array.isArray(siblingAudit.active_external_references) ? siblingAudit.active_external_references.length : null,
+        blockers: Array.isArray(siblingAudit.blockers) ? siblingAudit.blockers : [],
+      }),
+    );
 
     const fullPort = await (options.fullPortRunner ?? runFullPortGapGate)();
     const payload = fullPort.payload && typeof fullPort.payload === 'object' ? fullPort.payload : {};
     const remaining = Number.isFinite(payload.remaining) ? payload.remaining : null;
     const remainingFeatures = Array.isArray(payload.items)
-      ? payload.items.filter((item) => item?.status !== 'done').map((item) => item.feature).filter(Boolean)
+      ? payload.items
+          .filter((item) => item?.status !== 'done')
+          .map((item) => item.feature)
+          .filter(Boolean)
       : [];
-    checks.push(check('cloudflare-full-port-complete', fullPort.ok && payload.ok === true, {
-      exit_code: fullPort.exit_code ?? null,
-      remaining,
-      remaining_features: remainingFeatures,
-      error: fullPort.error ?? null,
-    }));
+    checks.push(
+      check('cloudflare-full-port-complete', fullPort.ok && payload.ok === true, {
+        exit_code: fullPort.exit_code ?? null,
+        remaining,
+        remaining_features: remainingFeatures,
+        error: fullPort.error ?? null,
+      }),
+    );
   }
 
   return {

@@ -1,14 +1,14 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { api, ApiError, type OperatorSession } from "@/lib/api";
-import { Button } from "@/components/button";
-import { AlertCircle, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { createContext, useContext, useEffect, useState } from 'react';
+import { api, ApiError, type OperatorSession } from '@/lib/api';
+import { Button } from '@/components/button';
+import { AlertCircle, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 
-const OperatorContext = createContext<OperatorSession["operator"] | null>(null);
+const OperatorContext = createContext<OperatorSession['operator'] | null>(null);
 
 export function useOperator() {
   const operator = useContext(OperatorContext);
   if (!operator) {
-    throw new Error("useOperator must be used inside AccessGuard");
+    throw new Error('useOperator must be used inside AccessGuard');
   }
   return operator;
 }
@@ -28,11 +28,11 @@ export function AccessGuard({ children }: { children: React.ReactNode }) {
     } catch (cause) {
       setSession(null);
       setStatus(cause instanceof ApiError ? cause.status : null);
-      if (cause instanceof ApiError && cause.body && typeof cause.body === "object") {
+      if (cause instanceof ApiError && cause.body && typeof cause.body === 'object') {
         const message = (cause.body as { error?: unknown }).error;
-        setError(typeof message === "string" ? message : cause.message);
+        setError(typeof message === 'string' ? message : cause.message);
       } else {
-        setError(cause instanceof Error ? cause.message : "Unable to verify operator access");
+        setError(cause instanceof Error ? cause.message : 'Unable to verify operator access');
       }
     } finally {
       setLoading(false);
@@ -63,19 +63,17 @@ export function AccessGuard({ children }: { children: React.ReactNode }) {
             <span
               className="flex size-12 items-center justify-center rounded-xl"
               style={{
-                backgroundColor: "var(--accent)",
-                color: "var(--accent-foreground)",
+                backgroundColor: 'var(--accent)',
+                color: 'var(--accent-foreground)',
               }}
             >
               <ShieldCheck className="size-6" />
             </span>
-            <h1 className="text-xl font-semibold text-foreground">
-              {configurationError ? "Internal access needs setup" : "Internal access required"}
-            </h1>
+            <h1 className="text-xl font-semibold text-foreground">{configurationError ? 'Internal access needs setup' : 'Internal access required'}</h1>
             <p className="text-pretty text-sm text-muted-foreground">
               {configurationError
-                ? "Configure the Cloudflare Access audience and team domain for this Pages project."
-                : "Sign in through Cloudflare Access to inspect private corpus data and query history."}
+                ? 'Configure the Cloudflare Access audience and team domain for this Pages project.'
+                : 'Sign in through Cloudflare Access to inspect private corpus data and query history.'}
             </p>
           </div>
 
@@ -96,9 +94,5 @@ export function AccessGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return (
-    <OperatorContext.Provider value={session.operator}>
-      {children}
-    </OperatorContext.Provider>
-  );
+  return <OperatorContext.Provider value={session.operator}>{children}</OperatorContext.Provider>;
 }

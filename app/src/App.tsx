@@ -1,28 +1,28 @@
-import { AccessGuard } from "@/components/access-guard";
-import { ProjectProvider, useProjectScope } from "@/components/project-context";
-import { Sidebar } from "@/components/sidebar";
-import { isAppPath, usePathname } from "@/lib/router";
-import DataPage from "@/pages/data";
-import DomainsPage from "@/pages/domains";
-import EvalsPage from "@/pages/evals";
-import IngestPage from "@/pages/ingest";
-import OverviewPage from "@/pages/overview";
-import QueryPage from "@/pages/query";
-import SettingsPage from "@/pages/settings";
-import TracesPage from "@/pages/traces";
-import ChangelogPage from "@/pages/changelog";
+import { AccessGuard } from '@/components/access-guard';
+import { ProjectProvider, useProjectScope } from '@/components/project-context';
+import { Sidebar } from '@/components/sidebar';
+import { isAppPath, usePathname } from '@/lib/router';
+import DataPage from '@/pages/data';
+import DomainsPage from '@/pages/domains';
+import EvalsPage from '@/pages/evals';
+import IngestPage from '@/pages/ingest';
+import OverviewPage from '@/pages/overview';
+import QueryPage from '@/pages/query';
+import SettingsPage from '@/pages/settings';
+import TracesPage from '@/pages/traces';
+import ChangelogPage from '@/pages/changelog';
 
 const PAGES = {
-  "/": OverviewPage,
-  "/data": DataPage,
-  "/domains": DomainsPage,
-  "/query": QueryPage,
-  "/ingest": IngestPage,
-  "/evals": EvalsPage,
-  "/history": TracesPage,
-  "/traces": TracesPage,
-  "/settings": SettingsPage,
-  "/changelog": ChangelogPage,
+  '/': OverviewPage,
+  '/data': DataPage,
+  '/domains': DomainsPage,
+  '/query': QueryPage,
+  '/ingest': IngestPage,
+  '/evals': EvalsPage,
+  '/history': TracesPage,
+  '/traces': TracesPage,
+  '/settings': SettingsPage,
+  '/changelog': ChangelogPage,
 } as const;
 
 function NotFoundPage() {

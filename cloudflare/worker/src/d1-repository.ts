@@ -1,10 +1,4 @@
-import type {
-  CreateChunkInput,
-  CreateDocumentInput,
-  CreateIndexInput,
-  LexicalChunkRecord,
-  Repository,
-} from './repository';
+import type { CreateChunkInput, CreateDocumentInput, CreateIndexInput, LexicalChunkRecord, Repository } from './repository';
 import type { ChunkRecord, DocumentRecord, IndexRecord, JsonRecord } from './types';
 
 type StoredDocument = Omit<DocumentRecord, 'metadata'> & { metadata: string };
@@ -15,9 +9,7 @@ function parseJsonRecord(raw: string | null): JsonRecord {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as JsonRecord)
-      : {};
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as JsonRecord) : {};
   } catch {
     return {};
   }
@@ -48,15 +40,7 @@ export class D1Repository implements Repository {
         `INSERT INTO indexes (id, tenant, name, external_id, dimensions, embedding_model, embedding_provider, metric)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'cosine')`,
       )
-      .bind(
-        input.id,
-        input.tenant,
-        input.name,
-        input.externalId,
-        input.dimensions,
-        input.embeddingModel ?? null,
-        input.embeddingProvider ?? null,
-      )
+      .bind(input.id, input.tenant, input.name, input.externalId, input.dimensions, input.embeddingModel ?? null, input.embeddingProvider ?? null)
       .run();
     const created = await this.getIndex(input.tenant, input.id);
     if (!created) throw new Error('failed to create index');
@@ -113,26 +97,14 @@ export class D1Repository implements Repository {
         `INSERT INTO documents (id, index_id, tenant, external_id, content, metadata)
          VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .bind(
-        input.id,
-        input.indexId,
-        input.tenant,
-        input.externalId,
-        input.content,
-        JSON.stringify(input.metadata),
-      )
+      .bind(input.id, input.indexId, input.tenant, input.externalId, input.content, JSON.stringify(input.metadata))
       .run();
     const created = await this.getDocument(input.tenant, input.id);
     if (!created) throw new Error('failed to create document');
     return created;
   }
 
-  async listDocuments(
-    tenant: string,
-    indexId: string,
-    limit: number,
-    offset: number,
-  ): Promise<DocumentRecord[]> {
+  async listDocuments(tenant: string, indexId: string, limit: number, offset: number): Promise<DocumentRecord[]> {
     const result = await this.db
       .prepare(
         `SELECT id, index_id, tenant, external_id, content, metadata, created_at
@@ -181,15 +153,7 @@ export class D1Repository implements Repository {
              (id, document_id, index_id, tenant, content, chunk_index, metadata)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .bind(
-          chunk.id,
-          chunk.documentId,
-          chunk.indexId,
-          chunk.tenant,
-          chunk.content,
-          chunk.chunkIndex,
-          JSON.stringify(chunk.metadata),
-        ),
+        .bind(chunk.id, chunk.documentId, chunk.indexId, chunk.tenant, chunk.content, chunk.chunkIndex, JSON.stringify(chunk.metadata)),
     );
     await this.db.batch(statements);
   }
@@ -222,12 +186,7 @@ export class D1Repository implements Repository {
     return (result.results ?? []).map(rowToChunk);
   }
 
-  async searchLexicalChunks(
-    tenant: string,
-    indexId: string,
-    tokens: string[],
-    limit: number,
-  ): Promise<LexicalChunkRecord[]> {
+  async searchLexicalChunks(tenant: string, indexId: string, tokens: string[], limit: number): Promise<LexicalChunkRecord[]> {
     if (tokens.length === 0) return [];
     const patterns = tokens.map((token) => `%${escapeLikeToken(token)}%`);
     const scoreExpr = tokens.map(() => `CASE WHEN LOWER(content) LIKE ? ESCAPE '\\' THEN 1 ELSE 0 END`).join(' + ');
@@ -247,18 +206,12 @@ export class D1Repository implements Repository {
   }
 
   async getChunkIdsForDocument(tenant: string, documentId: string): Promise<string[]> {
-    const result = await this.db
-      .prepare('SELECT id FROM chunks WHERE tenant = ? AND document_id = ?')
-      .bind(tenant, documentId)
-      .all<{ id: string }>();
+    const result = await this.db.prepare('SELECT id FROM chunks WHERE tenant = ? AND document_id = ?').bind(tenant, documentId).all<{ id: string }>();
     return (result.results ?? []).map((row) => row.id);
   }
 
   async getChunkIdsForIndex(tenant: string, indexId: string): Promise<string[]> {
-    const result = await this.db
-      .prepare('SELECT id FROM chunks WHERE tenant = ? AND index_id = ?')
-      .bind(tenant, indexId)
-      .all<{ id: string }>();
+    const result = await this.db.prepare('SELECT id FROM chunks WHERE tenant = ? AND index_id = ?').bind(tenant, indexId).all<{ id: string }>();
     return (result.results ?? []).map((row) => row.id);
   }
 }

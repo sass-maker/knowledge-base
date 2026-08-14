@@ -84,12 +84,8 @@ export function auditVectorizeEmbeddingBindings({ configPath = DEFAULT_CONFIG_PA
     index_name: typeof entry?.index_name === 'string' ? entry.index_name : null,
     dimensions: trailingDimension(entry?.index_name),
   }));
-  const configuredDimensions = uniqueNumbers(configuredBindings
-    .map((entry) => entry.dimensions)
-    .filter((value) => typeof value === 'number'));
-  const missingDimensions = uniqueNumbers(REQUIRED_MODELS
-    .map((model) => model.dimensions)
-    .filter((dimensions) => !configuredDimensions.includes(dimensions)));
+  const configuredDimensions = uniqueNumbers(configuredBindings.map((entry) => entry.dimensions).filter((value) => typeof value === 'number'));
+  const missingDimensions = uniqueNumbers(REQUIRED_MODELS.map((model) => model.dimensions).filter((dimensions) => !configuredDimensions.includes(dimensions)));
   const models = REQUIRED_MODELS.map((model) => {
     const binding = configuredBindings.find((entry) => entry.dimensions === model.dimensions);
     return {

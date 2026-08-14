@@ -55,11 +55,7 @@ function vectorizeDefaultDimensionCheck(config = {}) {
   }
   const expected = Number(config?.vars?.FREE_AI_EMBED_DIMENSIONS);
   if (!Number.isInteger(expected) || expected <= 0) {
-    return check(
-      'vector_store_default_dimension',
-      'ok',
-      'default free-ai embedding dimensions are checked by free_ai_default_embedding_config',
-    );
+    return check('vector_store_default_dimension', 'ok', 'default free-ai embedding dimensions are checked by free_ai_default_embedding_config');
   }
   const vectorize = findBinding(config?.vectorize, 'VECTORIZE');
   const actual = trailingDimension(vectorize?.index_name);
@@ -89,136 +85,157 @@ export async function runWorkerPreflight({ configPath = DEFAULT_CONFIG_PATH } = 
     config = JSON.parse(await readFile(configPath, 'utf8'));
     checks.push(check('worker_config', 'ok', 'Cloudflare Worker config exists', configPath));
   } catch (error) {
-    checks.push(check(
-      'worker_config',
-      'error',
-      'Cloudflare Worker config is missing or invalid JSON',
-      String(error instanceof Error ? error.message : error),
-    ));
+    checks.push(check('worker_config', 'error', 'Cloudflare Worker config is missing or invalid JSON', String(error instanceof Error ? error.message : error)));
   }
 
-  checks.push(check(
-    'ai_binding',
-    config?.ai?.binding === 'AI' ? 'ok' : 'error',
-    config?.ai?.binding === 'AI' ? 'Workers AI binding is configured' : 'Cloudflare Worker is missing the AI binding',
-    'Expected ai binding AI in wrangler.jsonc.',
-  ));
-  checks.push(check(
-    'vector_store',
-    hasBinding(config?.vectorize, 'VECTORIZE') ? 'ok' : 'error',
-    hasBinding(config?.vectorize, 'VECTORIZE')
-      ? 'retrieval is bound to Cloudflare Vectorize plus D1 lexical scoring'
-      : 'Cloudflare Worker is missing the VECTORIZE binding',
-    'Expected vectorize binding VECTORIZE in wrangler.jsonc.',
-  ));
-  checks.push(check(
-    'vector_store_small',
-    hasBinding(config?.vectorize, 'VECTORIZE_SMALL') ? 'ok' : 'warn',
-    hasBinding(config?.vectorize, 'VECTORIZE_SMALL')
-      ? 'small embedding Vectorize binding is configured'
-      : 'Cloudflare Worker is missing the optional VECTORIZE_SMALL binding',
-  ));
+  checks.push(
+    check(
+      'ai_binding',
+      config?.ai?.binding === 'AI' ? 'ok' : 'error',
+      config?.ai?.binding === 'AI' ? 'Workers AI binding is configured' : 'Cloudflare Worker is missing the AI binding',
+      'Expected ai binding AI in wrangler.jsonc.',
+    ),
+  );
+  checks.push(
+    check(
+      'vector_store',
+      hasBinding(config?.vectorize, 'VECTORIZE') ? 'ok' : 'error',
+      hasBinding(config?.vectorize, 'VECTORIZE')
+        ? 'retrieval is bound to Cloudflare Vectorize plus D1 lexical scoring'
+        : 'Cloudflare Worker is missing the VECTORIZE binding',
+      'Expected vectorize binding VECTORIZE in wrangler.jsonc.',
+    ),
+  );
+  checks.push(
+    check(
+      'vector_store_small',
+      hasBinding(config?.vectorize, 'VECTORIZE_SMALL') ? 'ok' : 'warn',
+      hasBinding(config?.vectorize, 'VECTORIZE_SMALL')
+        ? 'small embedding Vectorize binding is configured'
+        : 'Cloudflare Worker is missing the optional VECTORIZE_SMALL binding',
+    ),
+  );
   const optionalDimensionBindings = ['VECTORIZE_1024', 'VECTORIZE_768', 'VECTORIZE_384'];
   const configuredDimensionBindings = optionalDimensionBindings.filter((binding) => hasBinding(config?.vectorize, binding));
-  checks.push(check(
-    'vector_store_embedding_dimensions',
-    configuredDimensionBindings.length > 0 ? 'ok' : 'warn',
-    configuredDimensionBindings.length > 0
-      ? `optional embedding dimension bindings are configured (${configuredDimensionBindings.join(', ')})`
-      : 'optional 1024/768/384 embedding dimension bindings are not configured',
-    'Add matching Vectorize bindings only after the corresponding indexes are provisioned.',
-  ));
+  checks.push(
+    check(
+      'vector_store_embedding_dimensions',
+      configuredDimensionBindings.length > 0 ? 'ok' : 'warn',
+      configuredDimensionBindings.length > 0
+        ? `optional embedding dimension bindings are configured (${configuredDimensionBindings.join(', ')})`
+        : 'optional 1024/768/384 embedding dimension bindings are not configured',
+      'Add matching Vectorize bindings only after the corresponding indexes are provisioned.',
+    ),
+  );
 
-  checks.push(check(
-    'free_ai_service_binding',
-    config?.vars?.RAG_EMBED_PROVIDER === 'free_ai'
-      ? hasServiceBinding(config?.services, 'FREE_AI') ? 'ok' : 'error'
-      : 'ok',
-    config?.vars?.RAG_EMBED_PROVIDER === 'free_ai'
-      ? hasServiceBinding(config?.services, 'FREE_AI')
-        ? 'free-ai embedding calls use a Cloudflare service binding'
-        : 'RAG_EMBED_PROVIDER=free_ai requires the FREE_AI service binding'
-      : 'free-ai embedding provider is not selected',
-    'Use the FREE_AI service binding for the fastest Cloudflare-to-Cloudflare path.',
-  ));
+  checks.push(
+    check(
+      'free_ai_service_binding',
+      config?.vars?.RAG_EMBED_PROVIDER === 'free_ai' ? (hasServiceBinding(config?.services, 'FREE_AI') ? 'ok' : 'error') : 'ok',
+      config?.vars?.RAG_EMBED_PROVIDER === 'free_ai'
+        ? hasServiceBinding(config?.services, 'FREE_AI')
+          ? 'free-ai embedding calls use a Cloudflare service binding'
+          : 'RAG_EMBED_PROVIDER=free_ai requires the FREE_AI service binding'
+        : 'free-ai embedding provider is not selected',
+      'Use the FREE_AI service binding for the fastest Cloudflare-to-Cloudflare path.',
+    ),
+  );
 
   const freeAiProblems = freeAiEmbedConfigProblems(config?.vars);
-  checks.push(check(
-    'free_ai_default_embedding_config',
-    freeAiProblems.length === 0 ? 'ok' : 'error',
-    freeAiProblems.length === 0
-      ? 'default free-ai embedding model, provider, and dimensions are configured'
-      : 'default free-ai embedding configuration is incomplete',
-    freeAiProblems.join('; '),
-  ));
+  checks.push(
+    check(
+      'free_ai_default_embedding_config',
+      freeAiProblems.length === 0 ? 'ok' : 'error',
+      freeAiProblems.length === 0
+        ? 'default free-ai embedding model, provider, and dimensions are configured'
+        : 'default free-ai embedding configuration is incomplete',
+      freeAiProblems.join('; '),
+    ),
+  );
   checks.push(vectorizeDefaultDimensionCheck(config));
-  checks.push(check(
-    'relational_store',
-    hasBinding(config?.d1_databases, 'DB') ? 'ok' : 'error',
-    hasBinding(config?.d1_databases, 'DB')
-      ? 'product metadata and query traces are bound to Cloudflare D1'
-      : 'Cloudflare Worker is missing the DB D1 binding',
-    'Expected d1_databases binding DB in wrangler.jsonc.',
-  ));
-  checks.push(check(
-    'object_store',
-    hasBinding(config?.r2_buckets, 'RAW_DOCS') ? 'ok' : 'error',
-    hasBinding(config?.r2_buckets, 'RAW_DOCS')
-      ? 'raw files and parse artifacts are bound to Cloudflare R2'
-      : 'Cloudflare Worker is missing the RAW_DOCS R2 binding',
-    'Expected r2_buckets binding RAW_DOCS in wrangler.jsonc.',
-  ));
-  checks.push(check(
-    'ingest_queue',
-    hasQueueProducer(config?.queues, 'INGEST_QUEUE') ? 'ok' : 'warn',
-    hasQueueProducer(config?.queues, 'INGEST_QUEUE')
-      ? 'Cloudflare Queue binding is configured for async ingestion'
-      : 'Cloudflare Queue binding is missing; ingestion can only run inline/fallback paths',
-  ));
-  checks.push(check(
-    'ingest_workflow',
-    hasBinding(config?.workflows, 'KB_INGEST_WORKFLOW') ? 'ok' : 'warn',
-    hasBinding(config?.workflows, 'KB_INGEST_WORKFLOW')
-      ? 'Cloudflare Workflow binding is configured for durable ingest orchestration'
-      : 'Cloudflare Workflow binding is missing; queue dispatch will not be workflow-orchestrated',
-  ));
-  checks.push(check(
-    'analytics',
-    hasBinding(config?.analytics_engine_datasets, 'RAG_ANALYTICS') ? 'ok' : 'warn',
-    hasBinding(config?.analytics_engine_datasets, 'RAG_ANALYTICS')
-      ? 'Analytics Engine binding is configured for RAG events'
-      : 'Analytics Engine binding is missing; runtime still works but observability is reduced',
-  ));
+  checks.push(
+    check(
+      'relational_store',
+      hasBinding(config?.d1_databases, 'DB') ? 'ok' : 'error',
+      hasBinding(config?.d1_databases, 'DB')
+        ? 'product metadata and query traces are bound to Cloudflare D1'
+        : 'Cloudflare Worker is missing the DB D1 binding',
+      'Expected d1_databases binding DB in wrangler.jsonc.',
+    ),
+  );
+  checks.push(
+    check(
+      'object_store',
+      hasBinding(config?.r2_buckets, 'RAW_DOCS') ? 'ok' : 'error',
+      hasBinding(config?.r2_buckets, 'RAW_DOCS')
+        ? 'raw files and parse artifacts are bound to Cloudflare R2'
+        : 'Cloudflare Worker is missing the RAW_DOCS R2 binding',
+      'Expected r2_buckets binding RAW_DOCS in wrangler.jsonc.',
+    ),
+  );
+  checks.push(
+    check(
+      'ingest_queue',
+      hasQueueProducer(config?.queues, 'INGEST_QUEUE') ? 'ok' : 'warn',
+      hasQueueProducer(config?.queues, 'INGEST_QUEUE')
+        ? 'Cloudflare Queue binding is configured for async ingestion'
+        : 'Cloudflare Queue binding is missing; ingestion can only run inline/fallback paths',
+    ),
+  );
+  checks.push(
+    check(
+      'ingest_workflow',
+      hasBinding(config?.workflows, 'KB_INGEST_WORKFLOW') ? 'ok' : 'warn',
+      hasBinding(config?.workflows, 'KB_INGEST_WORKFLOW')
+        ? 'Cloudflare Workflow binding is configured for durable ingest orchestration'
+        : 'Cloudflare Workflow binding is missing; queue dispatch will not be workflow-orchestrated',
+    ),
+  );
+  checks.push(
+    check(
+      'analytics',
+      hasBinding(config?.analytics_engine_datasets, 'RAG_ANALYTICS') ? 'ok' : 'warn',
+      hasBinding(config?.analytics_engine_datasets, 'RAG_ANALYTICS')
+        ? 'Analytics Engine binding is configured for RAG events'
+        : 'Analytics Engine binding is missing; runtime still works but observability is reduced',
+    ),
+  );
 
   const routeParity = await legacyRouteParityReport();
-  checks.push(check(
-    'legacy_route_parity',
-    routeParity.ok ? 'ok' : 'error',
-    routeParity.ok
-      ? `retired FastAPI route aliases are covered (${routeParity.total}/${routeParity.total})`
-      : `${routeParity.missing_count} retired FastAPI route aliases are missing Worker parity`,
-    routeParity.ok ? '' : JSON.stringify(routeParity.missing),
-  ));
+  checks.push(
+    check(
+      'legacy_route_parity',
+      routeParity.ok ? 'ok' : 'error',
+      routeParity.ok
+        ? `retired FastAPI route aliases are covered (${routeParity.total}/${routeParity.total})`
+        : `${routeParity.missing_count} retired FastAPI route aliases are missing Worker parity`,
+      routeParity.ok ? '' : JSON.stringify(routeParity.missing),
+    ),
+  );
 
   const pythonRuntime = pythonRuntimeRetirementReport();
-  checks.push(check(
-    'python_runtime_retirement',
-    pythonRuntime.ok ? 'ok' : 'error',
-    pythonRuntime.ok
-      ? `retired Python runtime surfaces are absent (${pythonRuntime.total}/${pythonRuntime.total})`
-      : `${pythonRuntime.present_count} retired Python runtime surfaces still exist`,
-    pythonRuntime.ok ? '' : JSON.stringify(pythonRuntime.present),
-  ));
+  checks.push(
+    check(
+      'python_runtime_retirement',
+      pythonRuntime.ok ? 'ok' : 'error',
+      pythonRuntime.ok
+        ? `retired Python runtime surfaces are absent (${pythonRuntime.total}/${pythonRuntime.total})`
+        : `${pythonRuntime.present_count} retired Python runtime surfaces still exist`,
+      pythonRuntime.ok ? '' : JSON.stringify(pythonRuntime.present),
+    ),
+  );
 
   const d1Migrations = await auditD1Migrations();
-  checks.push(check(
-    'd1_migrations',
-    d1Migrations.ok ? 'ok' : 'error',
-    d1Migrations.ok
-      ? 'required D1 migrations are present for the Worker repository schema'
-      : `${d1Migrations.blockers.length} required D1 migration checks failed`,
-    d1Migrations.ok ? '' : JSON.stringify(d1Migrations.blockers),
-  ));
+  checks.push(
+    check(
+      'd1_migrations',
+      d1Migrations.ok ? 'ok' : 'error',
+      d1Migrations.ok
+        ? 'required D1 migrations are present for the Worker repository schema'
+        : `${d1Migrations.blockers.length} required D1 migration checks failed`,
+      d1Migrations.ok ? '' : JSON.stringify(d1Migrations.blockers),
+    ),
+  );
 
   const errors = checks.filter((item) => item.severity === 'error').length;
   const warnings = checks.filter((item) => item.severity === 'warn').length;

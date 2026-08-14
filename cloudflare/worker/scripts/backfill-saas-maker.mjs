@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from 'node:fs/promises';
+import { requestJson } from './lib/request-json.mjs';
 
 function usage() {
   console.error(`Usage:
@@ -52,8 +53,7 @@ function parseArgs(argv) {
       const parsed = Number.parseInt(value, 10);
       if (!Number.isFinite(parsed)) throw new Error('--batch-size must be a number');
       out.batchSize = Math.max(1, parsed);
-    }
-    else throw new Error(`unknown argument: ${arg}`);
+    } else throw new Error(`unknown argument: ${arg}`);
   }
   if (!out.input) throw new Error('--input is required');
   if (!out.key && !out.dryRun) throw new Error('--key or RAG_SERVICE_KEY is required');
@@ -82,21 +82,14 @@ function normalizeChunk(value, index) {
     id,
     document_id: documentId,
     document_content: String(row.document_content || row.documentContent || content),
-    document_external_id:
-      row.document_external_id || row.documentExternalId
-        ? String(row.document_external_id || row.documentExternalId)
-        : undefined,
+    document_external_id: row.document_external_id || row.documentExternalId ? String(row.document_external_id || row.documentExternalId) : undefined,
     content,
     embedding: row.embedding.map((n, i) => {
       const parsed = Number(n);
       if (!Number.isFinite(parsed)) throw new Error(`chunks[${index}].embedding[${i}] is not numeric`);
       return parsed;
     }),
-    chunk_index: Number.isInteger(row.chunk_index)
-      ? row.chunk_index
-      : Number.isInteger(row.chunkIndex)
-        ? row.chunkIndex
-        : index,
+    chunk_index: Number.isInteger(row.chunk_index) ? row.chunk_index : Number.isInteger(row.chunkIndex) ? row.chunkIndex : index,
     metadata: asObject(row.metadata || {}, `chunks[${index}].metadata`),
   };
 }
@@ -120,22 +113,6 @@ export function normalizeInput(raw) {
     chunks,
     dimensions: chunks[0].embedding.length,
   };
-}
-
-async function requestJson(url, { key, method = 'GET', body } = {}) {
-  const res = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(`${method} ${url} failed ${res.status}: ${JSON.stringify(payload)}`);
-  }
-  return payload;
 }
 
 async function ensureIndex({ baseUrl, key, name, externalId }) {

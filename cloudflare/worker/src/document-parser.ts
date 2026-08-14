@@ -19,19 +19,7 @@ export interface ParsedUpload {
 }
 
 const TEXT_EXTENSIONS = ['.csv', '.json', '.jsonl', '.md', '.ndjson', '.txt'];
-const MARKDOWN_ONLY_EXTENSIONS = [
-  '.jpg',
-  '.jpeg',
-  '.png',
-  '.webp',
-  '.svg',
-  '.xls',
-  '.xlsm',
-  '.xlsb',
-  '.ods',
-  '.odt',
-  '.numbers',
-];
+const MARKDOWN_ONLY_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.svg', '.xls', '.xlsm', '.xlsb', '.ods', '.odt', '.numbers'];
 type PdfFragment = { x: number; y: number; text: string };
 type VisionImage = { bytes: Uint8Array; mime: string; width?: number; height?: number; source_index?: number };
 type ByteArray = Uint8Array<ArrayBufferLike>;
@@ -220,7 +208,7 @@ function zlibStore(bytes: ByteArray): Uint8Array {
     const block = bytes.slice(offset, offset + 65535);
     const final = offset + block.length >= bytes.length ? 1 : 0;
     const len = block.length;
-    parts.push(new Uint8Array([final, len & 0xff, (len >>> 8) & 0xff, (~len) & 0xff, ((~len) >>> 8) & 0xff]), block);
+    parts.push(new Uint8Array([final, len & 0xff, (len >>> 8) & 0xff, ~len & 0xff, (~len >>> 8) & 0xff]), block);
   }
   parts.push(u32be(adler32(bytes)));
   return concatBytes(parts);
@@ -228,12 +216,7 @@ function zlibStore(bytes: ByteArray): Uint8Array {
 
 function pngChunk(type: string, data: ByteArray = new Uint8Array()): Uint8Array {
   const typeBytes = new TextEncoder().encode(type);
-  return concatBytes([
-    u32be(data.length),
-    typeBytes,
-    data,
-    u32be(crc32(concatBytes([typeBytes, data]))),
-  ]);
+  return concatBytes([u32be(data.length), typeBytes, data, u32be(crc32(concatBytes([typeBytes, data])))]);
 }
 
 function unfilterPngRows(bytes: ByteArray, width: number, height: number, bytesPerPixel: number): Uint8Array | null {
@@ -246,9 +229,9 @@ function unfilterPngRows(bytes: ByteArray, width: number, height: number, bytesP
     const outOffset = y * rowLength;
     for (let x = 0; x < rowLength; x += 1) {
       const raw = bytes[srcOffset + x] ?? 0;
-      const left = x >= bytesPerPixel ? out[outOffset + x - bytesPerPixel] ?? 0 : 0;
-      const up = y > 0 ? out[outOffset + x - rowLength] ?? 0 : 0;
-      const upLeft = y > 0 && x >= bytesPerPixel ? out[outOffset + x - rowLength - bytesPerPixel] ?? 0 : 0;
+      const left = x >= bytesPerPixel ? (out[outOffset + x - bytesPerPixel] ?? 0) : 0;
+      const up = y > 0 ? (out[outOffset + x - rowLength] ?? 0) : 0;
+      const upLeft = y > 0 && x >= bytesPerPixel ? (out[outOffset + x - rowLength - bytesPerPixel] ?? 0) : 0;
       const paeth = (() => {
         const p = left + up - upLeft;
         const pa = Math.abs(p - left);
@@ -271,26 +254,15 @@ function rawImageToPng(raw: ByteArray, width: number, height: number, colorSpace
   if (colorType === null) return null;
   const bytesPerPixel = colorType === 0 ? 1 : 3;
   const rowLength = width * bytesPerPixel;
-  const pixels = raw.length >= height * (rowLength + 1)
-    ? unfilterPngRows(raw, width, height, bytesPerPixel)
-    : raw.slice(0, height * rowLength);
+  const pixels = raw.length >= height * (rowLength + 1) ? unfilterPngRows(raw, width, height, bytesPerPixel) : raw.slice(0, height * rowLength);
   if (!pixels || pixels.length < height * rowLength) return null;
   const scanlines = new Uint8Array(height * (rowLength + 1));
   for (let y = 0; y < height; y += 1) {
     scanlines[y * (rowLength + 1)] = 0;
     scanlines.set(pixels.slice(y * rowLength, (y + 1) * rowLength), y * (rowLength + 1) + 1);
   }
-  const ihdr = concatBytes([
-    u32be(width),
-    u32be(height),
-    new Uint8Array([8, colorType, 0, 0, 0]),
-  ]);
-  return concatBytes([
-    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk('IHDR', ihdr),
-    pngChunk('IDAT', zlibStore(scanlines)),
-    pngChunk('IEND'),
-  ]);
+  const ihdr = concatBytes([u32be(width), u32be(height), new Uint8Array([8, colorType, 0, 0, 0])]);
+  return concatBytes([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), pngChunk('IHDR', ihdr), pngChunk('IDAT', zlibStore(scanlines)), pngChunk('IEND')]);
 }
 
 function pdfImages(bytes: ArrayBuffer): VisionImage[] {
@@ -346,9 +318,7 @@ function visionImageArea(image: VisionImage): number {
 function isLikelyDocumentImage(image: VisionImage): boolean {
   const area = visionImageArea(image);
   if (area > 0) {
-    return (image.width ?? 0) >= MIN_DOCUMENT_IMAGE_SIDE
-      && (image.height ?? 0) >= MIN_DOCUMENT_IMAGE_SIDE
-      && area >= MIN_DOCUMENT_IMAGE_AREA;
+    return (image.width ?? 0) >= MIN_DOCUMENT_IMAGE_SIDE && (image.height ?? 0) >= MIN_DOCUMENT_IMAGE_SIDE && area >= MIN_DOCUMENT_IMAGE_AREA;
   }
   return image.bytes.length >= MIN_UNKNOWN_SIZE_IMAGE_BYTES;
 }
@@ -425,7 +395,8 @@ function parsePdfFragments(bytes: ArrayBuffer): PdfFragment[] {
   const fragments: PdfFragment[] = [];
   let x = 0;
   let y = 0;
-  const tokenRe = /(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+Tm|(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+Td|\((?:\\.|[^\\)])*\)\s*Tj|\[((?:\s*\((?:\\.|[^\\)])*\)\s*-?\d*(?:\.\d+)?\s*)+)\]\s*TJ|<([0-9a-f\s]{6,})>\s*Tj/gi;
+  const tokenRe =
+    /(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+Tm|(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+Td|\((?:\\.|[^\\)])*\)\s*Tj|\[((?:\s*\((?:\\.|[^\\)])*\)\s*-?\d*(?:\.\d+)?\s*)+)\]\s*TJ|<([0-9a-f\s]{6,})>\s*Tj/gi;
   for (const match of raw.matchAll(tokenRe)) {
     const token = match[0];
     if (match[5] !== undefined && match[6] !== undefined) {
@@ -460,19 +431,13 @@ function groupPdfRows(fragments: PdfFragment[]): PdfFragment[][] {
 }
 
 function markdownTableFromRows(rows: PdfFragment[][]): string | null {
-  const candidateRows = rows
-    .filter((row) => row.length >= 2)
-    .map((row) => row.map((cell) => cell.text.replace(/\|/g, '\\|')));
+  const candidateRows = rows.filter((row) => row.length >= 2).map((row) => row.map((cell) => cell.text.replace(/\|/g, '\\|')));
   if (candidateRows.length < 2) return null;
   const width = Math.max(...candidateRows.map((row) => row.length));
   if (width < 2) return null;
   const normalized = candidateRows.map((row) => Array.from({ length: width }, (_, i) => row[i] ?? ''));
   const header = normalized[0] ?? [];
-  return [
-    `| ${header.join(' | ')} |`,
-    `| ${header.map(() => '---').join(' | ')} |`,
-    ...normalized.slice(1).map((row) => `| ${row.join(' | ')} |`),
-  ].join('\n');
+  return [`| ${header.join(' | ')} |`, `| ${header.map(() => '---').join(' | ')} |`, ...normalized.slice(1).map((row) => `| ${row.join(' | ')} |`)].join('\n');
 }
 
 function parsePdf(filename: string, bytes: ArrayBuffer): ParsedUpload {
@@ -519,14 +484,8 @@ function parsePdf(filename: string, bytes: ArrayBuffer): ParsedUpload {
 }
 
 function xmlText(node: string): string {
-  const normalized = node
-    .replace(/<(?:\w+:)?tab\b[^>]*\/>/g, '\t')
-    .replace(/<(?:\w+:)?br\b[^>]*\/>/g, '\n');
-  return decodeXml(
-    [...normalized.matchAll(/<(?:\w+:)?t\b[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/g)]
-      .map((match) => match[1] ?? '')
-      .join(''),
-  );
+  const normalized = node.replace(/<(?:\w+:)?tab\b[^>]*\/>/g, '\t').replace(/<(?:\w+:)?br\b[^>]*\/>/g, '\n');
+  return decodeXml([...normalized.matchAll(/<(?:\w+:)?t\b[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/g)].map((match) => match[1] ?? '').join(''));
 }
 
 function readZipText(files: Record<string, Uint8Array>, path: string): string | null {
@@ -628,26 +587,23 @@ function uploadVisionImage(filename: string, mime: string | null | undefined, by
 
 function isMarkdownConversionCandidate(filename: string, mime: string | null | undefined): boolean {
   const lower = lowerName(filename);
-  return isMarkdownOnlyCandidate(filename, mime)
-    || lower.endsWith('.pdf')
-    || mime === 'application/pdf'
-    || lower.endsWith('.docx')
-    || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    || lower.endsWith('.html')
-    || lower.endsWith('.htm')
-    || Boolean(mime?.includes('html'));
+  return (
+    isMarkdownOnlyCandidate(filename, mime) ||
+    lower.endsWith('.pdf') ||
+    mime === 'application/pdf' ||
+    lower.endsWith('.docx') ||
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    lower.endsWith('.html') ||
+    lower.endsWith('.htm') ||
+    Boolean(mime?.includes('html'))
+  );
 }
 
 function textWordCount(text: string): number {
   return (text.match(/\b[\p{L}\p{N}][\p{L}\p{N}'-]*\b/gu) ?? []).length;
 }
 
-function shouldUseMarkdownConversion(
-  filename: string,
-  mime: string | null | undefined,
-  local: ParsedUpload,
-  mode: string,
-): boolean {
+function shouldUseMarkdownConversion(filename: string, mime: string | null | undefined, local: ParsedUpload, mode: string): boolean {
   const normalizedMode = mode.trim().toLowerCase();
   if (normalizedMode === 'false' || normalizedMode === 'off' || normalizedMode === 'never') return false;
   if (!isMarkdownConversionCandidate(filename, mime)) return false;
@@ -890,24 +846,22 @@ async function convertUploadImageWithVision(
   return convertImagesWithVision(filename, mime, [image], ai, model, 'image');
 }
 
-async function convertWithMarkdown(
-  filename: string,
-  mime: string | null | undefined,
-  bytes: ArrayBuffer,
-  ai: Ai,
-): Promise<ParsedUpload | null> {
+async function convertWithMarkdown(filename: string, mime: string | null | undefined, bytes: ArrayBuffer, ai: Ai): Promise<ParsedUpload | null> {
   if (typeof ai.toMarkdown !== 'function') return null;
-  const result = await ai.toMarkdown({
-    name: filename,
-    blob: new Blob([bytes], { type: mime || 'application/octet-stream' }),
-  }, {
-    conversionOptions: {
-      html: { images: { convert: true, maxConvertedImages: 4 } },
-      docx: { images: { convert: true, maxConvertedImages: 4 } },
-      pdf: { metadata: true, images: { convert: true, maxConvertedImages: 4 } },
-      image: { descriptionLanguage: 'en' },
+  const result = await ai.toMarkdown(
+    {
+      name: filename,
+      blob: new Blob([bytes], { type: mime || 'application/octet-stream' }),
     },
-  });
+    {
+      conversionOptions: {
+        html: { images: { convert: true, maxConvertedImages: 4 } },
+        docx: { images: { convert: true, maxConvertedImages: 4 } },
+        pdf: { metadata: true, images: { convert: true, maxConvertedImages: 4 } },
+        image: { descriptionLanguage: 'en' },
+      },
+    },
+  );
   if (Array.isArray(result)) return null;
   if (result.format === 'error') return null;
   if (!result.data.trim()) return null;
@@ -921,7 +875,10 @@ function parseXlsx(filename: string, bytes: ArrayBuffer): ParsedUpload {
   for (const row of rows) {
     const existingHeader = headersBySheet.get(row.sheet);
     if (!existingHeader) {
-      headersBySheet.set(row.sheet, row.values.map((value, i) => value.trim() || `column_${i + 1}`));
+      headersBySheet.set(
+        row.sheet,
+        row.values.map((value, i) => value.trim() || `column_${i + 1}`),
+      );
       documents.push({
         external_id: `${filename}:${row.sheet}:header`,
         content: `Sheet '${row.sheet}' header: ${row.values.join(' | ')}\n[${row.sheet}] header: ${row.values.join(' | ')}`,
@@ -959,9 +916,7 @@ function parseDocx(filename: string, bytes: ArrayBuffer): ParsedUpload {
   if (!xml) {
     return { parser: 'worker-docx-xml-v1', parser_version: '1', documents: [], text: '', page_count: 0, record_count: 0 };
   }
-  const paragraphs = [...xml.matchAll(/<(?:\w+:)?p\b[^>]*>([\s\S]*?)<\/(?:\w+:)?p>/g)]
-    .map((match) => normalizeText(xmlText(match[1] ?? '')))
-    .filter(Boolean);
+  const paragraphs = [...xml.matchAll(/<(?:\w+:)?p\b[^>]*>([\s\S]*?)<\/(?:\w+:)?p>/g)].map((match) => normalizeText(xmlText(match[1] ?? ''))).filter(Boolean);
   const text = normalizeText(paragraphs.join('\n\n'));
   const documents = paragraphs.map((paragraph, i) => ({
     external_id: `${filename}:paragraph:${i + 1}`,
@@ -988,9 +943,7 @@ function parsePptx(filename: string, bytes: ArrayBuffer): ParsedUpload {
     const xml = readZipText(files, path);
     if (!xml) continue;
     const slide = Number(path.match(/slide(\d+)\.xml$/)?.[1] ?? documents.length + 1);
-    const paragraphs = [...xml.matchAll(/<(?:\w+:)?p\b[^>]*>([\s\S]*?)<\/(?:\w+:)?p>/g)]
-      .map((match) => normalizeText(xmlText(match[1] ?? '')))
-      .filter(Boolean);
+    const paragraphs = [...xml.matchAll(/<(?:\w+:)?p\b[^>]*>([\s\S]*?)<\/(?:\w+:)?p>/g)].map((match) => normalizeText(xmlText(match[1] ?? ''))).filter(Boolean);
     const text = normalizeText((paragraphs.length > 0 ? paragraphs : [xmlText(xml)]).join(' '));
     if (!text) continue;
     documents.push({
@@ -1061,8 +1014,8 @@ export async function parseUploadBytesWithCloudflare(
   const warnings: string[] = [];
   let visionConverted: ParsedUpload | null = null;
   const hasVisionModel = parseVisionOcrModels(visionOcrModel).length > 0;
-  const pdfNeedsVisionOcr = (lowerName(filename).endsWith('.pdf') || mime === 'application/pdf')
-    && (local.documents.length === 0 || textWordCount(local.text) < 8);
+  const pdfNeedsVisionOcr =
+    (lowerName(filename).endsWith('.pdf') || mime === 'application/pdf') && (local.documents.length === 0 || textWordCount(local.text) < 8);
   const imageNeedsVisionOcr = uploadVisionImage(filename, mime, bytes) !== null;
   if (hasVisionModel && (pdfNeedsVisionOcr || imageNeedsVisionOcr)) {
     try {

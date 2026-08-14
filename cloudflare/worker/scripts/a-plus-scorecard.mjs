@@ -116,11 +116,15 @@ function parseArgs(argv) {
 }
 
 function normalizeDomain(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 function normalizeEvalKind(value) {
-  const kind = String(value || '').trim().toLowerCase();
+  const kind = String(value || '')
+    .trim()
+    .toLowerCase();
   if (!kind) throw new Error(`unsupported eval kind: ${value}`);
   return kind;
 }
@@ -182,7 +186,11 @@ function hasAllCapabilities(capabilities, names) {
 }
 
 function hasAllItems(items, required) {
-  const set = new Set(asArray(items).map((item) => String(item || '').trim()).filter(Boolean));
+  const set = new Set(
+    asArray(items)
+      .map((item) => String(item || '').trim())
+      .filter(Boolean),
+  );
   return required.every((item) => set.has(item));
 }
 
@@ -224,7 +232,19 @@ function queryEvalRowCount(report) {
 }
 
 function normalizeEvidence(raw) {
-  if (raw?.operator_report || raw?.operatorReport || raw?.benchmarks || raw?.readiness_reports || raw?.readinessReports || raw?.readiness_report || raw?.readinessReport || raw?.query_evals || raw?.queryEvals || raw?.query_eval || raw?.queryEval) {
+  if (
+    raw?.operator_report ||
+    raw?.operatorReport ||
+    raw?.benchmarks ||
+    raw?.readiness_reports ||
+    raw?.readinessReports ||
+    raw?.readiness_report ||
+    raw?.readinessReport ||
+    raw?.query_evals ||
+    raw?.queryEvals ||
+    raw?.query_eval ||
+    raw?.queryEval
+  ) {
     return {
       operatorReport: raw.operator_report ?? raw.operatorReport ?? null,
       benchmarks: asArray(raw.benchmarks),
@@ -260,18 +280,19 @@ async function readJson(path) {
 }
 
 async function loadScorecardEvidence(args) {
-  if (!args.operatorReport && args.benchmarks.length === 0 && args.readinessReports.length === 0 && args.queryEvalReports.length === 0) return readJson(args.input);
+  if (!args.operatorReport && args.benchmarks.length === 0 && args.readinessReports.length === 0 && args.queryEvalReports.length === 0)
+    return readJson(args.input);
 
-  const base = args.input ? normalizeEvidence(await readJson(args.input)) : {
-    operatorReport: null,
-    benchmarks: [],
-    queryEvals: [],
-    readinessReports: [],
-    capabilities: {},
-  };
-  const operatorReport = args.operatorReport
-    ? await readJson(args.operatorReport)
-    : base.operatorReport;
+  const base = args.input
+    ? normalizeEvidence(await readJson(args.input))
+    : {
+        operatorReport: null,
+        benchmarks: [],
+        queryEvals: [],
+        readinessReports: [],
+        capabilities: {},
+      };
+  const operatorReport = args.operatorReport ? await readJson(args.operatorReport) : base.operatorReport;
   const benchmarkFiles = await Promise.all(args.benchmarks.map((path) => readJson(path)));
   const readinessFiles = await Promise.all(args.readinessReports.map((path) => readJson(path)));
   const queryEvalFiles = await Promise.all(args.queryEvalReports.map((path) => readJson(path)));
@@ -297,14 +318,13 @@ function scoreReliability(operatorReport, requirements = {}, capabilities = {}) 
   const checks = asArray(operatorReport.checks);
   const failedChecks = checks.filter((check) => check?.ok !== true).map((check) => check?.name ?? 'unknown');
   const healthCheck = checks.find((check) => check?.name === 'public_health');
-  const deployFingerprint = typeof healthCheck?.deploy_fingerprint === 'string'
-    ? healthCheck.deploy_fingerprint
-    : typeof operatorReport.deploy_fingerprint === 'string'
-      ? operatorReport.deploy_fingerprint
-      : null;
-  const expectedDeployFingerprint = typeof requirements.expectedDeployFingerprint === 'string'
-    ? requirements.expectedDeployFingerprint.trim()
-    : '';
+  const deployFingerprint =
+    typeof healthCheck?.deploy_fingerprint === 'string'
+      ? healthCheck.deploy_fingerprint
+      : typeof operatorReport.deploy_fingerprint === 'string'
+        ? operatorReport.deploy_fingerprint
+        : null;
+  const expectedDeployFingerprint = typeof requirements.expectedDeployFingerprint === 'string' ? requirements.expectedDeployFingerprint.trim() : '';
   const fingerprintBlockers = expectedDeployFingerprint
     ? deployFingerprint === expectedDeployFingerprint
       ? []
@@ -313,11 +333,9 @@ function scoreReliability(operatorReport, requirements = {}, capabilities = {}) 
   const blockers = [...asArray(operatorReport.blockers), ...failedChecks, ...fingerprintBlockers];
   const authenticated = operatorReport.authenticated === true;
   const consumerSmokes = asArray(capabilities.consumer_authenticated_smokes);
-  const consumerAuthenticatedSmokeOk = consumerSmokes.length >= 2
-    && consumerSmokes.every((smoke) => smoke?.ok === true && smoke?.authenticated === true);
+  const consumerAuthenticatedSmokeOk = consumerSmokes.length >= 2 && consumerSmokes.every((smoke) => smoke?.ok === true && smoke?.authenticated === true);
   const consumerPublicSmokes = asArray(capabilities.consumer_public_smokes);
-  const consumerPublicSmokeOk = consumerPublicSmokes.length >= 2
-    && consumerPublicSmokes.every((smoke) => smoke?.ok === true && smoke?.public === true);
+  const consumerPublicSmokeOk = consumerPublicSmokes.length >= 2 && consumerPublicSmokes.every((smoke) => smoke?.ok === true && smoke?.public === true);
   const consumerSmokeOk = consumerPublicSmokeOk || consumerAuthenticatedSmokeOk;
   const a = operatorReport.ok === true && blockers.length === 0;
   const aPlus = a && authenticated && checks.length >= 2;
@@ -356,31 +374,29 @@ function scoreDeployReadiness(readinessReports, requirements = {}) {
 
   const reports = readinessReports.map((report) => {
     const checks = asArray(report?.checks);
-    const failedChecks = checks
-      .filter((check) => check?.ok !== true)
-      .map((check) => check?.name ?? 'unknown');
+    const failedChecks = checks.filter((check) => check?.ok !== true).map((check) => check?.name ?? 'unknown');
     return {
       ok: report?.ok === true && failedChecks.length === 0,
       base_url: report?.base_url ?? null,
       check_count: checks.length,
       failed_checks: failedChecks,
-      deploy_fingerprint: (
-        checks.find((check) => check?.name === 'deployed-worker-fingerprint' && typeof check?.deploy_fingerprint === 'string')
-        ?? checks.find((check) => typeof check?.deploy_fingerprint === 'string')
-      )?.deploy_fingerprint ?? null,
+      deploy_fingerprint:
+        (
+          checks.find((check) => check?.name === 'deployed-worker-fingerprint' && typeof check?.deploy_fingerprint === 'string') ??
+          checks.find((check) => typeof check?.deploy_fingerprint === 'string')
+        )?.deploy_fingerprint ?? null,
     };
   });
   const failedReports = reports.filter((report) => !report.ok);
-  const blockers = failedReports.flatMap((report) => (
-    report.failed_checks.length > 0
-      ? report.failed_checks.map((name) => `readiness_${name}`)
-      : ['deploy_readiness_failed']
-  ));
+  const blockers = failedReports.flatMap((report) =>
+    report.failed_checks.length > 0 ? report.failed_checks.map((name) => `readiness_${name}`) : ['deploy_readiness_failed'],
+  );
   const allReportsOk = failedReports.length === 0;
-  const sReady = allReportsOk
-    && reports.length >= 1
-    && reports.every((report) => report.check_count >= 3)
-    && reports.some((report) => report.failed_checks.length === 0 && report.deploy_fingerprint);
+  const sReady =
+    allReportsOk &&
+    reports.length >= 1 &&
+    reports.every((report) => report.check_count >= 3) &&
+    reports.some((report) => report.failed_checks.length === 0 && report.deploy_fingerprint);
   return {
     name: 'deploy_readiness',
     grade: sReady ? 'S' : failedReports.length === 0 ? 'A+' : 'C',
@@ -424,9 +440,7 @@ function scoreScope(operatorReport, benchmarks, queryEvals, requirements = {}) {
   if (!operatorDomain) blockers.push('missing_operator_domain_scope');
   else if (operatorDomain !== requiredDomain) blockers.push('operator_domain_scope_mismatch');
 
-  const missingBenchmarkDomains = domainBenchmarks
-    .filter((benchmark) => !benchmark.domain)
-    .map((benchmark) => benchmark.surface);
+  const missingBenchmarkDomains = domainBenchmarks.filter((benchmark) => !benchmark.domain).map((benchmark) => benchmark.surface);
   const mismatchedBenchmarkDomains = domainBenchmarks
     .filter((benchmark) => benchmark.domain && benchmark.domain !== requiredDomain)
     .map((benchmark) => `${benchmark.surface}:${benchmark.domain}`);
@@ -437,12 +451,13 @@ function scoreScope(operatorReport, benchmarks, queryEvals, requirements = {}) {
   if (missingQueryEvalDomains.length > 0) blockers.push('missing_query_eval_domain_scope');
   if (mismatchedQueryEvalDomains.length > 0) blockers.push('query_eval_domain_scope_mismatch');
 
-  const sReady = blockers.length === 0
-    && Boolean(requiredDomain)
-    && domainBenchmarks.length >= 2
-    && domainBenchmarks.every((benchmark) => benchmark.domain === requiredDomain)
-    && queryEvalDomains.length >= 1
-    && queryEvalDomains.every((domain) => domain === requiredDomain);
+  const sReady =
+    blockers.length === 0 &&
+    Boolean(requiredDomain) &&
+    domainBenchmarks.length >= 2 &&
+    domainBenchmarks.every((benchmark) => benchmark.domain === requiredDomain) &&
+    queryEvalDomains.length >= 1 &&
+    queryEvalDomains.every((domain) => domain === requiredDomain);
   return {
     name: 'evidence_scope',
     grade: sReady ? 'S' : blockers.length === 0 ? 'A+' : 'C',
@@ -502,36 +517,34 @@ function scorePerformance(benchmarks, requirements = {}) {
     const missing = p95 === null && serverP95 === null;
     const tooFewRepeats = minBenchmarkRepeat > 0 && (repeat === null || repeat < minBenchmarkRepeat);
     const tooFewSamples = minBenchmarkSamples > 0 && (sampleCount === null || sampleCount < minBenchmarkSamples);
-    const serverOwnedS = serverP95 !== null
-      && serverP95 <= thresholds.sServerP95Ms
-      && serverNonCacheCount > 0
-      && serverNonCacheP95 !== null
-      && serverNonCacheP95 <= thresholds.sServerP95Ms;
-    const aPlus = !missing
-      && !tooFewRepeats
-      && !tooFewSamples
-      && (p95 === null || p95 <= thresholds.aPlusP95Ms || serverOwnedS)
-      && (serverP95 === null || serverP95 <= thresholds.aPlusServerP95Ms);
-    const a = !missing
-      && !tooFewRepeats
-      && !tooFewSamples
-      && (p95 === null || p95 <= thresholds.aP95Ms)
-      && (serverP95 === null || serverP95 <= thresholds.aServerP95Ms);
-    const nonCacheS = nonCacheP95 !== null
-      && nonCacheCount > 0
-      && (
-        nonCacheP95 <= thresholds.sP95Ms
-        || (
-          serverNonCacheCount > 0
-          && serverNonCacheP95 !== null
-          && serverNonCacheP95 <= thresholds.sServerP95Ms
-        )
-      );
-    const s = aPlus
-      && (p95 === null || p95 <= thresholds.sP95Ms || serverOwnedS)
-      && (serverP95 === null || serverP95 <= thresholds.sServerP95Ms)
-      && nonCacheS
-      && (serverNonCacheP95 === null || serverNonCacheP95 <= thresholds.sServerP95Ms);
+    const serverOwnedS =
+      serverP95 !== null &&
+      serverP95 <= thresholds.sServerP95Ms &&
+      serverNonCacheCount > 0 &&
+      serverNonCacheP95 !== null &&
+      serverNonCacheP95 <= thresholds.sServerP95Ms;
+    const aPlus =
+      !missing &&
+      !tooFewRepeats &&
+      !tooFewSamples &&
+      (p95 === null || p95 <= thresholds.aPlusP95Ms || serverOwnedS) &&
+      (serverP95 === null || serverP95 <= thresholds.aPlusServerP95Ms);
+    const a =
+      !missing &&
+      !tooFewRepeats &&
+      !tooFewSamples &&
+      (p95 === null || p95 <= thresholds.aP95Ms) &&
+      (serverP95 === null || serverP95 <= thresholds.aServerP95Ms);
+    const nonCacheS =
+      nonCacheP95 !== null &&
+      nonCacheCount > 0 &&
+      (nonCacheP95 <= thresholds.sP95Ms || (serverNonCacheCount > 0 && serverNonCacheP95 !== null && serverNonCacheP95 <= thresholds.sServerP95Ms));
+    const s =
+      aPlus &&
+      (p95 === null || p95 <= thresholds.sP95Ms || serverOwnedS) &&
+      (serverP95 === null || serverP95 <= thresholds.sServerP95Ms) &&
+      nonCacheS &&
+      (serverNonCacheP95 === null || serverNonCacheP95 <= thresholds.sServerP95Ms);
     return {
       mode,
       surface,
@@ -554,12 +567,8 @@ function scorePerformance(benchmarks, requirements = {}) {
   });
   const missingModes = requiredModes.filter((mode) => !rows.some((row) => row.mode === mode));
   const missingSurfaces = requiredSurfaces.filter((surface) => !rows.some((row) => row.surface === surface));
-  const grade = missingModes.length > 0 || missingSurfaces.length > 0
-    ? 'C'
-    : minGrade(rows.map((row) => row.grade));
-  const belowABlockers = rows
-    .filter((row) => !gradeAtLeast(row.grade, 'A'))
-    .map((row) => `${row.surface}_${row.mode}_benchmark_below_a`);
+  const grade = missingModes.length > 0 || missingSurfaces.length > 0 ? 'C' : minGrade(rows.map((row) => row.grade));
+  const belowABlockers = rows.filter((row) => !gradeAtLeast(row.grade, 'A')).map((row) => `${row.surface}_${row.mode}_benchmark_below_a`);
   const sampleBlockers = rows.flatMap((row) => [
     ...(row.too_few_repeats ? [`${row.surface}_${row.mode}_benchmark_repeat_below_min`] : []),
     ...(row.too_few_samples ? [`${row.surface}_${row.mode}_benchmark_samples_below_min`] : []),
@@ -593,31 +602,21 @@ function scoreQuality(operatorReport, benchmarks, queryEvals, requirements = {},
     report_id: report?.report_id ?? null,
     row_count: queryEvalRowCount(report),
   }));
-  const queryEvalRowsBelowMin = queryEvalRows
-    .filter((report) => minQueryEvalRows > 0 && (report.row_count === null || report.row_count < minQueryEvalRows));
+  const queryEvalRowsBelowMin = queryEvalRows.filter((report) => minQueryEvalRows > 0 && (report.row_count === null || report.row_count < minQueryEvalRows));
   const evalKinds = [
     ...asArray(operatorReport?.inventory?.eval_kinds).map(normalizeEvalKind).filter(Boolean),
     ...(queryEvals.length > 0 ? ['query'] : []),
   ].filter((kind, index, values) => values.indexOf(kind) === index);
   const missingEvalKinds = requiredEvalKinds.filter((kind) => !evalKinds.includes(kind));
-  const hitRates = benchmarks
-    .map((benchmark) => asNumber(benchmark?.hit_rate))
-    .filter((value) => value !== null);
-  const queryEvalHitRates = queryEvals
-    .map((report) => asNumber(report?.hit_rate))
-    .filter((value) => value !== null);
+  const hitRates = benchmarks.map((benchmark) => asNumber(benchmark?.hit_rate)).filter((value) => value !== null);
+  const queryEvalHitRates = queryEvals.map((report) => asNumber(report?.hit_rate)).filter((value) => value !== null);
   const hitRate = hitRates.length ? Math.min(...hitRates) : null;
   const queryEvalHitRate = queryEvalHitRates.length ? Math.min(...queryEvalHitRates) : null;
   const effectiveHitRate = queryEvalHitRate ?? hitRate;
-  const recentTraceCount = asNumber(operatorReport?.cost_signals?.recent_trace_count)
-    ?? asNumber(operatorReport?.inventory?.recent_trace_count);
+  const recentTraceCount = asNumber(operatorReport?.cost_signals?.recent_trace_count) ?? asNumber(operatorReport?.inventory?.recent_trace_count);
   const tracesWithCitations = asNumber(operatorReport?.cost_signals?.traces_with_citations);
-  const traceCitationRate = recentTraceCount && tracesWithCitations !== null
-    ? tracesWithCitations / recentTraceCount
-    : null;
-  const queryEvalCitationRates = queryEvals
-    .map((report) => asNumber(report?.citation_rate))
-    .filter((value) => value !== null);
+  const traceCitationRate = recentTraceCount && tracesWithCitations !== null ? tracesWithCitations / recentTraceCount : null;
+  const queryEvalCitationRates = queryEvals.map((report) => asNumber(report?.citation_rate)).filter((value) => value !== null);
   const queryEvalCitationRate = queryEvalCitationRates.length ? Math.min(...queryEvalCitationRates) : null;
   const citationRate = queryEvalCitationRate ?? traceCitationRate;
   const evalReportCount = (asNumber(operatorReport?.inventory?.eval_report_count) ?? 0) + queryEvals.length;
@@ -629,10 +628,7 @@ function scoreQuality(operatorReport, benchmarks, queryEvals, requirements = {},
       name: 'retrieval_quality',
       grade: 'C',
       ok: false,
-      blockers: [
-        'missing_quality_evidence',
-        ...missingEvalKinds.map((kind) => `missing_${kind}_eval_report`),
-      ],
+      blockers: ['missing_quality_evidence', ...missingEvalKinds.map((kind) => `missing_${kind}_eval_report`)],
       evidence: {
         hit_rate: hitRate,
         query_eval_hit_rate: queryEvalHitRate,
@@ -651,25 +647,28 @@ function scoreQuality(operatorReport, benchmarks, queryEvals, requirements = {},
 
   const hasRequiredEvalKinds = missingEvalKinds.length === 0;
   const hasRequiredQueryEvalRows = queryEvalRowsBelowMin.length === 0;
-  const aPlus = hasRequiredEvalKinds
-    && hasRequiredQueryEvalRows
-    && (effectiveHitRate === null || effectiveHitRate >= 0.92)
-    && (queryEvalHitRate === null || queryEvalHitRate >= 0.92)
-    && (citationRate === null || citationRate >= 0.95)
-    && (evalReportCount === null || evalReportCount >= 1);
-  const a = hasRequiredEvalKinds
-    && hasRequiredQueryEvalRows
-    && (effectiveHitRate === null || effectiveHitRate >= 0.85)
-    && (queryEvalHitRate === null || queryEvalHitRate >= 0.85)
-    && (citationRate === null || citationRate >= 0.9)
-    && (evalReportCount === null || evalReportCount >= 1);
+  const aPlus =
+    hasRequiredEvalKinds &&
+    hasRequiredQueryEvalRows &&
+    (effectiveHitRate === null || effectiveHitRate >= 0.92) &&
+    (queryEvalHitRate === null || queryEvalHitRate >= 0.92) &&
+    (citationRate === null || citationRate >= 0.95) &&
+    (evalReportCount === null || evalReportCount >= 1);
+  const a =
+    hasRequiredEvalKinds &&
+    hasRequiredQueryEvalRows &&
+    (effectiveHitRate === null || effectiveHitRate >= 0.85) &&
+    (queryEvalHitRate === null || queryEvalHitRate >= 0.85) &&
+    (citationRate === null || citationRate >= 0.9) &&
+    (evalReportCount === null || evalReportCount >= 1);
   const hasConsumerEvalPacks = hasAllItems(capabilities.consumer_eval_packs, ['karte-memory', 'starboard-readme']);
-  const s = aPlus
-    && hasConsumerEvalPacks
-    && (effectiveHitRate === null || effectiveHitRate >= 0.98)
-    && (queryEvalHitRate === null || queryEvalHitRate >= 1)
-    && (citationRate === null || citationRate >= 1)
-    && evalReportCount >= 2;
+  const s =
+    aPlus &&
+    hasConsumerEvalPacks &&
+    (effectiveHitRate === null || effectiveHitRate >= 0.98) &&
+    (queryEvalHitRate === null || queryEvalHitRate >= 1) &&
+    (citationRate === null || citationRate >= 1) &&
+    evalReportCount >= 2;
   const result = gradeCheck({
     s,
     aPlus,
@@ -697,10 +696,10 @@ function scoreQuality(operatorReport, benchmarks, queryEvals, requirements = {},
     blockers: result.ok
       ? []
       : [
-        ...missingEvalKinds.map((kind) => `missing_${kind}_eval_report`),
-        ...queryEvalRowsBelowMin.map((report) => `${report.report_id ?? 'query_eval'}_rows_below_min`),
-        'quality_below_a',
-      ],
+          ...missingEvalKinds.map((kind) => `missing_${kind}_eval_report`),
+          ...queryEvalRowsBelowMin.map((report) => `${report.report_id ?? 'query_eval'}_rows_below_min`),
+          'quality_below_a',
+        ],
   };
 }
 
@@ -725,9 +724,10 @@ function scoreIngestion(operatorReport, capabilities = {}) {
   const hasEvidence = fileCount > 0 || jobCount > 0;
   const aPlus = hasEvidence && failedFiles === 0 && failedJobs === 0 && readyFiles === fileCount && (inventory.source_set_count ?? 0) > 0;
   const a = hasEvidence && failedFiles === 0 && failedJobs === 0;
-  const s = aPlus
-    && hasAllItems(capabilities.ingest_contracts, ['text', 'record', 'url', 'file'])
-    && hasAllCapabilities(capabilities, ['idempotent_ingest', 'chunk_preview', 'replayable_jobs', 'failure_classification']);
+  const s =
+    aPlus &&
+    hasAllItems(capabilities.ingest_contracts, ['text', 'record', 'url', 'file']) &&
+    hasAllCapabilities(capabilities, ['idempotent_ingest', 'chunk_preview', 'replayable_jobs', 'failure_classification']);
   const result = gradeCheck({
     s,
     aPlus,
@@ -761,10 +761,11 @@ function scoreObservability(operatorReport, queryEvals = [], capabilities = {}) 
   const avgTraceLatencyMs = asNumber(inventory?.avg_trace_latency_ms);
   const aPlus = recentTraceCount >= 10 && evalReportCount >= 1 && (avgTraceLatencyMs === null || avgTraceLatencyMs <= 1000);
   const a = recentTraceCount >= 1 && evalReportCount >= 1;
-  const s = aPlus
-    && recentTraceCount >= 10
-    && evalReportCount >= 2
-    && hasAllCapabilities(capabilities, ['trace_drilldown', 'trace_export', 'stage_timings', 'empty_result_diagnostics']);
+  const s =
+    aPlus &&
+    recentTraceCount >= 10 &&
+    evalReportCount >= 2 &&
+    hasAllCapabilities(capabilities, ['trace_drilldown', 'trace_export', 'stage_timings', 'empty_result_diagnostics']);
   const result = gradeCheck({
     s,
     aPlus,
@@ -790,13 +791,10 @@ function scoreObservability(operatorReport, queryEvals = [], capabilities = {}) 
 
 function scoreEaseOfUse(operatorReport, capabilities = {}) {
   const reported = operatorReport?.capabilities ?? {};
-  const hostedUi = capabilities.hosted_ui === true
-    || reported.hosted_ui === true
-    || operatorReport?.checks?.some?.((check) => check?.name === 'hosted_ui' && check?.ok);
+  const hostedUi =
+    capabilities.hosted_ui === true || reported.hosted_ui === true || operatorReport?.checks?.some?.((check) => check?.name === 'hosted_ui' && check?.ok);
   const customInput = capabilities.custom_input === true || reported.custom_input === true;
-  const asyncStatus = capabilities.async_status === true
-    || reported.async_status === true
-    || (operatorReport?.inventory?.job_count ?? 0) > 0;
+  const asyncStatus = capabilities.async_status === true || reported.async_status === true || (operatorReport?.inventory?.job_count ?? 0) > 0;
   const hidesRagInternals = capabilities.hides_rag_internals === true || reported.hides_rag_internals === true;
   const nonUiS = hasAllCapabilities({ ...reported, ...capabilities }, [
     'typed_client_contract',
@@ -836,9 +834,13 @@ export function buildAPlusScorecard(rawEvidence, options = {}) {
     ...(evidence.capabilities ?? {}),
   };
   const categories = [
-    scoreReliability(evidence.operatorReport, {
-      expectedDeployFingerprint: options.expectedDeployFingerprint,
-    }, capabilities),
+    scoreReliability(
+      evidence.operatorReport,
+      {
+        expectedDeployFingerprint: options.expectedDeployFingerprint,
+      },
+      capabilities,
+    ),
     scoreDeployReadiness(evidence.readinessReports, {
       requireReport: options.requireReadinessReport,
     }),
@@ -851,10 +853,16 @@ export function buildAPlusScorecard(rawEvidence, options = {}) {
       minRepeat: options.minBenchmarkRepeat,
       minSamples: options.minBenchmarkSamples,
     }),
-    scoreQuality(evidence.operatorReport, evidence.benchmarks, evidence.queryEvals, {
-      evalKinds: options.requiredEvalKinds,
-      minQueryEvalRows: options.minQueryEvalRows,
-    }, capabilities),
+    scoreQuality(
+      evidence.operatorReport,
+      evidence.benchmarks,
+      evidence.queryEvals,
+      {
+        evalKinds: options.requiredEvalKinds,
+        minQueryEvalRows: options.minQueryEvalRows,
+      },
+      capabilities,
+    ),
     scoreIngestion(evidence.operatorReport, capabilities),
     scoreObservability(evidence.operatorReport, evidence.queryEvals, capabilities),
     scoreEaseOfUse(evidence.operatorReport, capabilities),

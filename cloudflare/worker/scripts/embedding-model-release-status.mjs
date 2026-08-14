@@ -31,10 +31,7 @@ const CHECK_RELEASE_PLAN_STEPS = {
     'readiness-embedding-model',
   ],
   'vectorize-all-free-ai-dimensions-configured': ['vectorize-embedding-provisioning'],
-  'vectorize-configured-metadata-indexes': [
-    'vectorize-configured-metadata-provisioning',
-    'vectorize-metadata-index-readiness',
-  ],
+  'vectorize-configured-metadata-indexes': ['vectorize-configured-metadata-provisioning', 'vectorize-metadata-index-readiness'],
 };
 
 function check(name, ok, detail = {}) {
@@ -95,13 +92,15 @@ function vectorizeMetadataRemediationCommandTexts(report) {
 }
 
 function validEmbeddingModelDetail(item) {
-  return typeof item.id === 'string'
-    && item.id.length > 0
-    && typeof item.provider === 'string'
-    && item.provider.length > 0
-    && typeof item.dimensions === 'number'
-    && Number.isFinite(item.dimensions)
-    && item.dimensions > 0;
+  return (
+    typeof item.id === 'string' &&
+    item.id.length > 0 &&
+    typeof item.provider === 'string' &&
+    item.provider.length > 0 &&
+    typeof item.dimensions === 'number' &&
+    Number.isFinite(item.dimensions) &&
+    item.dimensions > 0
+  );
 }
 
 function embeddingModelInvalidReasons(item) {
@@ -134,24 +133,32 @@ export async function embeddingModelReleaseStatus({
 
   try {
     const health = await requestJson(fetchImpl, `${normalizedRagBaseUrl}/v1/healthz`);
-    checks.push(check('knowledgebase-public-health-current', health.ok
-      && health.payload?.ok === true
-      && health.payload?.d1 === true
-      && health.payload?.d1_schema === true
-      && health.payload?.vectorize === true
-      && health.payload?.r2 === true
-      && health.payload?.deploy_fingerprint === expectedDeployFingerprint, {
-      status: health.status,
-      deploy_fingerprint: typeof health.payload?.deploy_fingerprint === 'string' ? health.payload.deploy_fingerprint : null,
-      expected_deploy_fingerprint: expectedDeployFingerprint,
-      d1_schema: typeof health.payload?.d1_schema === 'boolean' ? health.payload.d1_schema : null,
-      vectorize: typeof health.payload?.vectorize === 'boolean' ? health.payload.vectorize : null,
-      r2: typeof health.payload?.r2 === 'boolean' ? health.payload.r2 : null,
-    }));
+    checks.push(
+      check(
+        'knowledgebase-public-health-current',
+        health.ok &&
+          health.payload?.ok === true &&
+          health.payload?.d1 === true &&
+          health.payload?.d1_schema === true &&
+          health.payload?.vectorize === true &&
+          health.payload?.r2 === true &&
+          health.payload?.deploy_fingerprint === expectedDeployFingerprint,
+        {
+          status: health.status,
+          deploy_fingerprint: typeof health.payload?.deploy_fingerprint === 'string' ? health.payload.deploy_fingerprint : null,
+          expected_deploy_fingerprint: expectedDeployFingerprint,
+          d1_schema: typeof health.payload?.d1_schema === 'boolean' ? health.payload.d1_schema : null,
+          vectorize: typeof health.payload?.vectorize === 'boolean' ? health.payload.vectorize : null,
+          r2: typeof health.payload?.r2 === 'boolean' ? health.payload.r2 : null,
+        },
+      ),
+    );
   } catch (error) {
-    checks.push(check('knowledgebase-public-health-current', false, {
-      error: String(error instanceof Error ? error.message : error),
-    }));
+    checks.push(
+      check('knowledgebase-public-health-current', false, {
+        error: String(error instanceof Error ? error.message : error),
+      }),
+    );
   }
 
   try {
@@ -170,143 +177,155 @@ export async function embeddingModelReleaseStatus({
     freeAiEmbeddingCatalogReady = models.ok && validEnabledEmbeddings.length > 0 && invalidEnabledEmbeddings.length === 0;
     selectedDeployedModel = selected
       ? {
-        id: selected.id,
-        provider: typeof selected.provider === 'string' ? selected.provider : null,
-        dimensions: typeof selected.dimensions === 'number' ? selected.dimensions : null,
-        supports_dimensions: selected.supports_dimensions === true,
-        aliases: Array.isArray(selected.aliases) ? selected.aliases : [],
-        priority: typeof selected.priority === 'number' ? selected.priority : null,
-        enabled: selected.enabled !== false,
-      }
+          id: selected.id,
+          provider: typeof selected.provider === 'string' ? selected.provider : null,
+          dimensions: typeof selected.dimensions === 'number' ? selected.dimensions : null,
+          supports_dimensions: selected.supports_dimensions === true,
+          aliases: Array.isArray(selected.aliases) ? selected.aliases : [],
+          priority: typeof selected.priority === 'number' ? selected.priority : null,
+          enabled: selected.enabled !== false,
+        }
       : null;
-    checks.push(check('free-ai-deployed-embedding-catalog', models.ok
-      && freeAiEmbeddingCatalogReady
-      && selectedReady, {
-      status: models.status,
-      embedding_model_count: embeddings.length,
-      valid_embedding_model_count: validEnabledEmbeddings.length,
-      invalid_embedding_models: invalidEnabledEmbeddings,
-      model,
-      selected: selectedDeployedModel,
-      selected_invalid_reasons: selected ? embeddingModelInvalidReasons(selected) : ['missing_model'],
-    }));
+    checks.push(
+      check('free-ai-deployed-embedding-catalog', models.ok && freeAiEmbeddingCatalogReady && selectedReady, {
+        status: models.status,
+        embedding_model_count: embeddings.length,
+        valid_embedding_model_count: validEnabledEmbeddings.length,
+        invalid_embedding_models: invalidEnabledEmbeddings,
+        model,
+        selected: selectedDeployedModel,
+        selected_invalid_reasons: selected ? embeddingModelInvalidReasons(selected) : ['missing_model'],
+      }),
+    );
   } catch (error) {
-    checks.push(check('free-ai-deployed-embedding-catalog', false, {
-      model,
-      error: String(error instanceof Error ? error.message : error),
-    }));
+    checks.push(
+      check('free-ai-deployed-embedding-catalog', false, {
+        model,
+        error: String(error instanceof Error ? error.message : error),
+      }),
+    );
   }
 
   if (checkKnowledgebaseEmbeddingModels) {
     if (!key) {
-      checks.push(check('knowledgebase-embedding-model-catalog', false, {
-        release_plan_steps: ['live-release-status'],
-        skipped: true,
-        model,
-        error: 'RAG_SERVICE_KEY or --key is required for the knowledgebase embedding model catalog check',
-      }));
+      checks.push(
+        check('knowledgebase-embedding-model-catalog', false, {
+          release_plan_steps: ['live-release-status'],
+          skipped: true,
+          model,
+          error: 'RAG_SERVICE_KEY or --key is required for the knowledgebase embedding model catalog check',
+        }),
+      );
     } else {
       try {
         const models = await requestJson(fetchImpl, `${normalizedRagBaseUrl}/v1/embedding-models`, { key });
         const rows = Array.isArray(models.payload?.free_ai_models) ? models.payload.free_ai_models : [];
         const selected = selectedEmbeddingModel(rows, model);
-        const selectedReady = Boolean(selected)
-          && selected.enabled !== false
-          && validEmbeddingModelDetail(selected)
-          && Boolean(selected.compatible_profile)
-          && Boolean(selected.vectorize_binding)
-          && selected.selectable === true;
+        const selectedReady =
+          Boolean(selected) &&
+          selected.enabled !== false &&
+          validEmbeddingModelDetail(selected) &&
+          Boolean(selected.compatible_profile) &&
+          Boolean(selected.vectorize_binding) &&
+          selected.selectable === true;
         const selectedKnowledgebaseModel = selected
           ? {
-            id: selected.id,
-            provider: typeof selected.provider === 'string' ? selected.provider : null,
-            dimensions: typeof selected.dimensions === 'number' ? selected.dimensions : null,
-            compatible_profile: typeof selected.compatible_profile === 'string' ? selected.compatible_profile : null,
-            vectorize_binding: typeof selected.vectorize_binding === 'string' ? selected.vectorize_binding : null,
-            selectable: selected.selectable === true,
-            enabled: selected.enabled !== false,
-          }
+              id: selected.id,
+              provider: typeof selected.provider === 'string' ? selected.provider : null,
+              dimensions: typeof selected.dimensions === 'number' ? selected.dimensions : null,
+              compatible_profile: typeof selected.compatible_profile === 'string' ? selected.compatible_profile : null,
+              vectorize_binding: typeof selected.vectorize_binding === 'string' ? selected.vectorize_binding : null,
+              selectable: selected.selectable === true,
+              enabled: selected.enabled !== false,
+            }
           : null;
-        checks.push(check('knowledgebase-embedding-model-catalog', models.ok
-          && models.payload?.catalog_source === 'free_ai'
-          && selectedReady, {
-          status: models.status,
-          model,
-          catalog_source: typeof models.payload?.catalog_source === 'string' ? models.payload.catalog_source : null,
-          catalog_error: typeof models.payload?.catalog_error === 'string' ? models.payload.catalog_error : null,
-          selected: selectedKnowledgebaseModel,
-          selected_invalid_reasons: selected ? embeddingModelInvalidReasons(selected) : ['missing_model'],
-        }));
+        checks.push(
+          check('knowledgebase-embedding-model-catalog', models.ok && models.payload?.catalog_source === 'free_ai' && selectedReady, {
+            status: models.status,
+            model,
+            catalog_source: typeof models.payload?.catalog_source === 'string' ? models.payload.catalog_source : null,
+            catalog_error: typeof models.payload?.catalog_error === 'string' ? models.payload.catalog_error : null,
+            selected: selectedKnowledgebaseModel,
+            selected_invalid_reasons: selected ? embeddingModelInvalidReasons(selected) : ['missing_model'],
+          }),
+        );
       } catch (error) {
-        checks.push(check('knowledgebase-embedding-model-catalog', false, {
-          model,
-          error: String(error instanceof Error ? error.message : error),
-        }));
+        checks.push(
+          check('knowledgebase-embedding-model-catalog', false, {
+            model,
+            error: String(error instanceof Error ? error.message : error),
+          }),
+        );
       }
     }
   }
 
-  const selectedDimensions = typeof selectedDeployedModel?.dimensions === 'number'
-    ? selectedDeployedModel.dimensions
-    : null;
-  const selectedVectorizeModel = selectedDimensions === null
-    ? null
-    : vectorizeReport.models.find((item) => item.dimensions === selectedDimensions && item.id === selectedDeployedModel.id)
-      ?? vectorizeReport.models.find((item) => item.dimensions === selectedDimensions)
-      ?? null;
-  const selectedVectorizeReady = selectedDimensions !== null
-    && selectedVectorizeModel?.selectable === true
-    && typeof selectedVectorizeModel.vectorize_binding === 'string'
-    && selectedVectorizeModel.vectorize_binding.length > 0
-    && typeof selectedVectorizeModel.vectorize_index === 'string'
-    && selectedVectorizeModel.vectorize_index.length > 0;
-  const selectedVectorizeReleasePlanSteps = !freeAiEmbeddingCatalogReady || !selectedDeployedModel
-    ? ['free-ai-local-check', 'free-ai-deploy', 'free-ai-catalog-smoke']
-    : ['vectorize-embedding-provisioning', 'readiness-embedding-model'];
-  checks.push(check('vectorize-selected-embedding-model-configured', selectedVectorizeReady, {
-    release_plan_steps: selectedVectorizeReleasePlanSteps,
-    model,
-    selected: selectedDeployedModel,
-    dimensions: selectedDimensions,
-    configured_dimensions: vectorizeReport.configured_dimensions,
-    vectorize_binding: selectedVectorizeModel?.vectorize_binding ?? null,
-    vectorize_index: selectedVectorizeModel?.vectorize_index ?? null,
-  }));
+  const selectedDimensions = typeof selectedDeployedModel?.dimensions === 'number' ? selectedDeployedModel.dimensions : null;
+  const selectedVectorizeModel =
+    selectedDimensions === null
+      ? null
+      : (vectorizeReport.models.find((item) => item.dimensions === selectedDimensions && item.id === selectedDeployedModel.id) ??
+        vectorizeReport.models.find((item) => item.dimensions === selectedDimensions) ??
+        null);
+  const selectedVectorizeReady =
+    selectedDimensions !== null &&
+    selectedVectorizeModel?.selectable === true &&
+    typeof selectedVectorizeModel.vectorize_binding === 'string' &&
+    selectedVectorizeModel.vectorize_binding.length > 0 &&
+    typeof selectedVectorizeModel.vectorize_index === 'string' &&
+    selectedVectorizeModel.vectorize_index.length > 0;
+  const selectedVectorizeReleasePlanSteps =
+    !freeAiEmbeddingCatalogReady || !selectedDeployedModel
+      ? ['free-ai-local-check', 'free-ai-deploy', 'free-ai-catalog-smoke']
+      : ['vectorize-embedding-provisioning', 'readiness-embedding-model'];
+  checks.push(
+    check('vectorize-selected-embedding-model-configured', selectedVectorizeReady, {
+      release_plan_steps: selectedVectorizeReleasePlanSteps,
+      model,
+      selected: selectedDeployedModel,
+      dimensions: selectedDimensions,
+      configured_dimensions: vectorizeReport.configured_dimensions,
+      vectorize_binding: selectedVectorizeModel?.vectorize_binding ?? null,
+      vectorize_index: selectedVectorizeModel?.vectorize_index ?? null,
+    }),
+  );
 
   const enabledDeployedEmbeddingModels = deployedEmbeddingModels.filter((item) => item.enabled === true && item.dimensions !== null);
   const deployedEmbeddingDimensions = uniqueNumbers(enabledDeployedEmbeddingModels.map((item) => item.dimensions));
   const configuredDimensions = new Set(vectorizeReport.configured_dimensions);
   const missingDeployedDimensions = deployedEmbeddingDimensions.filter((dimension) => !configuredDimensions.has(dimension));
   const missingDimensions = uniqueNumbers(missingDeployedDimensions);
-  const deployedBlockedModels = enabledDeployedEmbeddingModels.filter((item) => (
-    item.dimensions !== null && missingDeployedDimensions.includes(item.dimensions)
-  ));
+  const deployedBlockedModels = enabledDeployedEmbeddingModels.filter(
+    (item) => item.dimensions !== null && missingDeployedDimensions.includes(item.dimensions),
+  );
   const allDimensionsReleasePlanSteps = freeAiEmbeddingCatalogReady
     ? ['vectorize-embedding-provisioning']
     : ['free-ai-local-check', 'free-ai-deploy', 'free-ai-catalog-smoke'];
-  checks.push(check('vectorize-all-free-ai-dimensions-configured', freeAiEmbeddingCatalogReady
-    && vectorizeReport.ok === true
-    && missingDeployedDimensions.length === 0, {
-    release_plan_steps: allDimensionsReleasePlanSteps,
-    free_ai_catalog_ready: freeAiEmbeddingCatalogReady,
-    configured_dimensions: vectorizeReport.configured_dimensions,
-    deployed_embedding_dimensions: deployedEmbeddingDimensions,
-    local_optional_missing_dimensions: vectorizeReport.missing_dimensions,
-    missing_deployed_dimensions: missingDeployedDimensions,
-    missing_dimensions: missingDimensions,
-    selectable_models: vectorizeReport.selectable_models,
-    blocked_models: vectorizeReport.blocked_models,
-    deployed_blocked_models: deployedBlockedModels,
-    provisioning_plan: vectorizeReport.provisioning_plan,
-    audit_blockers: vectorizeReport.blockers ?? [],
-  }));
+  checks.push(
+    check('vectorize-all-free-ai-dimensions-configured', freeAiEmbeddingCatalogReady && vectorizeReport.ok === true && missingDeployedDimensions.length === 0, {
+      release_plan_steps: allDimensionsReleasePlanSteps,
+      free_ai_catalog_ready: freeAiEmbeddingCatalogReady,
+      configured_dimensions: vectorizeReport.configured_dimensions,
+      deployed_embedding_dimensions: deployedEmbeddingDimensions,
+      local_optional_missing_dimensions: vectorizeReport.missing_dimensions,
+      missing_deployed_dimensions: missingDeployedDimensions,
+      missing_dimensions: missingDimensions,
+      selectable_models: vectorizeReport.selectable_models,
+      blocked_models: vectorizeReport.blocked_models,
+      deployed_blocked_models: deployedBlockedModels,
+      provisioning_plan: vectorizeReport.provisioning_plan,
+      audit_blockers: vectorizeReport.blockers ?? [],
+    }),
+  );
 
   if (vectorizeMetadataReport) {
-    checks.push(check('vectorize-configured-metadata-indexes', vectorizeMetadataReport.ok === true, {
-      required_metadata_indexes: vectorizeMetadataReport.required_metadata_indexes ?? [],
-      indexes: vectorizeMetadataReport.indexes ?? [],
-      blockers: vectorizeMetadataReport.blockers ?? [],
-    }));
+    checks.push(
+      check('vectorize-configured-metadata-indexes', vectorizeMetadataReport.ok === true, {
+        required_metadata_indexes: vectorizeMetadataReport.required_metadata_indexes ?? [],
+        indexes: vectorizeMetadataReport.indexes ?? [],
+        blockers: vectorizeMetadataReport.blockers ?? [],
+      }),
+    );
   }
 
   const failedChecks = checks.filter((item) => !item.ok);
@@ -326,13 +345,10 @@ export async function embeddingModelReleaseStatus({
   const vectorizeMetadataRemediationCommands = vectorizeMetadataRemediationCommandTexts(vectorizeMetadataReport);
   const blockerCommands = blockerSteps.map((stepId) => {
     const planStep = stepsById.get(stepId);
-    const command = stepId === 'vectorize-configured-metadata-provisioning'
-      && vectorizeMetadataRemediationCommands.length > 0
-      ? [
-        ...vectorizeMetadataRemediationCommands,
-        'pnpm run audit:vectorize-metadata-indexes -- --json --require-complete',
-      ].join(' && ')
-      : planStep?.command ?? null;
+    const command =
+      stepId === 'vectorize-configured-metadata-provisioning' && vectorizeMetadataRemediationCommands.length > 0
+        ? [...vectorizeMetadataRemediationCommands, 'pnpm run audit:vectorize-metadata-indexes -- --json --require-complete'].join(' && ')
+        : (planStep?.command ?? null);
     return {
       step_id: stepId,
       title: planStep?.title ?? null,
@@ -434,10 +450,12 @@ function checkDetailLines(item) {
   }
   if (item.name === 'free-ai-deployed-embedding-catalog') {
     const invalidModels = Array.isArray(item.invalid_embedding_models)
-      ? item.invalid_embedding_models.map((model) => {
-        const reasons = Array.isArray(model.invalid_reasons) ? model.invalid_reasons.join('|') : 'unknown';
-        return `${compact(model.id)}:${reasons}`;
-      }).join(',') || 'none'
+      ? item.invalid_embedding_models
+          .map((model) => {
+            const reasons = Array.isArray(model.invalid_reasons) ? model.invalid_reasons.join('|') : 'unknown';
+            return `${compact(model.id)}:${reasons}`;
+          })
+          .join(',') || 'none'
       : 'none';
     return [
       `status=${compact(item.status)} embedding_model_count=${compact(item.embedding_model_count)} valid_embedding_model_count=${compact(item.valid_embedding_model_count)} required_model=${compact(item.model)}`,
@@ -470,12 +488,14 @@ function checkDetailLines(item) {
   }
   if (item.name === 'vectorize-configured-metadata-indexes') {
     const blockers = Array.isArray(item.blockers)
-      ? item.blockers.map((blocker) => {
-        const missing = Array.isArray(blocker.missing_metadata_indexes)
-          ? blocker.missing_metadata_indexes.map((entry) => entry.property_name).join(',')
-          : 'unknown';
-        return `${blocker.binding ?? 'unknown'}:${blocker.index_name ?? 'unknown'} missing=${missing}`;
-      }).join('; ') || 'none'
+      ? item.blockers
+          .map((blocker) => {
+            const missing = Array.isArray(blocker.missing_metadata_indexes)
+              ? blocker.missing_metadata_indexes.map((entry) => entry.property_name).join(',')
+              : 'unknown';
+            return `${blocker.binding ?? 'unknown'}:${blocker.index_name ?? 'unknown'} missing=${missing}`;
+          })
+          .join('; ') || 'none'
       : 'none';
     return [`metadata_blockers=${blockers}`];
   }
@@ -483,11 +503,7 @@ function checkDetailLines(item) {
 }
 
 export function formatHumanReport(report) {
-  const lines = [
-    `Embedding model release status for ${report.embedding_model}`,
-    `knowledgebase=${report.rag_base_url}`,
-    `free_ai=${report.free_ai_base_url}`,
-  ];
+  const lines = [`Embedding model release status for ${report.embedding_model}`, `knowledgebase=${report.rag_base_url}`, `free_ai=${report.free_ai_base_url}`];
   for (const item of report.checks) {
     lines.push(`${item.ok ? 'PASS' : 'FAIL'} ${item.name}`);
     if (!item.ok && item.release_plan_steps?.length) {

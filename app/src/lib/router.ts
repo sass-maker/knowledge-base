@@ -1,25 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
-export const ROUTES = [
-  "/",
-  "/data",
-  "/domains",
-  "/history",
-  "/query",
-  "/ingest",
-  "/evals",
-  "/traces",
-  "/settings",
-  "/changelog",
-] as const;
+export const ROUTES = ['/', '/data', '/domains', '/history', '/query', '/ingest', '/evals', '/traces', '/settings', '/changelog'] as const;
 
 export type AppPath = (typeof ROUTES)[number];
 
-const NAVIGATION_EVENT = "knowledgebase:navigate";
+const NAVIGATION_EVENT = 'knowledgebase:navigate';
 
 export function normalizePath(pathname: string): string {
-  if (pathname === "/") return pathname;
-  return pathname.replace(/\/+$/, "") || "/";
+  if (pathname === '/') return pathname;
+  return pathname.replace(/\/+$/, '') || '/';
 }
 
 export function isAppPath(pathname: string): pathname is AppPath {
@@ -32,7 +21,7 @@ export function navigate(href: string): void {
     window.location.assign(url);
     return;
   }
-  window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`);
   window.dispatchEvent(new Event(NAVIGATION_EVENT));
 }
 
@@ -41,10 +30,10 @@ export function usePathname(): string {
 
   useEffect(() => {
     const sync = () => setPathname(normalizePath(window.location.pathname));
-    window.addEventListener("popstate", sync);
+    window.addEventListener('popstate', sync);
     window.addEventListener(NAVIGATION_EVENT, sync);
     return () => {
-      window.removeEventListener("popstate", sync);
+      window.removeEventListener('popstate', sync);
       window.removeEventListener(NAVIGATION_EVENT, sync);
     };
   }, []);

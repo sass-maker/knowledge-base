@@ -92,7 +92,9 @@ function parseMode(value) {
 }
 
 function parseCacheMode(value) {
-  const mode = String(value || '').trim().replace(/-/g, '_');
+  const mode = String(value || '')
+    .trim()
+    .replace(/-/g, '_');
   if (!['default', 'bypass_read', 'bypass_read_write'].includes(mode)) {
     throw new Error('--cache-mode must be default, bypass-read, or bypass-read-write');
   }
@@ -131,9 +133,7 @@ export function normalizeBenchmarkInput(raw, options = {}) {
   return {
     index: {
       name: String(asObject(root.index || {}, 'input.index').name || 'RAG Benchmark'),
-      external_id: root.index?.external_id || root.index?.externalId
-        ? String(root.index.external_id || root.index.externalId)
-        : undefined,
+      external_id: root.index?.external_id || root.index?.externalId ? String(root.index.external_id || root.index.externalId) : undefined,
     },
     documents: documents.map((doc, i) => {
       const row = asObject(doc, `documents[${i}]`);
@@ -151,15 +151,9 @@ export function normalizeBenchmarkInput(raw, options = {}) {
       if (!text) throw new Error(`queries[${i}].query is required`);
       return {
         query: text,
-        expected_contains: Array.isArray(row.expected_contains)
-          ? row.expected_contains.map(String).filter(Boolean)
-          : [],
-        expected_document_ids: Array.isArray(row.expected_document_ids)
-          ? row.expected_document_ids.map(String).filter(Boolean)
-          : [],
-        expected_chunk_ids: Array.isArray(row.expected_chunk_ids)
-          ? row.expected_chunk_ids.map(String).filter(Boolean)
-          : [],
+        expected_contains: Array.isArray(row.expected_contains) ? row.expected_contains.map(String).filter(Boolean) : [],
+        expected_document_ids: Array.isArray(row.expected_document_ids) ? row.expected_document_ids.map(String).filter(Boolean) : [],
+        expected_chunk_ids: Array.isArray(row.expected_chunk_ids) ? row.expected_chunk_ids.map(String).filter(Boolean) : [],
       };
     }),
   };
@@ -230,12 +224,7 @@ export function summarizeTimingBreakdown(timings) {
       samplesByKey.set(key, samples);
     }
   }
-  return Object.fromEntries(
-    [...samplesByKey.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, samples]) => [
-      key,
-      summarizeLatencies(samples),
-    ]),
-  );
+  return Object.fromEntries([...samplesByKey.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, samples]) => [key, summarizeLatencies(samples)]));
 }
 
 export function scoreResults(expectation, results) {

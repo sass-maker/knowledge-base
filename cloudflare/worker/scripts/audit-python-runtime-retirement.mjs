@@ -64,8 +64,7 @@ function parseArgs(argv) {
 
 export function pythonRuntimeRetirementReport({ repoRoot = REPO_ROOT } = {}) {
   const root = resolve(repoRoot);
-  const present = RETIRED_PYTHON_RUNTIME_SURFACES
-    .map((surface) => resolve(root, surface))
+  const present = RETIRED_PYTHON_RUNTIME_SURFACES.map((surface) => resolve(root, surface))
     .filter((surfacePath) => retiredSurfaceExists(surfacePath))
     .map((surfacePath) => relative(root, surfacePath));
   return {

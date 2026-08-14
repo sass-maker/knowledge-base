@@ -21,8 +21,18 @@ export const LEGACY_ROUTE_REQUIREMENTS = Object.freeze([
   { method: 'POST', legacy: '/schemas/infer/files', target: '/v1/kb/schemas/infer-upload', evidence: "pathname === '/schemas/infer/files'" },
   { method: 'GET', legacy: '/schemas/drafts', target: '/v1/kb/schemas/drafts', evidence: "app.get('/v1/kb/schemas/drafts'" },
   { method: 'GET', legacy: '/schemas/drafts/:draft_id', target: '/v1/kb/schemas/drafts/:draft_id', evidence: "app.get('/v1/kb/schemas/drafts/:draft_id'" },
-  { method: 'POST', legacy: '/schemas/drafts/:draft_id/apply', target: '/v1/kb/schemas/drafts/:draft_id/apply', evidence: "app.post('/v1/kb/schemas/drafts/:draft_id/apply'" },
-  { method: 'POST', legacy: '/schemas/drafts/:draft_id/discard', target: '/v1/kb/schemas/drafts/:draft_id/discard', evidence: "app.post('/v1/kb/schemas/drafts/:draft_id/discard'" },
+  {
+    method: 'POST',
+    legacy: '/schemas/drafts/:draft_id/apply',
+    target: '/v1/kb/schemas/drafts/:draft_id/apply',
+    evidence: "app.post('/v1/kb/schemas/drafts/:draft_id/apply'",
+  },
+  {
+    method: 'POST',
+    legacy: '/schemas/drafts/:draft_id/discard',
+    target: '/v1/kb/schemas/drafts/:draft_id/discard',
+    evidence: "app.post('/v1/kb/schemas/drafts/:draft_id/discard'",
+  },
   { method: 'GET', legacy: '/schemas/:domain/active', target: '/v1/kb/schemas/:domain/active', evidence: "app.get('/v1/kb/schemas/:domain/active'" },
   { method: 'POST', legacy: '/schemas/:domain/reprocess', target: '/v1/kb/schemas/:domain/reprocess', evidence: "app.post('/v1/kb/schemas/:domain/reprocess'" },
   { method: 'GET', legacy: '/files', target: '/v1/kb/files', evidence: "'/files'" },
@@ -39,8 +49,18 @@ export const LEGACY_ROUTE_REQUIREMENTS = Object.freeze([
   { method: 'POST', legacy: '/sources/import', target: '/v1/kb/sources/import', evidence: "app.post('/v1/kb/sources/import'" },
   { method: 'GET', legacy: '/entities', target: '/v1/kb/entities', evidence: "'/entities'" },
   { method: 'GET', legacy: '/entities/:entity_id', target: '/v1/kb/entities/:entity_id', evidence: "app.get('/v1/kb/entities/:entity_id'" },
-  { method: 'GET', legacy: '/entities/:entity_id/lineage', target: '/v1/kb/entities/:entity_id/lineage', evidence: "app.get('/v1/kb/entities/:entity_id/lineage'" },
-  { method: 'GET', legacy: '/entities/:entity_id/relationships', target: '/v1/kb/entities/:entity_id/relationships', evidence: "app.get('/v1/kb/entities/:entity_id/relationships'" },
+  {
+    method: 'GET',
+    legacy: '/entities/:entity_id/lineage',
+    target: '/v1/kb/entities/:entity_id/lineage',
+    evidence: "app.get('/v1/kb/entities/:entity_id/lineage'",
+  },
+  {
+    method: 'GET',
+    legacy: '/entities/:entity_id/relationships',
+    target: '/v1/kb/entities/:entity_id/relationships',
+    evidence: "app.get('/v1/kb/entities/:entity_id/relationships'",
+  },
   { method: 'POST', legacy: '/search', target: '/v1/kb/search', evidence: "pathname === '/search'" },
   { method: 'POST', legacy: '/agent/search', target: '/v1/kb/search', evidence: "pathname === '/agent/search'" },
   { method: 'POST', legacy: '/search/eval', target: '/v1/kb/evals/search', evidence: "pathname === '/search/eval'" },
@@ -51,7 +71,8 @@ export const LEGACY_ROUTE_REQUIREMENTS = Object.freeze([
 ]);
 
 function targetEvidence(target) {
-  const exact = target.replace(/:project/g, ':project')
+  const exact = target
+    .replace(/:project/g, ':project')
     .replace(/:file_id/g, ':file_id')
     .replace(/:draft_id/g, ':draft_id')
     .replace(/:domain/g, ':domain')
@@ -66,9 +87,7 @@ export async function legacyRouteParityReport(options = {}) {
   const source = typeof options.sourceText === 'string' ? options.sourceText : await readFile(indexPath, 'utf8');
   const missing = [];
   for (const requirement of LEGACY_ROUTE_REQUIREMENTS) {
-    const hasMapping = source.includes(requirement.evidence)
-      || source.includes(requirement.legacy)
-      || source.includes(requirement.target);
+    const hasMapping = source.includes(requirement.evidence) || source.includes(requirement.legacy) || source.includes(requirement.target);
     const hasTarget = source.includes(targetEvidence(requirement.target));
     if (!hasMapping || !hasTarget) {
       missing.push({

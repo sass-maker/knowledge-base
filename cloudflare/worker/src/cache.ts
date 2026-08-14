@@ -47,11 +47,7 @@ export class TtlCache<T> {
   }
 }
 
-export function parseCacheOptions(env: {
-  RAG_CACHE_ENABLED?: string;
-  RAG_CACHE_TTL_SECONDS?: string;
-  RAG_CACHE_MAX_ENTRIES?: string;
-}): CacheOptions {
+export function parseCacheOptions(env: { RAG_CACHE_ENABLED?: string; RAG_CACHE_TTL_SECONDS?: string; RAG_CACHE_MAX_ENTRIES?: string }): CacheOptions {
   const ttl = Number(env.RAG_CACHE_TTL_SECONDS ?? 300);
   const maxEntries = Number(env.RAG_CACHE_MAX_ENTRIES ?? 1000);
   return {

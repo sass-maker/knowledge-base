@@ -1,71 +1,60 @@
-import { useState, useEffect, useCallback } from "react";
-import { api, type Domain, ApiError } from "@/lib/api";
-import { PageHeader } from "@/components/page-header";
-import { Card, CardTitle } from "@/components/card";
-import { Button } from "@/components/button";
-import {
-  Upload,
-  FileText,
-  Loader2,
-  Check,
-  FileSpreadsheet,
-  FileCode,
-  FileImage,
-  Globe,
-  Type,
-  Play,
-} from "lucide-react";
+import { useState, useEffect, useCallback } from 'react';
+import { api, type Domain, ApiError } from '@/lib/api';
+import { PageHeader } from '@/components/page-header';
+import { Card, CardTitle } from '@/components/card';
+import { Button } from '@/components/button';
+import { Upload, FileText, Loader2, Check, FileSpreadsheet, FileCode, FileImage, Globe, Type, Play } from 'lucide-react';
 
 const FORMAT_GROUPS = [
   {
-    label: "Documents",
+    label: 'Documents',
     icon: FileText,
-    formats: ["PDF", "HTML", "DOCX", "PPTX", "TXT", "MD"],
-    hint: "Digital text + scanned OCR",
+    formats: ['PDF', 'HTML', 'DOCX', 'PPTX', 'TXT', 'MD'],
+    hint: 'Digital text + scanned OCR',
   },
   {
-    label: "Spreadsheets",
+    label: 'Spreadsheets',
     icon: FileSpreadsheet,
-    formats: ["XLSX", "CSV"],
-    hint: "Rows → records with field types",
+    formats: ['XLSX', 'CSV'],
+    hint: 'Rows → records with field types',
   },
   {
-    label: "Structured data",
+    label: 'Structured data',
     icon: FileCode,
-    formats: ["JSON", "NDJSON", "JSONL"],
-    hint: "Nested up to 6 levels, auto-flattened",
+    formats: ['JSON', 'NDJSON', 'JSONL'],
+    hint: 'Nested up to 6 levels, auto-flattened',
   },
   {
-    label: "Images & scanned",
+    label: 'Images & scanned',
     icon: FileImage,
-    formats: ["JPEG", "PNG", "WebP"],
-    hint: "Vision OCR via Llama 3.2 / 4",
+    formats: ['JPEG', 'PNG', 'WebP'],
+    hint: 'Vision OCR via Llama 3.2 / 4',
   },
   {
-    label: "Live sources",
+    label: 'Live sources',
     icon: Globe,
-    formats: ["URL", "SEC EDGAR"],
-    hint: "Import by URL or ticker + form",
+    formats: ['URL', 'SEC EDGAR'],
+    hint: 'Import by URL or ticker + form',
   },
   {
-    label: "Free-form text",
+    label: 'Free-form text',
     icon: Type,
-    formats: ["Inline", "Records"],
-    hint: "Paste text or POST structured records",
+    formats: ['Inline', 'Records'],
+    hint: 'Paste text or POST structured records',
   },
 ];
 
 export default function IngestPage() {
   const [domains, setDomains] = useState<Domain[]>([]);
-  const [domain, setDomain] = useState("");
+  const [domain, setDomain] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [textTitle, setTextTitle] = useState("");
-  const [text, setText] = useState("");
-  const [markdownConversion, setMarkdownConversion] = useState("");
-  const [sourceKind, setSourceKind] = useState<"url" | "edgar">("url");
-  const [sourceUrls, setSourceUrls] = useState("");
-  const [edgarTickers, setEdgarTickers] = useState("NVDA,AAPL,MSFT");
-  const [edgarForms, setEdgarForms] = useState("10-K,10-Q,8-K");
+  const [textTitle, setTextTitle] = useState('');
+  const [text, setText] = useState('');
+  const [markdownConversion, setMarkdownConversion] = useState('');
+  const [sourceKind, setSourceKind] = useState<'url' | 'edgar'>('url');
+  const [sourceUrls, setSourceUrls] = useState('');
+  const [edgarTickers, setEdgarTickers] = useState('NVDA,AAPL,MSFT');
+  const [edgarForms, setEdgarForms] = useState('10-K,10-Q,8-K');
   const [autoIngest, setAutoIngest] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [ingesting, setIngesting] = useState(false);
@@ -76,10 +65,13 @@ export default function IngestPage() {
   const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
-    api.getDomains().then((d) => {
-      setDomains(d.domains ?? []);
-      if (d.domains?.length > 0 && !domain) setDomain(d.domains[0].name);
-    }).catch(() => {});
+    api
+      .getDomains()
+      .then((d) => {
+        setDomains(d.domains ?? []);
+        if (d.domains?.length > 0 && !domain) setDomain(d.domains[0].name);
+      })
+      .catch(() => {});
   }, [domain]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -118,9 +110,9 @@ export default function IngestPage() {
         text: text.trim(),
         title: textTitle.trim() || undefined,
       });
-      setSuccess("Text ingested");
-      setText("");
-      setTextTitle("");
+      setSuccess('Text ingested');
+      setText('');
+      setTextTitle('');
     } catch (e) {
       setError(e instanceof ApiError ? `API error ${e.status}` : String(e));
     } finally {
@@ -140,11 +132,7 @@ export default function IngestPage() {
         name: textTitle.trim() || undefined,
         save_draft: true,
       });
-      setSuccess(
-        r.draft_id
-          ? `Schema draft saved (${r.draft_id.slice(0, 8)})`
-          : "Schema inferred",
-      );
+      setSuccess(r.draft_id ? `Schema draft saved (${r.draft_id.slice(0, 8)})` : 'Schema inferred');
     } catch (e) {
       setError(e instanceof ApiError ? `API error ${e.status}` : String(e));
     } finally {
@@ -163,7 +151,7 @@ export default function IngestPage() {
         source: sourceKind,
         auto_ingest: autoIngest,
         config:
-          sourceKind === "url"
+          sourceKind === 'url'
             ? {
                 urls: sourceUrls
                   .split(/\n|,/)
@@ -172,20 +160,20 @@ export default function IngestPage() {
               }
             : {
                 tickers: edgarTickers
-                  .split(",")
+                  .split(',')
                   .map((ticker) => ticker.trim())
                   .filter(Boolean),
                 forms: edgarForms
-                  .split(",")
+                  .split(',')
                   .map((form) => form.trim())
                   .filter(Boolean),
                 limit_total: 12,
               },
       });
       setSuccess(
-        `Imported ${r.files.length} file${r.files.length === 1 ? "" : "s"} from ${r.source}` +
-          (r.jobs.length ? `, queued ${r.jobs.length} job${r.jobs.length === 1 ? "" : "s"}` : "") +
-          (r.errors.length ? `, ${r.errors.length} error${r.errors.length === 1 ? "" : "s"}` : ""),
+        `Imported ${r.files.length} file${r.files.length === 1 ? '' : 's'} from ${r.source}` +
+          (r.jobs.length ? `, queued ${r.jobs.length} job${r.jobs.length === 1 ? '' : 's'}` : '') +
+          (r.errors.length ? `, ${r.errors.length} error${r.errors.length === 1 ? '' : 's'}` : ''),
       );
     } catch (e) {
       setError(e instanceof ApiError ? `API error ${e.status}` : String(e));
@@ -205,11 +193,7 @@ export default function IngestPage() {
         async: true,
         markdown_conversion: markdownConversion || undefined,
       });
-      setSuccess(
-        r.run_id
-          ? `Ingest queued (run ${r.run_id.slice(0, 8)})`
-          : "Ingest started",
-      );
+      setSuccess(r.run_id ? `Ingest queued (run ${r.run_id.slice(0, 8)})` : 'Ingest started');
     } catch (e) {
       setError(e instanceof ApiError ? `API error ${e.status}` : String(e));
     } finally {
@@ -219,16 +203,9 @@ export default function IngestPage() {
 
   return (
     <>
-      <PageHeader
-        title="Ingest"
-        description="Upload files or text — any format, any structure"
-      />
+      <PageHeader title="Ingest" description="Upload files or text — any format, any structure" />
       <div className="flex flex-col gap-6 p-6 max-w-3xl">
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+        {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
         {success && (
           <div className="result-card flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">
             <Check className="size-4" /> {success}
@@ -247,16 +224,11 @@ export default function IngestPage() {
               >
                 <div className="flex items-center gap-2">
                   <Icon className="size-4 text-accent" />
-                  <span className="text-xs font-semibold uppercase tracking-wide text-foreground">
-                    {group.label}
-                  </span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-foreground">{group.label}</span>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {group.formats.map((f) => (
-                    <span
-                      key={f}
-                      className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
-                    >
+                    <span key={f} className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
                       {f}
                     </span>
                   ))}
@@ -277,15 +249,15 @@ export default function IngestPage() {
               className="h-10 rounded-md border border-input bg-background px-3 font-mono text-sm text-foreground"
             >
               {domains.map((d) => (
-                <option key={d.name} value={d.name}>{d.name}</option>
+                <option key={d.name} value={d.name}>
+                  {d.name}
+                </option>
               ))}
             </select>
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-foreground">
-              Markdown conversion
-            </span>
+            <span className="text-sm font-medium text-foreground">Markdown conversion</span>
             <select
               value={markdownConversion}
               onChange={(e) => setMarkdownConversion(e.target.value)}
@@ -308,26 +280,21 @@ export default function IngestPage() {
           </CardTitle>
           <div className="flex flex-col gap-3">
             <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
               className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
-                dragOver
-                  ? "border-accent bg-accent/5"
-                  : "border-border bg-background/50"
+                dragOver ? 'border-accent bg-accent/5' : 'border-border bg-background/50'
               }`}
             >
               <Upload className="size-6 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                Drag a file here, or
-              </span>
+              <span className="text-sm text-muted-foreground">Drag a file here, or</span>
               <label className="cursor-pointer text-sm font-medium text-accent underline-offset-4 hover:underline">
                 browse
-                <input
-                  type="file"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                  className="hidden"
-                />
+                <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="hidden" />
               </label>
               {file && (
                 <span className="mt-2 rounded-md border border-border bg-card px-3 py-1.5 font-mono text-xs text-foreground">
@@ -376,24 +343,16 @@ export default function IngestPage() {
                 className="rounded-md border border-input bg-background px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground"
               />
             </label>
-            <Button
-              variant="secondary"
-              onClick={handleIngestText}
-              disabled={ingesting || !domain || !text.trim()}
-            >
+            <Button variant="secondary" onClick={handleIngestText} disabled={ingesting || !domain || !text.trim()}>
               {ingesting ? (
                 <>
                   <Loader2 className="size-4 spin" /> Ingesting…
                 </>
               ) : (
-                "Ingest text"
+                'Ingest text'
               )}
             </Button>
-            <Button
-              variant="ghost"
-              onClick={handleInferSchemaDraft}
-              disabled={inferring || !domain || !text.trim()}
-            >
+            <Button variant="ghost" onClick={handleInferSchemaDraft} disabled={inferring || !domain || !text.trim()}>
               {inferring ? (
                 <>
                   <Loader2 className="size-4 spin" /> Inferring…
@@ -420,7 +379,7 @@ export default function IngestPage() {
                 <span className="text-xs font-medium text-muted-foreground">Source</span>
                 <select
                   value={sourceKind}
-                  onChange={(e) => setSourceKind(e.target.value as "url" | "edgar")}
+                  onChange={(e) => setSourceKind(e.target.value as 'url' | 'edgar')}
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                 >
                   <option value="url">URL</option>
@@ -428,21 +387,14 @@ export default function IngestPage() {
                 </select>
               </label>
               <label className="flex items-center gap-2 pt-6 text-sm text-foreground">
-                <input
-                  type="checkbox"
-                  checked={autoIngest}
-                  onChange={(e) => setAutoIngest(e.target.checked)}
-                  className="size-4"
-                />
+                <input type="checkbox" checked={autoIngest} onChange={(e) => setAutoIngest(e.target.checked)} className="size-4" />
                 Auto-queue ingest
               </label>
             </div>
 
-            {sourceKind === "url" ? (
+            {sourceKind === 'url' ? (
               <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-muted-foreground">
-                  URLs
-                </span>
+                <span className="text-xs font-medium text-muted-foreground">URLs</span>
                 <textarea
                   value={sourceUrls}
                   onChange={(e) => setSourceUrls(e.target.value)}
@@ -454,9 +406,7 @@ export default function IngestPage() {
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Tickers
-                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">Tickers</span>
                   <input
                     value={edgarTickers}
                     onChange={(e) => setEdgarTickers(e.target.value)}
@@ -464,9 +414,7 @@ export default function IngestPage() {
                   />
                 </label>
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Forms
-                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">Forms</span>
                   <input
                     value={edgarForms}
                     onChange={(e) => setEdgarForms(e.target.value)}
@@ -479,12 +427,7 @@ export default function IngestPage() {
             <Button
               variant="secondary"
               onClick={handleSourceImport}
-              disabled={
-                importing ||
-                !domain ||
-                (sourceKind === "url" && !sourceUrls.trim()) ||
-                (sourceKind === "edgar" && !edgarTickers.trim())
-              }
+              disabled={importing || !domain || (sourceKind === 'url' && !sourceUrls.trim()) || (sourceKind === 'edgar' && !edgarTickers.trim())}
             >
               {importing ? (
                 <>
@@ -507,20 +450,15 @@ export default function IngestPage() {
             </span>
           </CardTitle>
           <p className="mb-3 text-sm text-muted-foreground">
-            Trigger ingestion of all staged files for this domain. Uses
-            Cloudflare Queue + Workflow for durable async processing.
+            Trigger ingestion of all staged files for this domain. Uses Cloudflare Queue + Workflow for durable async processing.
           </p>
-          <Button
-            variant="secondary"
-            onClick={handleIngestRun}
-            disabled={ingesting || !domain}
-          >
+          <Button variant="secondary" onClick={handleIngestRun} disabled={ingesting || !domain}>
             {ingesting ? (
               <>
                 <Loader2 className="size-4 spin" /> Queuing…
               </>
             ) : (
-              "Queue ingest run"
+              'Queue ingest run'
             )}
           </Button>
         </Card>

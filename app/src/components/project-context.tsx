@@ -1,21 +1,9 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { AlertCircle, Database, Loader2 } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
-import {
-  isInternalProject,
-  projectLabel,
-  setApiProjectScope,
-  sortProjects,
-  type OperatorProject,
-} from "@/lib/project-scope";
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Database, Loader2 } from 'lucide-react';
+import { api, ApiError } from '@/lib/api';
+import { isInternalProject, projectLabel, setApiProjectScope, sortProjects, type OperatorProject } from '@/lib/project-scope';
 
-const PROJECT_STORAGE_KEY = "knowledgebase:selected-project";
+const PROJECT_STORAGE_KEY = 'knowledgebase:selected-project';
 
 interface ProjectContextValue {
   projects: OperatorProject[];
@@ -31,16 +19,16 @@ const ProjectContext = createContext<ProjectContextValue | null>(null);
 export function useProjectScope() {
   const value = useContext(ProjectContext);
   if (!value) {
-    throw new Error("useProjectScope must be used inside ProjectProvider");
+    throw new Error('useProjectScope must be used inside ProjectProvider');
   }
   return value;
 }
 
 function storedProject(): string {
   try {
-    return window.sessionStorage.getItem(PROJECT_STORAGE_KEY) ?? "";
+    return window.sessionStorage.getItem(PROJECT_STORAGE_KEY) ?? '';
   } catch {
-    return "";
+    return '';
   }
 }
 
@@ -54,24 +42,22 @@ function rememberProject(project: string) {
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<OperatorProject[]>([]);
-  const [selectedProject, setSelectedProjectState] = useState("");
+  const [selectedProject, setSelectedProjectState] = useState('');
   const [includeInternal, setIncludeInternalState] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    api.getOperatorProjects()
+    api
+      .getOperatorProjects()
       .then((result) => {
         if (cancelled) return;
         const sorted = sortProjects(result);
         const visible = sorted.filter((project) => !isInternalProject(project));
         const preferred = storedProject();
         const initial =
-          visible.find((project) => project.name === preferred)
-          ?? visible[0]
-          ?? sorted.find((project) => project.name === preferred)
-          ?? sorted[0];
+          visible.find((project) => project.name === preferred) ?? visible[0] ?? sorted.find((project) => project.name === preferred) ?? sorted[0];
         setProjects(sorted);
         if (initial) {
           const showInternal = isInternalProject(initial);
@@ -93,10 +79,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const visibleProjects = useMemo(
-    () => projects.filter((project) => includeInternal || !isInternalProject(project)),
-    [includeInternal, projects],
-  );
+  const visibleProjects = useMemo(() => projects.filter((project) => includeInternal || !isInternalProject(project)), [includeInternal, projects]);
 
   function selectProject(project: string) {
     if (!projects.some((candidate) => candidate.name === project)) return;
@@ -109,9 +92,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setIncludeInternalState(include);
     const selected = projects.find((project) => project.name === selectedProject);
     const fallback = projects.find((project) => !isInternalProject(project)) ?? projects[0];
-    const nextProject = !include && selected && isInternalProject(selected)
-      ? fallback?.name ?? ""
-      : selectedProject;
+    const nextProject = !include && selected && isInternalProject(selected) ? (fallback?.name ?? '') : selectedProject;
     setApiProjectScope(nextProject, include);
     if (nextProject !== selectedProject) {
       setSelectedProjectState(nextProject);
@@ -150,10 +131,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         <div className="flex max-w-md flex-col items-center gap-3 text-center">
           <Database className="size-8 text-muted-foreground" />
           <h1 className="text-lg font-semibold text-foreground">No project data yet</h1>
-          <p className="text-sm text-muted-foreground">
-            A SaaS Maker project will appear here after it creates its first
-            Knowledgebase project or corpus.
-          </p>
+          <p className="text-sm text-muted-foreground">A SaaS Maker project will appear here after it creates its first Knowledgebase project or corpus.</p>
         </div>
       </div>
     );

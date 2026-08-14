@@ -278,12 +278,7 @@ export interface InsertQueryTraceInput {
 export interface MetadataRepository {
   upsertProject(name: string, description?: string): Promise<ProjectRecord>;
   listProjects(project?: string): Promise<ProjectRecord[]>;
-  upsertDomain(
-    project: string,
-    name: string,
-    description?: string,
-    embedding?: { model?: string | null; provider?: string | null },
-  ): Promise<DomainRecord>;
+  upsertDomain(project: string, name: string, description?: string, embedding?: { model?: string | null; provider?: string | null }): Promise<DomainRecord>;
   listDomains(project: string): Promise<DomainRecord[]>;
   insertSchema(project: string, domain: string, name: string, spec: DomainSchema): Promise<SchemaRecord>;
   listSchemas(project: string): Promise<SchemaRecord[]>;
@@ -325,13 +320,16 @@ export interface MetadataRepository {
     queueMessageId?: string | null;
     workflowId?: string | null;
   }): Promise<IngestJobRecord>;
-  updateIngestJob(id: string, input: {
-    stage?: string;
-    status?: string;
-    error?: string | null;
-    lockedBy?: string | null;
-    incrementAttempts?: boolean;
-  }): Promise<void>;
+  updateIngestJob(
+    id: string,
+    input: {
+      stage?: string;
+      status?: string;
+      error?: string | null;
+      lockedBy?: string | null;
+      incrementAttempts?: boolean;
+    },
+  ): Promise<void>;
   listIngestJobs(project: string, domain?: string, statuses?: string[], limit?: number): Promise<IngestJobRecord[]>;
   getIngestJob(project: string, id: string): Promise<IngestJobRecord | null>;
   insertKbChunks(chunks: KbChunkInput[]): Promise<void>;
@@ -408,7 +406,7 @@ function numberValue(value: unknown): number {
 }
 
 function ensureRecord(value: unknown): JsonRecord {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
 function parseJson<T>(raw: string, fallback: T): T {
@@ -479,29 +477,17 @@ function primitiveIdentities(value: unknown): string[] {
   return identity ? [identity] : [];
 }
 
-function relationshipTypeFromField(
-  field: string,
-  identityField: string,
-  relationships: DomainSchema['relationships'] = [],
-): string | null {
+function relationshipTypeFromField(field: string, identityField: string, relationships: DomainSchema['relationships'] = []): string | null {
   const lower = field.toLowerCase();
   if (lower === identityField.toLowerCase()) return null;
   if (lower === 'parent' || lower === 'parent_id') return 'parent';
-  const inferred = lower.endsWith('_ids') && lower.length > 4
-    ? lower.slice(0, -4)
-    : lower.endsWith('_id') && lower.length > 3
-      ? lower.slice(0, -3)
-      : null;
+  const inferred = lower.endsWith('_ids') && lower.length > 4 ? lower.slice(0, -4) : lower.endsWith('_id') && lower.length > 3 ? lower.slice(0, -3) : null;
   if (!inferred) return null;
   const declared = relationships.find((relationship) => relationship.name.toLowerCase() === inferred);
   return declared?.name ?? inferred;
 }
 
-function relationshipTargetTypes(
-  relType: string,
-  fallbackType: string,
-  relationships: DomainSchema['relationships'] = [],
-): string[] {
+function relationshipTargetTypes(relType: string, fallbackType: string, relationships: DomainSchema['relationships'] = []): string[] {
   const targets = relationships
     .filter((relationship) => relationship.name.toLowerCase() === relType.toLowerCase())
     .map((relationship) => relationship.to_type)
@@ -514,16 +500,14 @@ function entityLookupKey(type: string, identity: string): string {
 }
 
 function canonicalIdentity(value: string): string {
-  return value.trim().toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '');
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '');
 }
 
-function addEntityIdentity(
-  identities: Map<string, string>,
-  type: string,
-  identity: string,
-  id: string,
-  defaultType: string,
-): void {
+function addEntityIdentity(identities: Map<string, string>, type: string, identity: string, id: string, defaultType: string): void {
   const values = [identity, canonicalIdentity(identity)].filter(Boolean);
   for (const value of values) {
     identities.set(entityLookupKey(type, value), id);
@@ -531,11 +515,7 @@ function addEntityIdentity(
   }
 }
 
-function lookupEntityIdentity(
-  identities: Map<string, string>,
-  targetTypes: string[],
-  identity: string,
-): string | null {
+function lookupEntityIdentity(identities: Map<string, string>, targetTypes: string[], identity: string): string | null {
   const values = [identity, canonicalIdentity(identity)].filter(Boolean);
   for (const value of values) {
     for (const type of targetTypes) {
@@ -559,11 +539,7 @@ function relationshipValues(record: JsonRecord, field: string, relType: string):
   return primitiveIdentities(record[pluralField]);
 }
 
-function configuredRelationshipTypes(
-  record: JsonRecord,
-  identityField: string,
-  relationships: DomainSchema['relationships'] = [],
-): Map<string, string> {
+function configuredRelationshipTypes(record: JsonRecord, identityField: string, relationships: DomainSchema['relationships'] = []): Map<string, string> {
   const map = new Map<string, string>();
   for (const relationship of relationships) {
     const base = relationship.name.toLowerCase();
@@ -592,9 +568,7 @@ function relationshipFieldsForRecord(
 }
 
 function identityFieldForEntity(entityType: DomainSchema['entities'][number]): string {
-  return entityType.fields.find((field) => field.identity)?.name
-    ?? entityType.fields[0]?.name
-    ?? 'id';
+  return entityType.fields.find((field) => field.identity)?.name ?? entityType.fields[0]?.name ?? 'id';
 }
 
 function entityRecordFields(record: JsonRecord, entityType: DomainSchema['entities'][number], includeAll = false): JsonRecord {
@@ -617,11 +591,7 @@ function relationshipCandidatesForRecord(
   const out: Array<{ relType: string; srcId: string; dstId: string }> = [];
   const seen = new Set<string>();
   for (const relationshipField of relationshipFieldsForRecord(item.record, item.identityField, outgoingRelationships)) {
-    const targetTypesForRelationship = relationshipTargetTypes(
-      relationshipField.type,
-      defaultType,
-      outgoingRelationships,
-    );
+    const targetTypesForRelationship = relationshipTargetTypes(relationshipField.type, defaultType, outgoingRelationships);
     for (const targetIdentity of relationshipValues(item.record, relationshipField.field, relationshipField.type)) {
       const targetId = lookupEntityIdentity(entitiesByIdentity, targetTypesForRelationship, targetIdentity);
       if (!targetId || targetId === item.id) continue;
@@ -634,13 +604,7 @@ function relationshipCandidatesForRecord(
   return out;
 }
 
-async function persistedIdentityLookup(
-  db: D1Database,
-  project: string,
-  domain: string,
-  types: string[],
-  defaultType: string,
-): Promise<Map<string, string>> {
+async function persistedIdentityLookup(db: D1Database, project: string, domain: string, types: string[], defaultType: string): Promise<Map<string, string>> {
   const identities = new Map<string, string>();
   for (const type of types) {
     const rows = await db
@@ -706,9 +670,7 @@ export class D1MetadataRepository implements MetadataRepository {
         ${clauses}
         ORDER BY p.name`,
     );
-    const result = project
-      ? await stmt.bind(project).all<ProjectRecord>()
-      : await stmt.all<ProjectRecord>();
+    const result = project ? await stmt.bind(project).all<ProjectRecord>() : await stmt.all<ProjectRecord>();
     return (result.results ?? []).map((row) => ({
       ...row,
       kind_count: numberValue(row.kind_count),
@@ -762,12 +724,7 @@ export class D1MetadataRepository implements MetadataRepository {
     return result.results ?? [];
   }
 
-  async insertSchema(
-    project: string,
-    domain: string,
-    name: string,
-    spec: DomainSchema,
-  ): Promise<SchemaRecord> {
+  async insertSchema(project: string, domain: string, name: string, spec: DomainSchema): Promise<SchemaRecord> {
     await this.upsertDomain(project, domain);
     const versionRow = await this.db
       .prepare(
@@ -780,10 +737,7 @@ export class D1MetadataRepository implements MetadataRepository {
     const version = Number(versionRow?.version ?? 1);
     const id = crypto.randomUUID();
     const savedSpec = { ...spec, domain, name, version };
-    await this.db
-      .prepare('UPDATE kb_schemas SET is_active = 0 WHERE project = ? AND domain = ?')
-      .bind(project, domain)
-      .run();
+    await this.db.prepare('UPDATE kb_schemas SET is_active = 0 WHERE project = ? AND domain = ?').bind(project, domain).run();
     await this.db
       .prepare(
         `INSERT INTO kb_schemas (id, project, domain, name, version, spec, is_active)
@@ -927,17 +881,7 @@ export class D1MetadataRepository implements MetadataRepository {
            object_key = excluded.object_key,
            updated_at = datetime('now')`,
       )
-      .bind(
-        input.id,
-        input.project,
-        input.domain,
-        input.filename,
-        input.mime,
-        input.bytes,
-        input.contentHash,
-        input.canonicalHash ?? null,
-        input.objectKey,
-      )
+      .bind(input.id, input.project, input.domain, input.filename, input.mime, input.bytes, input.contentHash, input.canonicalHash ?? null, input.objectKey)
       .run();
     const row = await this.db
       .prepare(
@@ -1015,12 +959,7 @@ export class D1MetadataRepository implements MetadataRepository {
     return (result.results ?? []).map((row) => row.vector_id).filter(Boolean);
   }
 
-  async listKbChunks(
-    project: string,
-    domain?: string,
-    fileId?: string,
-    limit = 100,
-  ): Promise<KbChunkRecord[]> {
+  async listKbChunks(project: string, domain?: string, fileId?: string, limit = 100): Promise<KbChunkRecord[]> {
     const clauses = ['project = ?'];
     const values: Array<string | number> = [project];
     if (domain) {
@@ -1049,8 +988,7 @@ export class D1MetadataRepository implements MetadataRepository {
   async deleteFiles(project: string, fileIds: string[]): Promise<FileRecord[]> {
     const ids = [...new Set(fileIds.filter(Boolean))];
     if (ids.length === 0) return [];
-    const existing = (await Promise.all(ids.map((id) => this.getFile(project, id))))
-      .filter((file): file is FileRecord => Boolean(file));
+    const existing = (await Promise.all(ids.map((id) => this.getFile(project, id)))).filter((file): file is FileRecord => Boolean(file));
     if (existing.length === 0) return [];
     const placeholders = existing.map(() => '?').join(', ');
     const values = [project, ...existing.map((file) => file.id)];
@@ -1083,13 +1021,7 @@ export class D1MetadataRepository implements MetadataRepository {
            object_key = excluded.object_key,
            page_count = excluded.page_count`,
       )
-      .bind(
-        input.contentHash,
-        input.parser,
-        input.parserVersion ?? null,
-        input.objectKey,
-        input.pageCount ?? null,
-      )
+      .bind(input.contentHash, input.parser, input.parserVersion ?? null, input.objectKey, input.pageCount ?? null)
       .run();
     const row = await this.getParseArtifact(input.contentHash);
     if (!row) throw new Error('failed to upsert parse artifact');
@@ -1147,21 +1079,22 @@ export class D1MetadataRepository implements MetadataRepository {
       )
       .run();
     const rows = await this.listIngestJobs(input.project, input.domain, undefined, 100);
-    const row = rows.find((job) =>
-      job.file_id === input.fileId && (job.schema_id ?? null) === (input.schemaId ?? null),
-    );
+    const row = rows.find((job) => job.file_id === input.fileId && (job.schema_id ?? null) === (input.schemaId ?? null));
     if (!row) throw new Error('failed to upsert ingest job');
     return row;
   }
 
-  async updateIngestJob(id: string, input: {
-    stage?: string;
-    status?: string;
-    error?: string | null;
-    lockedBy?: string | null;
-    incrementAttempts?: boolean;
-  }): Promise<void> {
-    const sets = ['updated_at = datetime(\'now\')'];
+  async updateIngestJob(
+    id: string,
+    input: {
+      stage?: string;
+      status?: string;
+      error?: string | null;
+      lockedBy?: string | null;
+      incrementAttempts?: boolean;
+    },
+  ): Promise<void> {
+    const sets = ["updated_at = datetime('now')"];
     const values: Array<string | null | number> = [];
     if (input.incrementAttempts) {
       sets.push('attempts = attempts + 1');
@@ -1179,7 +1112,7 @@ export class D1MetadataRepository implements MetadataRepository {
       values.push(input.error);
     }
     if (input.lockedBy !== undefined) {
-      sets.push('locked_by = ?', 'locked_at = datetime(\'now\')');
+      sets.push('locked_by = ?', "locked_at = datetime('now')");
       values.push(input.lockedBy);
     }
     values.push(id);
@@ -1231,26 +1164,30 @@ export class D1MetadataRepository implements MetadataRepository {
 
   async insertKbChunks(chunks: KbChunkInput[]): Promise<void> {
     if (chunks.length === 0) return;
-    await this.db.batch(chunks.map((chunk) =>
-      this.db.prepare(
-        `INSERT OR REPLACE INTO kb_chunks (
+    await this.db.batch(
+      chunks.map((chunk) =>
+        this.db
+          .prepare(
+            `INSERT OR REPLACE INTO kb_chunks (
            id, project, domain, file_id, vector_id, page_start, page_end,
            text, content_hash, metadata
          )
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        chunk.id,
-        chunk.project,
-        chunk.domain,
-        chunk.fileId,
-        chunk.vectorId,
-        chunk.pageStart,
-        chunk.pageEnd,
-        chunk.text,
-        chunk.contentHash ?? null,
-        JSON.stringify(chunk.metadata ?? {}),
+          )
+          .bind(
+            chunk.id,
+            chunk.project,
+            chunk.domain,
+            chunk.fileId,
+            chunk.vectorId,
+            chunk.pageStart,
+            chunk.pageEnd,
+            chunk.text,
+            chunk.contentHash ?? null,
+            JSON.stringify(chunk.metadata ?? {}),
+          ),
       ),
-    ));
+    );
   }
 
   async recordStructuredEntities(input: RecordStructuredEntitiesInput): Promise<RecordStructuredEntitiesResult> {
@@ -1277,8 +1214,7 @@ export class D1MetadataRepository implements MetadataRepository {
       for (const entityType of entityTypes) {
         const identityField = identityFieldForEntity(entityType);
         const isPrimary = entityType.name === primaryType.name;
-        const identity = primitiveIdentity(item.record[identityField])
-          ?? (isPrimary ? `${input.fileId}:record:${item.recordIndex}` : null);
+        const identity = primitiveIdentity(item.record[identityField]) ?? (isPrimary ? `${input.fileId}:record:${item.recordIndex}` : null);
         if (!identity) continue;
         const summaryField = entityType.summary_field ?? identityField;
         const displayName = primitiveIdentity(item.record[summaryField]) ?? identity;
@@ -1295,15 +1231,7 @@ export class D1MetadataRepository implements MetadataRepository {
                fields = excluded.fields,
                updated_at = datetime('now')`,
           )
-          .bind(
-            entityId,
-            input.project,
-            input.domain,
-            entityType.name,
-            identity,
-            displayName,
-            JSON.stringify(fields),
-          )
+          .bind(entityId, input.project, input.domain, entityType.name, identity, displayName, JSON.stringify(fields))
           .run();
         const row = await this.db
           .prepare(
@@ -1326,45 +1254,34 @@ export class D1MetadataRepository implements MetadataRepository {
                field_values = excluded.field_values,
                confidence = excluded.confidence`,
           )
-          .bind(
-            crypto.randomUUID(),
-            input.project,
-            input.domain,
-            row.id,
-            input.fileId,
-            input.schema.id,
-            JSON.stringify(fields),
-            0.95,
-          )
+          .bind(crypto.randomUUID(), input.project, input.domain, row.id, input.fileId, input.schema.id, JSON.stringify(fields), 0.95)
           .run();
         mentions += 1;
-        const spanStatements = Object.entries(fields).slice(0, 50).map(([field, value]) =>
-          this.db.prepare(
-            `INSERT OR IGNORE INTO kb_provenance_spans (
+        const spanStatements = Object.entries(fields)
+          .slice(0, 50)
+          .map(([field, value]) =>
+            this.db
+              .prepare(
+                `INSERT OR IGNORE INTO kb_provenance_spans (
                id, project, domain, file_id, entity_id, field, page_start, page_end, excerpt
              )
              VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?)`,
-          ).bind(
-            crypto.randomUUID(),
-            input.project,
-            input.domain,
-            input.fileId,
-            row.id,
-            field,
-            excerptForField(field, value),
-          ),
-        );
+              )
+              .bind(crypto.randomUUID(), input.project, input.domain, input.fileId, row.id, field, excerptForField(field, value)),
+          );
         if (spanStatements.length > 0) {
           await this.db.batch(spanStatements);
           provenanceSpans += spanStatements.length;
         }
         if (!isPrimary) continue;
         const chunkStatements = item.chunks.map((chunk) =>
-          this.db.prepare(
-            `UPDATE kb_chunks
+          this.db
+            .prepare(
+              `UPDATE kb_chunks
                 SET entity_id = ?
               WHERE project = ? AND domain = ? AND file_id = ? AND vector_id = ?`,
-          ).bind(row.id, input.project, input.domain, input.fileId, chunk.id),
+            )
+            .bind(row.id, input.project, input.domain, input.fileId, chunk.id),
         );
         if (chunkStatements.length > 0) {
           await this.db.batch(chunkStatements);
@@ -1376,13 +1293,7 @@ export class D1MetadataRepository implements MetadataRepository {
     for (const relationship of schemaRelationships) {
       targetTypes.add(relationship.to_type);
     }
-    const entitiesByIdentity = await persistedIdentityLookup(
-      this.db,
-      input.project,
-      input.domain,
-      [...targetTypes],
-      primaryType.name,
-    );
+    const entitiesByIdentity = await persistedIdentityLookup(this.db, input.project, input.domain, [...targetTypes], primaryType.name);
     for (const item of persisted) {
       const identity = primitiveIdentity(item.record[item.identityField]);
       if (identity) addEntityIdentity(entitiesByIdentity, item.type, identity, item.id, primaryType.name);
@@ -1403,15 +1314,7 @@ export class D1MetadataRepository implements MetadataRepository {
              )
              VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
           )
-          .bind(
-            crypto.randomUUID(),
-            input.project,
-            input.domain,
-            candidate.relType,
-            candidate.srcId,
-            candidate.dstId,
-            input.fileId,
-          )
+          .bind(crypto.randomUUID(), input.project, input.domain, candidate.relType, candidate.srcId, candidate.dstId, input.fileId)
           .run();
         if (candidate.relType === 'parent') {
           await this.db
@@ -1455,13 +1358,7 @@ export class D1MetadataRepository implements MetadataRepository {
       .bind(project, schema.domain)
       .all<StoredEntity>();
     const entities = (rows.results ?? []).map(rowToEntity);
-    const entitiesByIdentity = await persistedIdentityLookup(
-      this.db,
-      project,
-      schema.domain,
-      [...targetTypes],
-      primaryType.name,
-    );
+    const entitiesByIdentity = await persistedIdentityLookup(this.db, project, schema.domain, [...targetTypes], primaryType.name);
     for (const entity of entities) addEntityIdentity(entitiesByIdentity, entity.type, entity.identity_key, entity.id, primaryType.name);
     let candidateRelationships = 0;
     let relationshipsInserted = 0;
@@ -1489,14 +1386,7 @@ export class D1MetadataRepository implements MetadataRepository {
              )
              VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)`,
           )
-          .bind(
-            crypto.randomUUID(),
-            project,
-            schema.domain,
-            candidate.relType,
-            candidate.srcId,
-            candidate.dstId,
-          )
+          .bind(crypto.randomUUID(), project, schema.domain, candidate.relType, candidate.srcId, candidate.dstId)
           .run();
         if ((result.meta?.changes ?? 0) > 0) relationshipsInserted += 1;
         if (candidate.relType === 'parent') {
@@ -1630,11 +1520,13 @@ export class D1MetadataRepository implements MetadataRepository {
   }
 
   async searchEntities(project: string, domain: string, query: string, limit = 20): Promise<EntityRecord[]> {
-    const tokens = query.toLowerCase().match(/[a-z0-9][a-z0-9-]{1,}/g)?.slice(0, 8) ?? [];
+    const tokens =
+      query
+        .toLowerCase()
+        .match(/[a-z0-9][a-z0-9-]{1,}/g)
+        ?.slice(0, 8) ?? [];
     if (tokens.length === 0) return [];
-    const clauses = tokens.map(() =>
-      `(lower(identity_key) LIKE ? OR lower(COALESCE(display_name, '')) LIKE ? OR lower(fields) LIKE ?)`,
-    );
+    const clauses = tokens.map(() => `(lower(identity_key) LIKE ? OR lower(COALESCE(display_name, '')) LIKE ? OR lower(fields) LIKE ?)`);
     const values: Array<string | number> = [project, domain];
     for (const token of tokens) {
       const pattern = `%${token}%`;
@@ -1655,13 +1547,7 @@ export class D1MetadataRepository implements MetadataRepository {
     return (result.results ?? []).map(rowToEntity);
   }
 
-  async listRelationships(
-    project: string,
-    domain?: string,
-    relType?: string,
-    entityId?: string,
-    limit = 100,
-  ): Promise<EntityRelationshipRecord[]> {
+  async listRelationships(project: string, domain?: string, relType?: string, entityId?: string, limit = 100): Promise<EntityRelationshipRecord[]> {
     const clauses = ['project = ?'];
     const values: Array<string | number> = [project];
     if (domain) {
@@ -1809,22 +1695,7 @@ export class D1MetadataRepository implements MetadataRepository {
            FROM agg
           ORDER BY domain`,
       )
-      .bind(
-        project,
-        project,
-        project,
-        project,
-        project,
-        project,
-        project,
-        project,
-        project,
-        project,
-        project,
-        project,
-        project,
-        project,
-      )
+      .bind(project, project, project, project, project, project, project, project, project, project, project, project, project, project)
       .all<CorpusStatusRecord>();
     return result.results ?? [];
   }
@@ -1900,15 +1771,7 @@ export class D1MetadataRepository implements MetadataRepository {
          )
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(
-        id,
-        input.project,
-        input.domain ?? null,
-        input.indexId ?? null,
-        input.kind,
-        JSON.stringify(input.summary),
-        JSON.stringify(input.rows),
-      )
+      .bind(id, input.project, input.domain ?? null, input.indexId ?? null, input.kind, JSON.stringify(input.summary), JSON.stringify(input.rows))
       .run();
     const row = await this.getEvalReport(input.project, id);
     if (!row) throw new Error('failed to insert eval report');
@@ -1971,6 +1834,9 @@ export function parseFileRegistrationBody(value: unknown): Omit<RegisterFileInpu
 }
 
 export function safeObjectKeySegment(value: string): string {
-  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-');
   return normalized.replace(/^-+|-+$/g, '') || 'file';
 }

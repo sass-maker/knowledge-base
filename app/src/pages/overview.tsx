@@ -1,17 +1,11 @@
-import { useEffect, useState } from "react";
-import { api, type KbStatus, type Domain, ApiError } from "@/lib/api";
-import { PageHeader } from "@/components/page-header";
-import { StatCard, Card, CardTitle, Skeleton } from "@/components/card";
-import { formatTime } from "@/lib/utils";
-import { AppLink as Link } from "@/components/app-link";
-import {
-  ArrowRight,
-  Database,
-  History,
-  Search,
-  TableProperties,
-} from "lucide-react";
-import { Onboarding, isOnboardingDone } from "@/components/onboarding";
+import { useEffect, useState } from 'react';
+import { api, type KbStatus, type Domain, ApiError } from '@/lib/api';
+import { PageHeader } from '@/components/page-header';
+import { StatCard, Card, CardTitle, Skeleton } from '@/components/card';
+import { formatTime } from '@/lib/utils';
+import { AppLink as Link } from '@/components/app-link';
+import { ArrowRight, Database, History, Search, TableProperties } from 'lucide-react';
+import { Onboarding, isOnboardingDone } from '@/components/onboarding';
 
 export default function OverviewPage() {
   const [status, setStatus] = useState<KbStatus | null>(null);
@@ -60,16 +54,9 @@ export default function OverviewPage() {
 
   return (
     <>
-      <PageHeader
-        title="Overview"
-        description="Private retrieval operations for SaaS Maker projects"
-      />
+      <PageHeader title="Overview" description="Private retrieval operations for SaaS Maker projects" />
       <div className="flex flex-col gap-6 p-6">
-        {error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+        {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
         {loading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -85,27 +72,12 @@ export default function OverviewPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard label="Domains" value={status?.domains ?? 0} />
               <StatCard label="Files" value={status?.files ?? 0} />
-              <StatCard
-                label="Active Schemas"
-                value={status?.schemas ?? 0}
-                hint={`${status?.schema_drafts ?? 0} pending drafts`}
-              />
+              <StatCard label="Active Schemas" value={status?.schemas ?? 0} hint={`${status?.schema_drafts ?? 0} pending drafts`} />
               <StatCard label="Entities" value={status?.entities ?? 0} />
               <StatCard label="Jobs" value={status?.jobs ?? 0} />
-              <StatCard
-                label="Relationships"
-                value={status?.relationships ?? 0}
-              />
-              <StatCard
-                label="Recent Traces"
-                value={status?.recent_traces ?? 0}
-                hint="last 50"
-              />
-              <StatCard
-                label="Recent Eval Reports"
-                value={status?.recent_eval_reports ?? 0}
-                hint="last 50"
-              />
+              <StatCard label="Relationships" value={status?.relationships ?? 0} />
+              <StatCard label="Recent Traces" value={status?.recent_traces ?? 0} hint="last 50" />
+              <StatCard label="Recent Eval Reports" value={status?.recent_eval_reports ?? 0} hint="last 50" />
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
@@ -113,10 +85,7 @@ export default function OverviewPage() {
                 <CardTitle>Domains</CardTitle>
                 {domains.length === 0 ? (
                   <div className="flex flex-col gap-3">
-                    <p className="text-sm text-muted-foreground">
-                      No domains yet. Create one to start ingesting
-                      files and running queries.
-                    </p>
+                    <p className="text-sm text-muted-foreground">No domains yet. Create one to start ingesting files and running queries.</p>
                     <Link
                       href="/domains"
                       className="inline-flex h-9 w-fit items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
@@ -134,20 +103,13 @@ export default function OverviewPage() {
                       >
                         <span className="flex items-center gap-2.5">
                           <Database className="size-4 text-muted-foreground" />
-                          <span className="font-mono font-medium text-foreground">
-                            {d.name}
-                          </span>
+                          <span className="font-mono font-medium text-foreground">{d.name}</span>
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(d.created_at)}
-                        </span>
+                        <span className="text-xs text-muted-foreground">{formatTime(d.created_at)}</span>
                       </Link>
                     ))}
                     {domains.length > 5 && (
-                      <Link
-                        href="/domains"
-                        className="flex items-center gap-1 pt-1 text-xs text-muted-foreground hover:text-foreground"
-                      >
+                      <Link href="/domains" className="flex items-center gap-1 pt-1 text-xs text-muted-foreground hover:text-foreground">
                         View all {domains.length} domains
                         <ArrowRight className="size-3" />
                       </Link>
@@ -159,24 +121,15 @@ export default function OverviewPage() {
               <Card>
                 <CardTitle>Quick actions</CardTitle>
                 <div className="flex flex-col gap-2">
-                  <Link
-                    href="/data"
-                    className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm"
-                  >
+                  <Link href="/data" className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm">
                     <TableProperties className="size-4 text-muted-foreground" />
                     <span className="text-foreground">Inspect corpus data</span>
                   </Link>
-                  <Link
-                    href="/history"
-                    className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm"
-                  >
+                  <Link href="/history" className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm">
                     <History className="size-4 text-muted-foreground" />
                     <span className="text-foreground">Review query history</span>
                   </Link>
-                  <Link
-                    href="/query"
-                    className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm"
-                  >
+                  <Link href="/query" className="card-lift flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-sm">
                     <Search className="size-4 text-muted-foreground" />
                     <span className="text-foreground">Run a cited query</span>
                   </Link>

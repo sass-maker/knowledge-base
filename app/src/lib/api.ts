@@ -17,14 +17,9 @@
 // - POST /v1/kb/ingest/text → { file_id, ... } (200/201)
 // - POST /v1/kb/ingest/run → { run_id, ... } (202)
 
-import {
-  getApiProject,
-  isInternalDomain,
-  isInternalScopeVisible,
-  type OperatorProject,
-} from "@/lib/project-scope";
+import { getApiProject, isInternalDomain, isInternalScopeVisible, type OperatorProject } from '@/lib/project-scope';
 
-const API_BASE = "/api";
+const API_BASE = '/api';
 
 export class ApiError extends Error {
   status: number;
@@ -36,21 +31,18 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
+async function sendRequest(path: string, init: RequestInit = {}): Promise<{ body: unknown; headers: Headers }> {
   const isFormData = init.body instanceof FormData;
   const headers = new Headers(init.headers);
   const project = getApiProject();
-  if (project) headers.set("X-KB-Project", project);
-  if (!isFormData && init.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
+  if (project) headers.set('X-KB-Project', project);
+  if (!isFormData && init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
   }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
-    credentials: "same-origin",
+    credentials: 'same-origin',
   });
   const text = await res.text();
   let body: unknown;
@@ -60,42 +52,25 @@ async function request<T>(
     body = text;
   }
   if (!res.ok) throw new ApiError(res.status, body);
+  return { body, headers: res.headers };
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const { body } = await sendRequest(path, init);
   return body as T;
 }
 
-async function requestWithHeaders<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<{ body: T; headers: Headers }> {
-  const isFormData = init.body instanceof FormData;
-  const headers = new Headers(init.headers);
-  const project = getApiProject();
-  if (project) headers.set("X-KB-Project", project);
-  if (!isFormData && init.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers,
-    credentials: "same-origin",
-  });
-  const text = await res.text();
-  let body: unknown;
-  try {
-    body = text ? JSON.parse(text) : {};
-  } catch {
-    body = text;
-  }
-  if (!res.ok) throw new ApiError(res.status, body);
-  return { body: body as T, headers: res.headers };
+async function requestWithHeaders<T>(path: string, init: RequestInit = {}): Promise<{ body: T; headers: Headers }> {
+  const { body, headers } = await sendRequest(path, init);
+  return { body: body as T, headers };
 }
 
 function extractLatencyMs(headers: Headers): number {
-  const timingHeader = headers.get("X-RAG-Timing");
+  const timingHeader = headers.get('X-RAG-Timing');
   if (timingHeader) {
     try {
       const timing = JSON.parse(timingHeader) as Record<string, unknown>;
-      if (typeof timing.total_ms === "number") return Math.round(timing.total_ms);
+      if (typeof timing.total_ms === 'number') return Math.round(timing.total_ms);
     } catch {
       // Ignore malformed optional timing metadata; the response body remains usable.
     }
@@ -525,10 +500,10 @@ function toFile(f: RawFileRecord): FileEntry {
 
 function traceMode(t: RawQueryTraceRecord): string {
   const confidenceRoute = t.confidence?.route;
-  if (typeof confidenceRoute === "string" && confidenceRoute) return confidenceRoute;
+  if (typeof confidenceRoute === 'string' && confidenceRoute) return confidenceRoute;
   const filterRoute = t.filters?.route;
-  if (typeof filterRoute === "string" && filterRoute) return filterRoute;
-  return "recorded";
+  if (typeof filterRoute === 'string' && filterRoute) return filterRoute;
+  return 'recorded';
 }
 
 function toTrace(t: RawQueryTraceRecord): Trace {
@@ -556,48 +531,34 @@ function toTrace(t: RawQueryTraceRecord): Trace {
 // ── API methods ────────────────────────────────────────────────
 
 export const api = {
-  getSession: (): Promise<OperatorSession> =>
-    request<OperatorSession>("/session"),
+  getSession: (): Promise<OperatorSession> => request<OperatorSession>('/session'),
 
   getOperatorProjects: async (): Promise<OperatorProject[]> => {
-    const res = await request<{ data: OperatorProject[] }>("/v1/kb/operator/projects");
+    const res = await request<{ data: OperatorProject[] }>('/v1/kb/operator/projects');
     return res.data ?? [];
   },
 
   getStatus: async (): Promise<KbStatus> => {
-    const [res, schemas, drafts, entities, relationships, traces, reports] =
-      await Promise.all([
-        request<{ data: CorpusStatusEntry[] }>("/v1/kb/status"),
-        request<{ data: RawSchemaRecord[] }>("/v1/kb/schemas"),
-        request<{ data: RawSchemaDraft[] }>("/v1/kb/schemas/drafts?status=pending"),
-        request<{ entities: RawEntityRecord[] }>("/v1/kb/entities?limit=500"),
-        request<{ relationships: RawRelationshipRecord[] }>("/v1/kb/relationships?limit=500"),
-        request<{ traces: RawQueryTraceRecord[] }>("/v1/kb/query/traces?limit=50"),
-        request<{ reports: RawEvalReportRecord[] }>("/v1/kb/evals/reports?limit=50"),
-      ]);
+    const [res, schemas, drafts, entities, relationships, traces, reports] = await Promise.all([
+      request<{ data: CorpusStatusEntry[] }>('/v1/kb/status'),
+      request<{ data: RawSchemaRecord[] }>('/v1/kb/schemas'),
+      request<{ data: RawSchemaDraft[] }>('/v1/kb/schemas/drafts?status=pending'),
+      request<{ entities: RawEntityRecord[] }>('/v1/kb/entities?limit=500'),
+      request<{ relationships: RawRelationshipRecord[] }>('/v1/kb/relationships?limit=500'),
+      request<{ traces: RawQueryTraceRecord[] }>('/v1/kb/query/traces?limit=50'),
+      request<{ reports: RawEvalReportRecord[] }>('/v1/kb/evals/reports?limit=50'),
+    ]);
     const entries = (res.data ?? []).filter((entry) => !isInternalDomain(entry.domain));
-    const recentTraces = (traces.traces ?? []).filter(
-      (trace) => !isInternalDomain(trace.domain),
-    ).length;
-    const recentReports = (reports.reports ?? []).filter(
-      (report) => !report.domain || !isInternalDomain(report.domain),
-    ).length;
+    const recentTraces = (traces.traces ?? []).filter((trace) => !isInternalDomain(trace.domain)).length;
+    const recentReports = (reports.reports ?? []).filter((report) => !report.domain || !isInternalDomain(report.domain)).length;
     return {
       domains: entries.length,
       files: entries.reduce((sum, e) => sum + e.file_count, 0),
       jobs: entries.reduce((sum, e) => sum + e.active_jobs + e.failed_jobs, 0),
-      schemas: schemas.data?.filter(
-        (schema) => schema.is_active === 1 && !isInternalDomain(schema.domain),
-      ).length ?? 0,
-      schema_drafts: drafts.data?.filter(
-        (draft) => !isInternalDomain(draft.domain),
-      ).length ?? 0,
-      entities: entities.entities?.filter(
-        (entity) => !isInternalDomain(entity.domain),
-      ).length ?? 0,
-      relationships: relationships.relationships?.filter(
-        (relationship) => !isInternalDomain(relationship.domain),
-      ).length ?? 0,
+      schemas: schemas.data?.filter((schema) => schema.is_active === 1 && !isInternalDomain(schema.domain)).length ?? 0,
+      schema_drafts: drafts.data?.filter((draft) => !isInternalDomain(draft.domain)).length ?? 0,
+      entities: entities.entities?.filter((entity) => !isInternalDomain(entity.domain)).length ?? 0,
+      relationships: relationships.relationships?.filter((relationship) => !isInternalDomain(relationship.domain)).length ?? 0,
       traces: recentTraces,
       eval_reports: recentReports,
       recent_traces: recentTraces,
@@ -606,9 +567,7 @@ export const api = {
   },
 
   getDomains: async (): Promise<DomainList> => {
-    const res = await request<{ data: RawDomainRecord[] }>(
-      "/v1/kb/domains",
-    );
+    const res = await request<{ data: RawDomainRecord[] }>('/v1/kb/domains');
     return {
       domains: (res.data ?? [])
         .filter((domain) => !isInternalDomain(domain.name))
@@ -622,57 +581,41 @@ export const api = {
     };
   },
 
-  createDomain: (data: {
-    name: string;
-    description?: string;
-    embedding_model?: string;
-  }) =>
-    request<Domain>("/v1/kb/domains", {
-      method: "POST",
+  createDomain: (data: { name: string; description?: string; embedding_model?: string }) =>
+    request<Domain>('/v1/kb/domains', {
+      method: 'POST',
       body: JSON.stringify(data),
     }),
 
   getFiles: async (domain?: string): Promise<FileList> => {
-    const query = domain ? `?domain=${encodeURIComponent(domain)}` : "";
-    const res = await request<{ data: RawFileRecord[] }>(
-      `/v1/kb/files${query}`,
-    );
+    const query = domain ? `?domain=${encodeURIComponent(domain)}` : '';
+    const res = await request<{ data: RawFileRecord[] }>(`/v1/kb/files${query}`);
     return {
-      files: (res.data ?? [])
-        .filter((file) => !isInternalDomain(file.domain))
-        .map(toFile),
+      files: (res.data ?? []).filter((file) => !isInternalDomain(file.domain)).map(toFile),
     };
   },
 
   getJobs: async (domain?: string): Promise<JobList> => {
-    const params = new URLSearchParams({ limit: "500" });
-    if (domain) params.set("domain", domain);
-    const res = await request<{ jobs: RawJobRecord[] }>(
-      `/v1/kb/jobs?${params}`,
-    );
+    const params = new URLSearchParams({ limit: '500' });
+    if (domain) params.set('domain', domain);
+    const res = await request<{ jobs: RawJobRecord[] }>(`/v1/kb/jobs?${params}`);
     return {
-      jobs: (res.jobs ?? [])
-        .filter((job) => !isInternalDomain(job.domain))
-        .map(toJob),
+      jobs: (res.jobs ?? []).filter((job) => !isInternalDomain(job.domain)).map(toJob),
     };
   },
 
   getTraces: async (domain?: string): Promise<TraceList> => {
-    const params = new URLSearchParams({ limit: "50" });
-    if (domain) params.set("domain", domain);
-    const res = await request<{ traces: RawQueryTraceRecord[] }>(
-      `/v1/kb/query/traces?${params}`,
-    );
+    const params = new URLSearchParams({ limit: '50' });
+    if (domain) params.set('domain', domain);
+    const res = await request<{ traces: RawQueryTraceRecord[] }>(`/v1/kb/query/traces?${params}`);
     return {
-      traces: (res.traces ?? [])
-        .filter((trace) => !isInternalDomain(trace.domain))
-        .map(toTrace),
+      traces: (res.traces ?? []).filter((trace) => !isInternalDomain(trace.domain)).map(toTrace),
     };
   },
 
   exportTraces: async (domain?: string): Promise<TraceExport> => {
-    const params = new URLSearchParams({ limit: "50" });
-    if (domain) params.set("domain", domain);
+    const params = new URLSearchParams({ limit: '50' });
+    if (domain) params.set('domain', domain);
     const result = await request<TraceExport>(`/v1/kb/query/traces/export?${params}`);
     if (isInternalScopeVisible()) return result;
     return {
@@ -681,34 +624,27 @@ export const api = {
     };
   },
 
-  getTraceDrilldown: (id: string): Promise<TraceDrilldown> =>
-    request<TraceDrilldown>(`/v1/kb/query/trace/${encodeURIComponent(id)}/drilldown`),
+  getTraceDrilldown: (id: string): Promise<TraceDrilldown> => request<TraceDrilldown>(`/v1/kb/query/trace/${encodeURIComponent(id)}/drilldown`),
 
   getEvalReports: async (domain: string): Promise<EvalReportList> => {
-    const res = await request<{ reports: RawEvalReportRecord[] }>(
-      `/v1/kb/evals/reports?domain=${encodeURIComponent(domain)}`,
-    );
+    const res = await request<{ reports: RawEvalReportRecord[] }>(`/v1/kb/evals/reports?domain=${encodeURIComponent(domain)}`);
     return {
       reports: (res.reports ?? []).map((r) => ({
         id: r.id,
-        domain: r.domain ?? "",
+        domain: r.domain ?? '',
         kind: r.kind,
-        hit_rate:
-          (r.summary?.hit_rate as number | undefined) ?? null,
-        citation_rate:
-          (r.summary?.citation_rate as number | undefined) ?? null,
-        avg_latency_ms:
-          (r.summary?.avg_latency_ms as number | undefined) ?? null,
+        hit_rate: (r.summary?.hit_rate as number | undefined) ?? null,
+        citation_rate: (r.summary?.citation_rate as number | undefined) ?? null,
+        avg_latency_ms: (r.summary?.avg_latency_ms as number | undefined) ?? null,
         created_at: r.created_at,
       })),
     };
   },
 
-  getEmbeddingModels: () =>
-    request<EmbeddingModelList>("/v1/embedding-models"),
+  getEmbeddingModels: () => request<EmbeddingModelList>('/v1/embedding-models'),
 
   getSchemas: async (domain?: string): Promise<SchemaRecord[]> => {
-    const res = await request<{ data: RawSchemaRecord[] }>("/v1/kb/schemas");
+    const res = await request<{ data: RawSchemaRecord[] }>('/v1/kb/schemas');
     return (res.data ?? [])
       .filter((schema) => !isInternalDomain(schema.domain))
       .filter((s) => !domain || s.domain === domain)
@@ -723,10 +659,8 @@ export const api = {
       }));
   },
 
-  getSchemaDrafts: async (domain: string, status = "pending"): Promise<SchemaDraft[]> => {
-    const res = await request<{ data: RawSchemaDraft[] }>(
-      `/v1/kb/schemas/drafts?domain=${encodeURIComponent(domain)}&status=${encodeURIComponent(status)}`,
-    );
+  getSchemaDrafts: async (domain: string, status = 'pending'): Promise<SchemaDraft[]> => {
+    const res = await request<{ data: RawSchemaDraft[] }>(`/v1/kb/schemas/drafts?domain=${encodeURIComponent(domain)}&status=${encodeURIComponent(status)}`);
     return (res.data ?? []).map((d) => ({
       id: d.id,
       domain: d.domain,
@@ -739,47 +673,29 @@ export const api = {
     }));
   },
 
-  inferSchema: (data: {
-    domain: string;
-    input?: unknown;
-    records?: Record<string, unknown>[];
-    sample_texts?: string[];
-    name?: string;
-    save_draft?: boolean;
-  }) => request<{ draft_id: string | null; spec: Record<string, unknown>; sample_count: number }>(
-    "/v1/kb/schemas/infer",
-    { method: "POST", body: JSON.stringify(data) },
-  ),
+  inferSchema: (data: { domain: string; input?: unknown; records?: Record<string, unknown>[]; sample_texts?: string[]; name?: string; save_draft?: boolean }) =>
+    request<{ draft_id: string | null; spec: Record<string, unknown>; sample_count: number }>('/v1/kb/schemas/infer', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
-  applySchemaDraft: (draftId: string) =>
-    request<{ schema: RawSchemaRecord }>(
-      `/v1/kb/schemas/drafts/${encodeURIComponent(draftId)}/apply`,
-      { method: "POST" },
-    ),
+  applySchemaDraft: (draftId: string) => request<{ schema: RawSchemaRecord }>(`/v1/kb/schemas/drafts/${encodeURIComponent(draftId)}/apply`, { method: 'POST' }),
 
-  discardSchemaDraft: (draftId: string) =>
-    request<RawSchemaDraft>(
-      `/v1/kb/schemas/drafts/${encodeURIComponent(draftId)}/discard`,
-      { method: "POST" },
-    ),
+  discardSchemaDraft: (draftId: string) => request<RawSchemaDraft>(`/v1/kb/schemas/drafts/${encodeURIComponent(draftId)}/discard`, { method: 'POST' }),
 
   reprocessDomainSchema: (domain: string) =>
-    request<{ enqueued: number; jobs: RawJobRecord[] }>(
-      `/v1/kb/schemas/${encodeURIComponent(domain)}/reprocess`,
-      { method: "POST", body: JSON.stringify({}) },
-    ),
+    request<{ enqueued: number; jobs: RawJobRecord[] }>(`/v1/kb/schemas/${encodeURIComponent(domain)}/reprocess`, { method: 'POST', body: JSON.stringify({}) }),
 
   reprocessFile: (fileId: string) =>
-    request<{ file_id: string; job: RawJobRecord }>(
-      `/v1/kb/files/${encodeURIComponent(fileId)}/reprocess`,
-      { method: "POST" },
-    ),
+    request<{ file_id: string; job: RawJobRecord }>(`/v1/kb/files/${encodeURIComponent(fileId)}/reprocess`, { method: 'POST' }),
 
   getJob: async (jobId: string): Promise<Job> => {
-    const j = await request<RawJobRecord & {
-      failure_classification?: { category?: string } | null;
-      replay?: { route?: string };
-    }>(`/v1/kb/ingest/jobs/${encodeURIComponent(jobId)}`);
+    const j = await request<
+      RawJobRecord & {
+        failure_classification?: { category?: string } | null;
+        replay?: { route?: string };
+      }
+    >(`/v1/kb/ingest/jobs/${encodeURIComponent(jobId)}`);
     return {
       ...toJob(j),
       failure_classification: j.failure_classification?.category ?? null,
@@ -789,7 +705,7 @@ export const api = {
 
   importSource: async (data: {
     domain: string;
-    source: "url" | "edgar";
+    source: 'url' | 'edgar';
     auto_ingest?: boolean;
     config: {
       urls?: string[];
@@ -805,8 +721,8 @@ export const api = {
       source: string;
       files?: RawFileRecord[];
       jobs?: RawJobRecord[];
-      errors?: SourceImportResult["errors"];
-    }>("/v1/kb/sources/import", { method: "POST", body: JSON.stringify(data) });
+      errors?: SourceImportResult['errors'];
+    }>('/v1/kb/sources/import', { method: 'POST', body: JSON.stringify(data) });
     return {
       source: res.source,
       files: (res.files ?? []).map(toFile),
@@ -816,38 +732,30 @@ export const api = {
   },
 
   getEntities: async (domain?: string): Promise<EntityRecord[]> => {
-    const params = new URLSearchParams({ limit: "500" });
-    if (domain) params.set("domain", domain);
-    const res = await request<{ entities: RawEntityRecord[] }>(
-      `/v1/kb/entities?${params}`,
-    );
+    const params = new URLSearchParams({ limit: '500' });
+    if (domain) params.set('domain', domain);
+    const res = await request<{ entities: RawEntityRecord[] }>(`/v1/kb/entities?${params}`);
     return (res.entities ?? []).filter((entity) => !isInternalDomain(entity.domain));
   },
 
   getRelationships: async (domain?: string): Promise<RelationshipRecord[]> => {
-    const params = new URLSearchParams({ limit: "500" });
-    if (domain) params.set("domain", domain);
-    const res = await request<{ relationships: RawRelationshipRecord[] }>(
-      `/v1/kb/relationships?${params}`,
-    );
-    return (res.relationships ?? []).filter(
-      (relationship) => !isInternalDomain(relationship.domain),
-    );
+    const params = new URLSearchParams({ limit: '500' });
+    if (domain) params.set('domain', domain);
+    const res = await request<{ relationships: RawRelationshipRecord[] }>(`/v1/kb/relationships?${params}`);
+    return (res.relationships ?? []).filter((relationship) => !isInternalDomain(relationship.domain));
   },
 
   getChunks: async (domain?: string, fileId?: string): Promise<ChunkEntry[]> => {
-    const params = new URLSearchParams({ limit: "500" });
-    if (domain) params.set("domain", domain);
-    if (fileId) params.set("file_id", fileId);
-    const res = await request<{ chunks: RawChunkRecord[] }>(
-      `/v1/kb/chunks?${params}`,
-    );
+    const params = new URLSearchParams({ limit: '500' });
+    if (domain) params.set('domain', domain);
+    if (fileId) params.set('file_id', fileId);
+    const res = await request<{ chunks: RawChunkRecord[] }>(`/v1/kb/chunks?${params}`);
     return (res.chunks ?? []).filter((chunk) => !isInternalDomain(chunk.domain));
   },
 
   backfillRelationships: (domain: string) =>
-    request<unknown>("/v1/kb/relationships/backfill", {
-      method: "POST",
+    request<unknown>('/v1/kb/relationships/backfill', {
+      method: 'POST',
       body: JSON.stringify({ domain }),
     }),
 
@@ -865,7 +773,7 @@ export const api = {
       domain: string;
       index_id: string;
       data: RawSearchResult[];
-    }>("/v1/kb/search", { method: "POST", body: JSON.stringify(data) });
+    }>('/v1/kb/search', { method: 'POST', body: JSON.stringify(data) });
     return {
       results: (res.data ?? []).map((r) => ({
         chunk_id: r.chunk_id,
@@ -874,7 +782,7 @@ export const api = {
         score: r.score,
         metadata: r.metadata,
       })),
-      mode: data.mode ?? "auto",
+      mode: data.mode ?? 'auto',
       latency_ms: extractLatencyMs(headers),
     };
   },
@@ -893,17 +801,9 @@ export const api = {
     query_decompose?: boolean;
     scope?: string;
   }): Promise<QueryResult> => {
-    const { body: res, headers } = await requestWithHeaders<RawKbAnswerPayload>(
-      "/v1/kb/query",
-      { method: "POST", body: JSON.stringify(data) },
-    );
+    const { body: res, headers } = await requestWithHeaders<RawKbAnswerPayload>('/v1/kb/query', { method: 'POST', body: JSON.stringify(data) });
     const confidence = res.confidence as Record<string, unknown> | null;
-    const confidenceScore =
-      typeof confidence?.score === "number"
-        ? confidence.score
-        : typeof confidence?.value === "number"
-          ? confidence.value
-          : null;
+    const confidenceScore = typeof confidence?.score === 'number' ? confidence.score : typeof confidence?.value === 'number' ? confidence.value : null;
     return {
       answer: res.answer,
       citations: (res.citations ?? []).map((c) => ({
@@ -911,49 +811,46 @@ export const api = {
         document: c.filename ?? c.document_id,
         content: c.excerpt,
         score: c.score,
-        span: c.span_terms?.join(" "),
+        span: c.span_terms?.join(' '),
       })),
-      mode: res.answer_mode ?? res.route ?? "extractive",
+      mode: res.answer_mode ?? res.route ?? 'extractive',
       latency_ms: extractLatencyMs(headers),
       confidence: confidenceScore,
       trace_id: res.trace_id ?? null,
     };
   },
 
-  uploadFile: async (domain: string, file: File, opts?: {
-    embedding_model?: string;
-    markdown_conversion?: string;
-  }): Promise<{ file_id: string }> => {
+  uploadFile: async (
+    domain: string,
+    file: File,
+    opts?: {
+      embedding_model?: string;
+      markdown_conversion?: string;
+    },
+  ): Promise<{ file_id: string }> => {
     const form = new FormData();
-    form.set("domain", domain);
-    form.set("file", file);
-    if (opts?.embedding_model) form.set("embedding_model", opts.embedding_model);
-    if (opts?.markdown_conversion) form.set("markdown_conversion", opts.markdown_conversion);
-    const res = await request<RawFileRecord>("/v1/kb/files/upload", {
-      method: "POST",
+    form.set('domain', domain);
+    form.set('file', file);
+    if (opts?.embedding_model) form.set('embedding_model', opts.embedding_model);
+    if (opts?.markdown_conversion) form.set('markdown_conversion', opts.markdown_conversion);
+    const res = await request<RawFileRecord>('/v1/kb/files/upload', {
+      method: 'POST',
       body: form,
     });
     return { file_id: res.id };
   },
 
-  ingestText: (data: {
-    domain: string;
-    text: string;
-    title?: string;
-    type?: string;
-  }) => request<unknown>("/v1/kb/ingest/text", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }),
+  ingestText: (data: { domain: string; text: string; title?: string; type?: string }) =>
+    request<unknown>('/v1/kb/ingest/text', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
-  ingestRun: (data: {
-    domain: string;
-    async?: boolean;
-    markdown_conversion?: string;
-  }) => request<{ run_id?: string }>("/v1/kb/ingest/run", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }),
+  ingestRun: (data: { domain: string; async?: boolean; markdown_conversion?: string }) =>
+    request<{ run_id?: string }>('/v1/kb/ingest/run', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   runAnswerEval: (data: {
     domain: string;
@@ -961,10 +858,11 @@ export const api = {
     mode?: string;
     answer_mode?: string;
     ai_judge?: boolean;
-  }) => request<unknown>("/v1/kb/evals/query", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }),
+  }) =>
+    request<unknown>('/v1/kb/evals/query', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   runSearchEval: (data: {
     domain: string;
@@ -976,8 +874,9 @@ export const api = {
     }>;
     mode?: string;
     top_k?: number;
-  }) => request<unknown>("/v1/kb/evals/search", {
-    method: "POST",
-    body: JSON.stringify(data),
-  }),
+  }) =>
+    request<unknown>('/v1/kb/evals/search', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
