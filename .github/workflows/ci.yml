@@ -5,27 +5,26 @@ on:
   pull_request:
 
 jobs:
-  worker-check:
+  quality:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: cloudflare/worker
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           version: 10.33.2
+      - uses: astral-sh/setup-uv@v8.1.0
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: pnpm
-          cache-dependency-path: cloudflare/worker/pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            app/pnpm-lock.yaml
+            cloudflare/worker/pnpm-lock.yaml
+            landing-astro/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      # CI runs the worker's typecheck + test suite (the comprehensive logic gate;
-      # the consumer/sibling audits are covered here via fixtures). The full
-      # `predeploy:local` / `gaps:full-port` gates BUILD sibling fleet products
-      # (karte cf:build, starboard build:cf) and read repos on disk — that only
-      # works in a full local fleet checkout, not single-repo CI. Keep them as the
-      # local pre-deploy gate their name implies; run them via `pnpm run predeploy`
-      # before shipping.
-      - run: pnpm run check
+      - run: pnpm --dir app install --frozen-lockfile
+      - run: pnpm --dir cloudflare/worker install --frozen-lockfile
+      - run: pnpm --dir landing-astro install --frozen-lockfile
+      - run: pnpm quality

@@ -25,6 +25,7 @@ on:
 jobs:
   docs-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,6 +36,7 @@ jobs:
 
   docs-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: docs-check
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +46,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      # No pnpm-lock.yaml committed for the root docs package yet. Use a plain
-      # install here; switch to --frozen-lockfile once a lockfile is committed.
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
       - run: pnpm run docs:build

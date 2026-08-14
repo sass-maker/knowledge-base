@@ -2,6 +2,7 @@ node_modules/
 .next/
 .open-next/
 dist/
+coverage/
 cloudflare-env.d.ts
 .wrangler/
 .dev.vars*

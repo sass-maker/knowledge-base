@@ -20,9 +20,12 @@ export default defineConfig({
         'src/**/*.config.{ts,js}',
         'src/**/__tests__/**',
       ],
+      // Debt: https://github.com/sass-maker/knowledge-base/issues/33
       thresholds: {
+        branches: 48,
         lines: 55,
         functions: 55,
+        statements: 53,
       },
     },
   },
