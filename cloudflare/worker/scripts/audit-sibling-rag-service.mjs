@@ -6,14 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const FLEET_ROOT = resolve(REPO_ROOT, '..');
-const EXCLUDED_FLEET_DIRS = new Set([
-  '.git',
-  'knowledgebase',
-  'rag-service',
-  'local-ai',
-  'node_modules',
-  'port-whisperer',
-]);
+const EXCLUDED_FLEET_DIRS = new Set(['.git', 'knowledgebase', 'rag-service', 'local-ai', 'node_modules', 'port-whisperer']);
 const SKIP_DIRS = new Set(['.git', '.next', '.symphony', 'build', 'coverage', 'dist', 'node_modules', 'vendor']);
 const SCAN_EXTENSIONS = new Set(['.cjs', '.js', '.json', '.jsonc', '.mjs', '.toml', '.ts', '.tsx', '.yaml', '.yml']);
 const ACTIVE_REFERENCE_PATTERNS = [
@@ -108,12 +101,10 @@ function matchingLines(path, root, patterns) {
 
 function deployableSurfaces(siblingPath, fleetRoot) {
   if (!existsSync(siblingPath)) return [];
-  return SIBLING_RETIREMENT_SURFACES
-    .filter((item) => existsSync(resolve(siblingPath, item)))
-    .map((item) => {
-      const absolute = resolve(siblingPath, item);
-      return `${relative(fleetRoot, absolute)}${statSync(absolute).isDirectory() ? '/' : ''}`;
-    });
+  return SIBLING_RETIREMENT_SURFACES.filter((item) => existsSync(resolve(siblingPath, item))).map((item) => {
+    const absolute = resolve(siblingPath, item);
+    return `${relative(fleetRoot, absolute)}${statSync(absolute).isDirectory() ? '/' : ''}`;
+  });
 }
 
 function defaultExternalRepos(fleetRoot, repoRoot = REPO_ROOT) {
@@ -144,17 +135,15 @@ export function auditSiblingRagService(options = {}) {
     const root = resolve(externalRepo);
     if (!existsSync(root)) continue;
     for (const file of walkFiles(root)) {
-      activeReferences.push(...matchingLines(file, root, ACTIVE_REFERENCE_PATTERNS).map((match) => ({
-        repo: relative(fleetRoot, root),
-        ...match,
-      })));
+      activeReferences.push(
+        ...matchingLines(file, root, ACTIVE_REFERENCE_PATTERNS).map((match) => ({
+          repo: relative(fleetRoot, root),
+          ...match,
+        })),
+      );
     }
   }
-  activeReferences.sort((a, b) => (
-    a.repo.localeCompare(b.repo)
-      || a.file.localeCompare(b.file)
-      || a.line - b.line
-  ));
+  activeReferences.sort((a, b) => a.repo.localeCompare(b.repo) || a.file.localeCompare(b.file) || a.line - b.line);
 
   const siblingExists = existsSync(siblingPath);
   const surfaces = deployableSurfaces(siblingPath, fleetRoot);

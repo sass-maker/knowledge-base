@@ -53,7 +53,9 @@ function printHuman(report) {
     const fingerprint = item.deploy_fingerprint ? ` deploy_fingerprint=${item.deploy_fingerprint}` : '';
     console.log(`${item.ok ? 'PASS' : 'FAIL'} ${item.method} ${item.path} expected=${expected} actual=${actual}${fingerprint}`);
   }
-  console.log(`${report.fingerprint_ok ? 'PASS' : 'FAIL'} deploy_fingerprint expected=${report.expected_deploy_fingerprint} actual=${report.deploy_fingerprint ?? 'missing'}`);
+  console.log(
+    `${report.fingerprint_ok ? 'PASS' : 'FAIL'} deploy_fingerprint expected=${report.expected_deploy_fingerprint} actual=${report.deploy_fingerprint ?? 'missing'}`,
+  );
   console.log(`\n${report.ok ? 'READY' : 'NOT READY'} legacy-route-smoke checked=${report.checked} failed=${report.failed.length}`);
 }
 

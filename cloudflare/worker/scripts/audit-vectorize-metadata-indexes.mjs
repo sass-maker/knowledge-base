@@ -67,9 +67,9 @@ export function parseMetadataIndexes(stdout) {
 }
 
 function missingRequiredMetadataIndexes(metadataIndexes) {
-  return REQUIRED_METADATA_INDEXES.filter((required) => !metadataIndexes.some((entry) => (
-    entry.property_name === required.property_name && entry.type === required.type
-  )));
+  return REQUIRED_METADATA_INDEXES.filter(
+    (required) => !metadataIndexes.some((entry) => entry.property_name === required.property_name && entry.type === required.type),
+  );
 }
 
 function commandForIndex(indexName) {
@@ -91,23 +91,20 @@ export function createMetadataCommand(indexName, metadataIndex) {
   ];
 }
 
-export function configuredVectorizeMetadataProvisioningCommands({
-  configPath = DEFAULT_CONFIG_PATH,
-} = {}) {
+export function configuredVectorizeMetadataProvisioningCommands({ configPath = DEFAULT_CONFIG_PATH } = {}) {
   const config = readJson(configPath);
-  return configuredVectorizeIndexes(config).flatMap((entry) => REQUIRED_METADATA_INDEXES.map((metadataIndex) => ({
-    binding: entry.binding,
-    index_name: entry.index_name,
-    property_name: metadataIndex.property_name,
-    type: metadataIndex.type,
-    command: createMetadataCommand(entry.index_name, metadataIndex),
-  })));
+  return configuredVectorizeIndexes(config).flatMap((entry) =>
+    REQUIRED_METADATA_INDEXES.map((metadataIndex) => ({
+      binding: entry.binding,
+      index_name: entry.index_name,
+      property_name: metadataIndex.property_name,
+      type: metadataIndex.type,
+      command: createMetadataCommand(entry.index_name, metadataIndex),
+    })),
+  );
 }
 
-export function auditVectorizeMetadataIndexes({
-  configPath = DEFAULT_CONFIG_PATH,
-  runner = runCommand,
-} = {}) {
+export function auditVectorizeMetadataIndexes({ configPath = DEFAULT_CONFIG_PATH, runner = runCommand } = {}) {
   const config = readJson(configPath);
   const indexes = configuredVectorizeIndexes(config).map((entry) => {
     const command = commandForIndex(entry.index_name);

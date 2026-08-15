@@ -47,12 +47,7 @@ export interface Repository {
   insertChunks(chunks: CreateChunkInput[]): Promise<void>;
   getChunksByIds(tenant: string, ids: string[]): Promise<ChunkRecord[]>;
   listChunksForIndex(tenant: string, indexId: string, limit: number): Promise<ChunkRecord[]>;
-  searchLexicalChunks(
-    tenant: string,
-    indexId: string,
-    tokens: string[],
-    limit: number,
-  ): Promise<LexicalChunkRecord[]>;
+  searchLexicalChunks(tenant: string, indexId: string, tokens: string[], limit: number): Promise<LexicalChunkRecord[]>;
   getChunkIdsForDocument(tenant: string, documentId: string): Promise<string[]>;
   getChunkIdsForIndex(tenant: string, indexId: string): Promise<string[]>;
 }

@@ -1,17 +1,8 @@
 import type { JsonRecord } from './types';
 
-export type FieldType =
-  | 'string'
-  | 'text'
-  | 'integer'
-  | 'number'
-  | 'boolean'
-  | 'date'
-  | 'datetime'
-  | 'enum'
-  | 'array';
+type FieldType = 'string' | 'text' | 'integer' | 'number' | 'boolean' | 'date' | 'datetime' | 'enum' | 'array';
 
-export interface FieldSpec {
+interface FieldSpec {
   name: string;
   type: FieldType;
   description: string;
@@ -22,7 +13,7 @@ export interface FieldSpec {
   examples: unknown[];
 }
 
-export interface EntityType {
+interface EntityType {
   name: string;
   description: string;
   fields: FieldSpec[];
@@ -58,7 +49,13 @@ export interface SchemaInferenceInput {
 const IDENTITY_NAMES = new Set(['id', 'uuid', 'slug', 'key', 'code', 'name', 'title', 'email', 'ticker']);
 
 function slug(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'corpus';
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'corpus'
+  );
 }
 
 function pascal(value: string): string {
@@ -68,7 +65,10 @@ function pascal(value: string): string {
 }
 
 function fieldName(value: string): string {
-  const cleaned = value.trim().replace(/[^a-zA-Z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+  const cleaned = value
+    .trim()
+    .replace(/[^a-zA-Z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
   const safe = cleaned.replace(/^[0-9]+/, '');
   return safe || 'field';
 }
@@ -189,7 +189,7 @@ export function recordsFromUnknown(value: unknown): JsonRecord[] {
     .map((line) => {
       try {
         const parsed = JSON.parse(line) as unknown;
-        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as JsonRecord : null;
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as JsonRecord) : null;
       } catch {
         return null;
       }
@@ -219,9 +219,7 @@ function inferFields(records: JsonRecord[]): FieldSpec[] {
     const valueExamples = examples(values);
     const stringExamples = valueExamples.filter((value): value is string => typeof value === 'string');
     const uniqueStrings = new Set(stringExamples);
-    const enumValues = stringExamples.length >= 2 && uniqueStrings.size <= Math.min(12, records.length)
-      ? [...uniqueStrings].slice(0, 12)
-      : undefined;
+    const enumValues = stringExamples.length >= 2 && uniqueStrings.size <= Math.min(12, records.length) ? [...uniqueStrings].slice(0, 12) : undefined;
     const baseType = mergeTypes(types);
     const type = enumValues && baseType === 'string' ? 'enum' : baseType;
     const lower = name.toLowerCase();
@@ -284,29 +282,31 @@ function inferRelatedEntityTypes(records: JsonRecord[], fields: FieldSpec[]): En
   for (const field of fields) {
     const prefix = relationshipPrefixFromIdentityField(field.name, primaryIdentity);
     if (!prefix) continue;
-    const hasEntitySpecificFields = [...fieldNames].some((name) =>
-      name.toLowerCase().startsWith(`${prefix}_`) && name.toLowerCase() !== field.name.toLowerCase(),
+    const hasEntitySpecificFields = [...fieldNames].some(
+      (name) => name.toLowerCase().startsWith(`${prefix}_`) && name.toLowerCase() !== field.name.toLowerCase(),
     );
     if (hasEntitySpecificFields) prefixes.add(prefix);
   }
   const entities: EntityType[] = [];
   for (const prefix of prefixes) {
     const projected = records
-      .map((record) => Object.entries(record).reduce<JsonRecord>((out, [key, value]) => {
-        if (key.toLowerCase().startsWith(`${prefix}_`)) out[key] = value;
-        return out;
-      }, {}))
+      .map((record) =>
+        Object.entries(record).reduce<JsonRecord>((out, [key, value]) => {
+          if (key.toLowerCase().startsWith(`${prefix}_`)) out[key] = value;
+          return out;
+        }, {}),
+      )
       .filter((record) => Object.keys(record).length > 0);
     if (projected.length === 0) continue;
     const relatedFields = inferFields(projected);
-    const identityField = relatedFields.find((field) => field.name.toLowerCase() === `${prefix}_id`)
-      ?? relatedFields.find((field) => field.identity)
-      ?? relatedFields[0];
+    const identityField =
+      relatedFields.find((field) => field.name.toLowerCase() === `${prefix}_id`) ?? relatedFields.find((field) => field.identity) ?? relatedFields[0];
     if (!identityField) continue;
     for (const field of relatedFields) field.identity = field.name === identityField.name;
-    const summaryField = relatedFields.find((field) => field.name.toLowerCase() === `${prefix}_name`)?.name
-      ?? relatedFields.find((field) => ['name', 'title'].includes(field.name.toLowerCase()))?.name
-      ?? identityField.name;
+    const summaryField =
+      relatedFields.find((field) => field.name.toLowerCase() === `${prefix}_name`)?.name ??
+      relatedFields.find((field) => ['name', 'title'].includes(field.name.toLowerCase()))?.name ??
+      identityField.name;
     entities.push({
       name: `${pascal(prefix)}Record`,
       description: `Related ${prefix.replaceAll('_', ' ')} entity inferred from ${prefix}_* fields.`,
@@ -320,10 +320,7 @@ function inferRelatedEntityTypes(records: JsonRecord[], fields: FieldSpec[]): En
   return entities;
 }
 
-function retargetRelationships(
-  relationships: DomainSchema['relationships'],
-  relatedEntities: EntityType[],
-): DomainSchema['relationships'] {
+function retargetRelationships(relationships: DomainSchema['relationships'], relatedEntities: EntityType[]): DomainSchema['relationships'] {
   const byAlias = new Map<string, EntityType>();
   for (const entity of relatedEntities) {
     for (const alias of entity.aliases) byAlias.set(alias.toLowerCase(), entity);
@@ -359,35 +356,34 @@ function vocabularyFromText(samples: string[]): Record<string, string> {
 export function inferSchema(input: SchemaInferenceInput): DomainSchema {
   const domain = slug(input.domain);
   const textSamples = (input.sample_texts ?? []).filter(Boolean);
-  const records = [
-    ...(input.records ?? []),
-    ...textSamples.flatMap(recordsFromUnknown),
-  ].slice(0, 200);
+  const records = [...(input.records ?? []), ...textSamples.flatMap(recordsFromUnknown)].slice(0, 200);
   const entityName = `${pascal(domain)}Record`;
-  const fields = records.length > 0
-    ? inferFields(records)
-    : [
-        {
-          name: 'title',
-          type: 'string' as FieldType,
-          description: 'Human-readable title or heading for the document.',
-          required: false,
-          identity: true,
-          examples: [],
-        },
-        {
-          name: 'content',
-          type: 'text' as FieldType,
-          description: 'Primary document text or body content.',
-          required: true,
-          identity: false,
-          examples: textSamples.slice(0, 2).map((sample) => sample.slice(0, 160)),
-        },
-      ];
-  const summaryField = fields.find((field) => ['name', 'title'].includes(field.name.toLowerCase()))?.name
-    ?? fields.find((field) => field.type === 'text')?.name
-    ?? fields[0]?.name
-    ?? null;
+  const fields =
+    records.length > 0
+      ? inferFields(records)
+      : [
+          {
+            name: 'title',
+            type: 'string' as FieldType,
+            description: 'Human-readable title or heading for the document.',
+            required: false,
+            identity: true,
+            examples: [],
+          },
+          {
+            name: 'content',
+            type: 'text' as FieldType,
+            description: 'Primary document text or body content.',
+            required: true,
+            identity: false,
+            examples: textSamples.slice(0, 2).map((sample) => sample.slice(0, 160)),
+          },
+        ];
+  const summaryField =
+    fields.find((field) => ['name', 'title'].includes(field.name.toLowerCase()))?.name ??
+    fields.find((field) => field.type === 'text')?.name ??
+    fields[0]?.name ??
+    null;
   const relationships = inferRelationships(entityName, fields);
   const relatedEntities = records.length > 0 ? inferRelatedEntityTypes(records, fields) : [];
   const allRelationships = retargetRelationships(relationships, relatedEntities);
@@ -395,9 +391,8 @@ export function inferSchema(input: SchemaInferenceInput): DomainSchema {
     domain,
     name: input.name?.trim() || 'inferred',
     version: 1,
-    description: records.length > 0
-      ? `Schema inferred from ${records.length} structured record(s).`
-      : `Schema inferred from ${textSamples.length} text sample(s).`,
+    description:
+      records.length > 0 ? `Schema inferred from ${records.length} structured record(s).` : `Schema inferred from ${textSamples.length} text sample(s).`,
     vocabulary: vocabularyFromText(textSamples),
     entities: [
       {

@@ -3,6 +3,7 @@
 import { access, readFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { requestJson } from './lib/request-json.mjs';
 
 const DEFAULT_BASE_URL = 'http://localhost:8787';
 const DEFAULT_MAX_CASES_PER_BATCH = 8;
@@ -199,7 +200,9 @@ function asArray(value, label) {
 }
 
 function cleanText(value) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim();
+  return String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function snippetFromText(value, maxChars = 96) {
@@ -242,7 +245,9 @@ function matchesCaseFilters(file, options) {
   if (options.contentHash && file.content_hash !== options.contentHash) return false;
   if (
     options.filenameContains &&
-    !String(file.filename ?? '').toLowerCase().includes(String(options.filenameContains).toLowerCase())
+    !String(file.filename ?? '')
+      .toLowerCase()
+      .includes(String(options.filenameContains).toLowerCase())
   ) {
     return false;
   }
@@ -262,17 +267,24 @@ async function loadLegacyCaseInputs(options) {
     const contentHash = options.directContentHash;
     const filename = options.directFilename;
     return {
-      files: [{
-        domain: options.directDomain,
-        filename,
-        mime: options.directMime || undefined,
-        content_hash: contentHash,
-        object_key: `raw/${options.directDomain}/${contentHash}/${filename}`,
-      }],
-      artifacts: new Map([[contentHash, {
-        content_hash: contentHash,
-        object_key: `parse/${contentHash}/elements.json`,
-      }]]),
+      files: [
+        {
+          domain: options.directDomain,
+          filename,
+          mime: options.directMime || undefined,
+          content_hash: contentHash,
+          object_key: `raw/${options.directDomain}/${contentHash}/${filename}`,
+        },
+      ],
+      artifacts: new Map([
+        [
+          contentHash,
+          {
+            content_hash: contentHash,
+            object_key: `parse/${contentHash}/elements.json`,
+          },
+        ],
+      ]),
     };
   }
   const raw = JSON.parse(await readFile(resolve(options.exportPath), 'utf8'));
@@ -344,22 +356,8 @@ export function batchParseEvalCases(cases, { maxCasesPerBatch = DEFAULT_MAX_CASE
   return batches;
 }
 
-async function requestJson(url, { key, method = 'GET', body } = {}) {
-  const res = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`${method} ${url} failed ${res.status}: ${JSON.stringify(payload)}`);
-  return payload;
-}
-
 function summarizeReports(reports) {
-  const rows = reports.flatMap((report) => Array.isArray(report.rows) ? report.rows : []);
+  const rows = reports.flatMap((report) => (Array.isArray(report.rows) ? report.rows : []));
   const failed = rows.filter((row) => !row.ok);
   const parserCounts = {};
   for (const report of reports) {

@@ -1,5 +1,5 @@
 ---
-import { SITE_ORIGIN } from "../config/public-surfaces";
+import { SITE_ORIGIN } from '../config/public-surfaces';
 
 interface Props {
   title: string;
@@ -7,15 +7,14 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
-const socialImage =
-  "https://raw.githubusercontent.com/sass-maker/knowledge-base/main/.fleet/evidence/public-landing/after-1440.png";
+const socialImage = 'https://raw.githubusercontent.com/sass-maker/knowledge-base/main/.fleet/evidence/public-landing/after-1440.png';
 const structuredData = {
-  "@context": "https://schema.org",
-  "@graph": [
+  '@context': 'https://schema.org',
+  '@graph': [
     {
-      "@type": "WebSite",
-      "@id": `${SITE_ORIGIN}/#website`,
-      name: "Knowledgebase",
+      '@type': 'WebSite',
+      '@id': `${SITE_ORIGIN}/#website`,
+      name: 'Knowledgebase',
       url: SITE_ORIGIN,
       description,
     },

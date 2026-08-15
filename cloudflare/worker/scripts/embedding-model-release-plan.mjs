@@ -7,12 +7,7 @@ import { configuredVectorizeMetadataProvisioningCommands } from './audit-vectori
 const DEFAULT_BASE_URL = process.env.RAG_BASE_URL || 'https://knowledgebase.sarthakagrawal927.workers.dev';
 const DEFAULT_MODEL = process.env.RAG_REQUIRED_EMBEDDING_MODEL || 'gemini-embedding-001';
 
-function step(
-  id,
-  title,
-  command,
-  { mutating = false, requiresApproval = false, requiredEnv = [], optional = false, condition = null, notes = [] } = {},
-) {
+function step(id, title, command, { mutating = false, requiresApproval = false, requiredEnv = [], optional = false, condition = null, notes = [] } = {}) {
   return {
     id,
     title,
@@ -27,36 +22,21 @@ function step(
 }
 
 function vectorizeProvisioningCommand(report) {
-  const commands = report.provisioning_plan.flatMap((item) => [
-    item.command.join(' '),
-    ...item.metadata_commands.map((command) => command.join(' ')),
-  ]);
+  const commands = report.provisioning_plan.flatMap((item) => [item.command.join(' '), ...item.metadata_commands.map((command) => command.join(' '))]);
   if (commands.length === 0) return 'pnpm run audit:vectorize-embedding-bindings -- --json --require-all';
-  return [
-    ...commands,
-    'pnpm run audit:vectorize-embedding-bindings -- --json --require-all',
-  ].join(' && ');
+  return [...commands, 'pnpm run audit:vectorize-embedding-bindings -- --json --require-all'].join(' && ');
 }
 
-export function embeddingModelReleasePlan({
-  baseUrl = DEFAULT_BASE_URL,
-  model = DEFAULT_MODEL,
-  expectedDeployFingerprint = EXPECTED_DEPLOY_FINGERPRINT,
-} = {}) {
+export function embeddingModelReleasePlan({ baseUrl = DEFAULT_BASE_URL, model = DEFAULT_MODEL, expectedDeployFingerprint = EXPECTED_DEPLOY_FINGERPRINT } = {}) {
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
   const vectorizeReport = auditVectorizeEmbeddingBindings();
   const configuredMetadataCommands = configuredVectorizeMetadataProvisioningCommands();
   const steps = [
-    step(
-      'local-predeploy',
-      'Run the local Cloudflare release gate',
-      'pnpm run predeploy:local -- --json',
-      {
-        notes: [
-          'Read-only/local gate; includes Worker check, preflight, consumer source audit and Cloudflare builds, free-ai catalog and deploy-script/vectorize audits, upstream free-ai cost/type/test check, full-port gap matrix, OCR dry-run, local cutover smoke, and deploy dry-run.',
-        ],
-      },
-    ),
+    step('local-predeploy', 'Run the local Cloudflare release gate', 'pnpm run predeploy:local -- --json', {
+      notes: [
+        'Read-only/local gate; includes Worker check, preflight, consumer source audit and Cloudflare builds, free-ai catalog and deploy-script/vectorize audits, upstream free-ai cost/type/test check, full-port gap matrix, OCR dry-run, local cutover smoke, and deploy dry-run.',
+      ],
+    }),
     step(
       'live-release-status',
       'Check current live embedding-model release status',
@@ -68,28 +48,16 @@ export function embeddingModelReleasePlan({
         ],
       },
     ),
-    step(
-      'free-ai-local-check',
-      'Run the local free-ai release gate',
-      'cd ../../../free-ai && pnpm run check',
-      {
-        notes: [
-          'Read-only/local gate for the upstream embedding catalog service; proves cost audit, typecheck, and tests before any approved free-ai deploy.',
-        ],
-      },
-    ),
-    step(
-      'free-ai-deploy',
-      'Deploy the matching free-ai embedding catalog',
-      'cd ../../../free-ai && pnpm run deploy',
-      {
-        mutating: true,
-        requiresApproval: true,
-        notes: [
-          'Required so live /v1/models returns embedding rows with dimensions, aliases, enabled state, and provider metadata. The local audit requires this deploy path to run audit:cloudflare-costs before wrangler deploy.',
-        ],
-      },
-    ),
+    step('free-ai-local-check', 'Run the local free-ai release gate', 'cd ../../../free-ai && pnpm run check', {
+      notes: ['Read-only/local gate for the upstream embedding catalog service; proves cost audit, typecheck, and tests before any approved free-ai deploy.'],
+    }),
+    step('free-ai-deploy', 'Deploy the matching free-ai embedding catalog', 'cd ../../../free-ai && pnpm run deploy', {
+      mutating: true,
+      requiresApproval: true,
+      notes: [
+        'Required so live /v1/models returns embedding rows with dimensions, aliases, enabled state, and provider metadata. The local audit requires this deploy path to run audit:cloudflare-costs before wrangler deploy.',
+      ],
+    }),
     step(
       'free-ai-catalog-smoke',
       'Smoke the deployed free-ai embedding catalog',
@@ -107,7 +75,8 @@ export function embeddingModelReleasePlan({
         mutating: vectorizeReport.missing_dimensions.length > 0,
         requiresApproval: vectorizeReport.missing_dimensions.length > 0,
         optional: true,
-        condition: 'Run only after deployed free-ai advertises enabled embedding models whose dimensions are not already configured, or when deliberately preparing those future choices.',
+        condition:
+          'Run only after deployed free-ai advertises enabled embedding models whose dimensions are not already configured, or when deliberately preparing those future choices.',
         notes: [
           vectorizeReport.missing_dimensions.length > 0
             ? `Not required for the default ${model} rollout when deployed free-ai only exposes 1536d. Required before non-1536 free-ai models become selectable: missing dimensions ${vectorizeReport.missing_dimensions.join(', ')}.`
@@ -140,37 +109,25 @@ export function embeddingModelReleasePlan({
         ],
       },
     ),
-    step(
-      'd1-migration',
-      'Apply the embedding metadata D1 migration',
-      'pnpm exec wrangler d1 migrations apply rag-db --remote',
-      {
-        mutating: true,
-        requiresApproval: true,
-        notes: [
-          'Applies migrations including 0005_index_embedding_model.sql and 0006_kb_domain_embedding_model.sql so indexes and knowledgebase domains can persist embedding_model and embedding_provider.',
-        ],
-      },
-    ),
-    step(
-      'worker-deploy',
-      'Deploy the current knowledgebase Worker',
-      'pnpm run deploy',
-      {
-        mutating: true,
-        requiresApproval: true,
-        notes: [`Live /v1/healthz must report deploy_fingerprint=${expectedDeployFingerprint}.`],
-      },
-    ),
+    step('d1-migration', 'Apply the embedding metadata D1 migration', 'pnpm exec wrangler d1 migrations apply rag-db --remote', {
+      mutating: true,
+      requiresApproval: true,
+      notes: [
+        'Applies migrations including 0005_index_embedding_model.sql and 0006_kb_domain_embedding_model.sql so indexes and knowledgebase domains can persist embedding_model and embedding_provider.',
+      ],
+    }),
+    step('worker-deploy', 'Deploy the current knowledgebase Worker', 'pnpm run deploy', {
+      mutating: true,
+      requiresApproval: true,
+      notes: [`Live /v1/healthz must report deploy_fingerprint=${expectedDeployFingerprint}.`],
+    }),
     step(
       'readiness-embedding-model',
       'Run read-only selected-model readiness',
       `RAG_BASE_URL=${normalizedBaseUrl} RAG_SERVICE_KEY=<service-key> pnpm run readiness:embedding-model`,
       {
         requiredEnv: ['RAG_SERVICE_KEY'],
-        notes: [
-          'Authenticated read-only check for live health, d1_schema, fingerprint, and dynamic free-ai embedding catalog source.',
-        ],
+        notes: ['Authenticated read-only check for live health, d1_schema, fingerprint, and dynamic free-ai embedding catalog source.'],
       },
     ),
     step(
@@ -198,18 +155,11 @@ export function embeddingModelReleasePlan({
         ],
       },
     ),
-    step(
-      'consumer-local-builds',
-      'Build local Linkchat/Karte and Starboard Cloudflare bundles',
-      'pnpm run build:consumer-cloudflare -- --json',
-      {
-        optional: true,
-        condition: 'Already included in local-predeploy; rerun directly when Karte/Starboard changed or when local-predeploy was skipped.',
-        notes: [
-          'Read-only/local build verification for the exact Cloudflare build pipelines used by deploy:cf. It does not deploy or prove live bindings.',
-        ],
-      },
-    ),
+    step('consumer-local-builds', 'Build local Linkchat/Karte and Starboard Cloudflare bundles', 'pnpm run build:consumer-cloudflare -- --json', {
+      optional: true,
+      condition: 'Already included in local-predeploy; rerun directly when Karte/Starboard changed or when local-predeploy was skipped.',
+      notes: ['Read-only/local build verification for the exact Cloudflare build pipelines used by deploy:cf. It does not deploy or prove live bindings.'],
+    }),
     step(
       'consumer-deploys',
       'Deploy Linkchat/Karte and Starboard after knowledgebase is live',

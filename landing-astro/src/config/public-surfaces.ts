@@ -1,24 +1,22 @@
-export const SITE_ORIGIN =
-  import.meta.env.PUBLIC_SITE_ORIGIN ?? "https://knowledgebase.sassmaker.com";
+export const SITE_ORIGIN = import.meta.env.PUBLIC_SITE_ORIGIN ?? 'https://knowledgebase.sassmaker.com';
 
 export interface PublicSurface {
   id: string;
   path: string;
   markdownPath: string;
-  kind: "product";
+  kind: 'product';
   title: string;
   description: string;
 }
 
 export const publicSurfaces: PublicSurface[] = [
   {
-    id: "home",
-    path: "/",
-    markdownPath: "/index.md",
-    kind: "product",
-    title: "Knowledgebase — Private Agent Search",
-    description:
-      "Private search for teams and agents, with cited answers over the material an operator chooses to index.",
+    id: 'home',
+    path: '/',
+    markdownPath: '/index.md',
+    kind: 'product',
+    title: 'Knowledgebase — Private Agent Search',
+    description: 'Private search for teams and agents, with cited answers over the material an operator chooses to index.',
   },
 ];
 

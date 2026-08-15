@@ -9,6 +9,7 @@ import { auditClientContract } from './audit-client-contract.mjs';
 import { auditConsumerRagIntegrations } from './audit-consumer-rag-integrations.mjs';
 import { EXPECTED_DEPLOY_FINGERPRINT, runDeployReadiness } from './deploy-readiness.mjs';
 import { runOperatorReport } from './operator-report.mjs';
+import { requestJson } from './lib/request-json.mjs';
 
 const DEFAULT_BASE_URL = 'https://knowledgebase.sarthakagrawal927.workers.dev';
 const DEFAULT_QUERY = 'what should this account remember?';
@@ -147,10 +148,7 @@ function detectConsumerEvalPacks(input) {
   const docs = Array.isArray(parsed?.documents) ? parsed.documents : [];
   const queries = Array.isArray(parsed?.queries) ? parsed.queries : [];
   const text = JSON.stringify({ docs, queries }).toLowerCase();
-  return [
-    text.includes('karte') ? 'karte-memory' : null,
-    text.includes('starboard') || text.includes('readme') ? 'starboard-readme' : null,
-  ].filter(Boolean);
+  return [text.includes('karte') ? 'karte-memory' : null, text.includes('starboard') || text.includes('readme') ? 'starboard-readme' : null].filter(Boolean);
 }
 
 async function writeJson(outputDir, name, payload) {
@@ -168,15 +166,9 @@ function queryEvalCases(input) {
     .map((query, index) => {
       const question = String(query?.query || '').trim();
       if (!question) return null;
-      const expected = Array.isArray(query?.expected_contains)
-        ? query.expected_contains.map(String).find((value) => value.trim())
-        : null;
-      const expectedDocumentIds = Array.isArray(query?.expected_document_ids)
-        ? query.expected_document_ids.map(String).filter((value) => value.trim())
-        : [];
-      const expectedChunkIds = Array.isArray(query?.expected_chunk_ids)
-        ? query.expected_chunk_ids.map(String).filter((value) => value.trim())
-        : [];
+      const expected = Array.isArray(query?.expected_contains) ? query.expected_contains.map(String).find((value) => value.trim()) : null;
+      const expectedDocumentIds = Array.isArray(query?.expected_document_ids) ? query.expected_document_ids.map(String).filter((value) => value.trim()) : [];
+      const expectedChunkIds = Array.isArray(query?.expected_chunk_ids) ? query.expected_chunk_ids.map(String).filter((value) => value.trim()) : [];
       return {
         id: query?.id ? String(query.id) : `q${index + 1}`,
         question,
@@ -207,16 +199,14 @@ function proofDocuments(input) {
 function proofEmbeddingSelection(input) {
   const parsed = typeof input === 'string' ? JSON.parse(input) : input;
   const index = parsed?.index && typeof parsed.index === 'object' ? parsed.index : {};
-  const embeddingModel = typeof index.embedding_model === 'string'
-    ? index.embedding_model.trim()
-    : typeof index.embeddingModel === 'string'
-      ? index.embeddingModel.trim()
-      : '';
-  const embeddingProvider = typeof index.embedding_provider === 'string'
-    ? index.embedding_provider.trim()
-    : typeof index.embeddingProvider === 'string'
-      ? index.embeddingProvider.trim()
-      : '';
+  const embeddingModel =
+    typeof index.embedding_model === 'string' ? index.embedding_model.trim() : typeof index.embeddingModel === 'string' ? index.embeddingModel.trim() : '';
+  const embeddingProvider =
+    typeof index.embedding_provider === 'string'
+      ? index.embedding_provider.trim()
+      : typeof index.embeddingProvider === 'string'
+        ? index.embeddingProvider.trim()
+        : '';
   return {
     ...(embeddingModel ? { embedding_model: embeddingModel } : {}),
     ...(embeddingProvider ? { embedding_provider: embeddingProvider } : {}),
@@ -224,16 +214,15 @@ function proofEmbeddingSelection(input) {
 }
 
 function hasScoringLabel(query) {
-  return ['expected_contains', 'expected_document_ids', 'expected_chunk_ids']
-    .some((key) => Array.isArray(query?.[key]) && query[key].some((value) => String(value || '').trim()));
+  return ['expected_contains', 'expected_document_ids', 'expected_chunk_ids'].some(
+    (key) => Array.isArray(query?.[key]) && query[key].some((value) => String(value || '').trim()),
+  );
 }
 
 function validateProofInput(input, { minQueries = MIN_PROOF_QUERIES } = {}) {
   const parsed = typeof input === 'string' ? JSON.parse(input) : input;
   const queries = Array.isArray(parsed?.queries) ? parsed.queries : [];
-  const labeledQueries = queries
-    .filter((query) => String(query?.query || '').trim())
-    .filter(hasScoringLabel);
+  const labeledQueries = queries.filter((query) => String(query?.query || '').trim()).filter(hasScoringLabel);
   const errors = [];
   if (queries.length < minQueries) {
     errors.push(`proof input must include at least ${minQueries} queries`);
@@ -248,20 +237,6 @@ function validateProofInput(input, { minQueries = MIN_PROOF_QUERIES } = {}) {
     scored_query_count: labeledQueries.length,
     min_queries: minQueries,
   };
-}
-
-async function requestJson(url, { key, method = 'GET', body } = {}) {
-  const res = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`${method} ${url} failed ${res.status}: ${JSON.stringify(payload)}`);
-  return payload;
 }
 
 export async function seedProofCorpus(options) {
@@ -286,11 +261,9 @@ export async function seedProofCorpus(options) {
       id: doc.id,
       file_id: response.file_id ?? null,
       status: response.idempotent_replay === true ? 'replayed' : 'seeded',
-      chunks_indexed: Number(response.chunks_indexed ?? (
-        Array.isArray(response.files)
-          ? response.files.reduce((sum, file) => sum + Number(file?.chunks_created ?? 0), 0)
-          : 0
-      )),
+      chunks_indexed: Number(
+        response.chunks_indexed ?? (Array.isArray(response.files) ? response.files.reduce((sum, file) => sum + Number(file?.chunks_created ?? 0), 0) : 0),
+      ),
       ingest_safety: response.ingest_safety ?? null,
     });
   }
@@ -340,16 +313,10 @@ export async function runIngestSafetyProof(options) {
   const replaySafety = replay?.ingest_safety ?? {};
   const failureClassification = failure?.failure_classification ?? null;
   const capabilities = {
-    idempotent_ingest:
-      replay?.idempotent_replay === true && replaySafety.idempotent_replay === true,
-    chunk_preview:
-      Array.isArray(seededSafety.chunk_preview) && seededSafety.chunk_preview.length > 0,
-    replayable_jobs:
-      seededSafety.replayable === true && typeof seededSafety.replay_route === 'string',
-    failure_classification:
-      failureResponse.status === 400 &&
-      failureClassification?.category === 'parse_empty' &&
-      failureClassification?.retryable === false,
+    idempotent_ingest: replay?.idempotent_replay === true && replaySafety.idempotent_replay === true,
+    chunk_preview: Array.isArray(seededSafety.chunk_preview) && seededSafety.chunk_preview.length > 0,
+    replayable_jobs: seededSafety.replayable === true && typeof seededSafety.replay_route === 'string',
+    failure_classification: failureResponse.status === 400 && failureClassification?.category === 'parse_empty' && failureClassification?.retryable === false,
   };
 
   return {
@@ -387,6 +354,21 @@ export async function runQueryEvalProof(options) {
   });
 }
 
+function scorecardOptions(options, minQueries) {
+  return {
+    requireGrade: options.requireGrade,
+    requireReadinessReport: true,
+    expectedDeployFingerprint: options.expectedDeployFingerprint,
+    requiredDomain: options.domain,
+    requiredBenchmarkModes: ['lexical', 'semantic'],
+    requiredBenchmarkSurfaces: ['kb-search', 'kb-query'],
+    minBenchmarkRepeat: options.repeat,
+    minBenchmarkSamples: options.repeat * minQueries,
+    minQueryEvalRows: minQueries,
+    requiredEvalKinds: ['query'],
+  };
+}
+
 export async function runAPlusProof(options) {
   const plan = buildPlan(options);
   if (options.dryRun) {
@@ -411,24 +393,14 @@ export async function runAPlusProof(options) {
     key: options.key,
     expectedDeployFingerprint: options.expectedDeployFingerprint,
   });
-  const consumerSmokes = options.requireGrade === 'S'
-    ? await (options.consumerSmokeRunner ?? runConsumerAuthSmokes)()
-    : null;
+  const consumerSmokes = options.requireGrade === 'S' ? await (options.consumerSmokeRunner ?? runConsumerAuthSmokes)() : null;
   if (!readinessReport.ok && options.continueAfterReadinessFailure !== true) {
-    const scorecard = buildAPlusScorecard({
-      readiness_reports: [readinessReport],
-    }, {
-      requireGrade: options.requireGrade,
-      requireReadinessReport: true,
-      expectedDeployFingerprint: options.expectedDeployFingerprint,
-      requiredDomain: options.domain,
-      requiredBenchmarkModes: ['lexical', 'semantic'],
-      requiredBenchmarkSurfaces: ['kb-search', 'kb-query'],
-      minBenchmarkRepeat: options.repeat,
-      minBenchmarkSamples: options.repeat * minQueries,
-      minQueryEvalRows: minQueries,
-      requiredEvalKinds: ['query'],
-    });
+    const scorecard = buildAPlusScorecard(
+      {
+        readiness_reports: [readinessReport],
+      },
+      scorecardOptions(options, minQueries),
+    );
     const artifacts = {
       readiness: await writeJson(options.outputDir, 'readiness.json', readinessReport),
       seed_eval_corpus: null,
@@ -459,15 +431,16 @@ export async function runAPlusProof(options) {
     domain: options.domain,
     input,
   });
-  const ingestSafetyProof = options.requireGrade === 'S'
-    ? await runIngestSafetyProof({
-      baseUrl: options.baseUrl,
-      key: options.key,
-      domain: options.domain,
-      input,
-      seedReport,
-    })
-    : null;
+  const ingestSafetyProof =
+    options.requireGrade === 'S'
+      ? await runIngestSafetyProof({
+          baseUrl: options.baseUrl,
+          key: options.key,
+          domain: options.domain,
+          input,
+          seedReport,
+        })
+      : null;
   const lexicalBenchmark = await runBenchmark({
     baseUrl: options.baseUrl,
     key: options.key,
@@ -495,17 +468,17 @@ export async function runAPlusProof(options) {
   const queryEvalRepeats = options.requireGrade === 'S' ? S_PROOF_QUERY_EVAL_REPEATS : 1;
   const queryEvals = [];
   for (let i = 0; i < queryEvalRepeats; i += 1) {
-    queryEvals.push(await runQueryEvalProof({
-      baseUrl: options.baseUrl,
-      key: options.key,
-      domain: options.domain,
-      input,
-      topK: options.topK,
-      sessionIdPrefix: options.requireGrade === 'S'
-        ? `proof:${options.domain}:${Date.now()}:${i + 1}`
-        : '',
-      cacheMode: options.requireGrade === 'S' ? 'bypass_read_write' : '',
-    }));
+    queryEvals.push(
+      await runQueryEvalProof({
+        baseUrl: options.baseUrl,
+        key: options.key,
+        domain: options.domain,
+        input,
+        topK: options.topK,
+        sessionIdPrefix: options.requireGrade === 'S' ? `proof:${options.domain}:${Date.now()}:${i + 1}` : '',
+        cacheMode: options.requireGrade === 'S' ? 'bypass_read_write' : '',
+      }),
+    );
   }
   const queryEval = queryEvals[0];
   const operatorReport = await runOperatorReport({
@@ -523,39 +496,29 @@ export async function runAPlusProof(options) {
     blockers: [error instanceof Error ? error.message : String(error)],
   }));
   const consumerIntegrationAudit = auditConsumerRagIntegrations();
-  const scorecard = buildAPlusScorecard({
-    operator_report: operatorReport,
-    readiness_reports: [readinessReport],
-    query_evals: queryEvals,
-    benchmarks: [lexicalBenchmark, semanticBenchmark],
-    capabilities: {
-      ...(consumerSmokes ? { consumer_authenticated_smokes: consumerSmokes.consumers } : {}),
-      ...(consumerSmokes ? { consumer_public_smokes: consumerSmokes.public_consumers } : {}),
-      consumer_eval_packs: detectConsumerEvalPacks(input),
-      ...(ingestSafetyProof?.capabilities ?? {}),
-      typed_client_contract: clientContract.ok === true,
-      one_command_smoke: true,
-      consumer_integration_audit: consumerIntegrationAudit.ok === true,
+  const scorecard = buildAPlusScorecard(
+    {
+      operator_report: operatorReport,
+      readiness_reports: [readinessReport],
+      query_evals: queryEvals,
+      benchmarks: [lexicalBenchmark, semanticBenchmark],
+      capabilities: {
+        ...(consumerSmokes ? { consumer_authenticated_smokes: consumerSmokes.consumers } : {}),
+        ...(consumerSmokes ? { consumer_public_smokes: consumerSmokes.public_consumers } : {}),
+        consumer_eval_packs: detectConsumerEvalPacks(input),
+        ...(ingestSafetyProof?.capabilities ?? {}),
+        typed_client_contract: clientContract.ok === true,
+        one_command_smoke: true,
+        consumer_integration_audit: consumerIntegrationAudit.ok === true,
+      },
     },
-  }, {
-    requireGrade: options.requireGrade,
-    requireReadinessReport: true,
-    expectedDeployFingerprint: options.expectedDeployFingerprint,
-    requiredDomain: options.domain,
-    requiredBenchmarkModes: ['lexical', 'semantic'],
-    requiredBenchmarkSurfaces: ['kb-search', 'kb-query'],
-    minBenchmarkRepeat: options.repeat,
-    minBenchmarkSamples: options.repeat * minQueries,
-    minQueryEvalRows: minQueries,
-    requiredEvalKinds: ['query'],
-  });
+    scorecardOptions(options, minQueries),
+  );
 
   const artifacts = {
     readiness: await writeJson(options.outputDir, 'readiness.json', readinessReport),
     seed_eval_corpus: await writeJson(options.outputDir, 'seed-eval-corpus.json', seedReport),
-    ingest_safety: ingestSafetyProof
-      ? await writeJson(options.outputDir, 'ingest-safety.json', ingestSafetyProof)
-      : null,
+    ingest_safety: ingestSafetyProof ? await writeJson(options.outputDir, 'ingest-safety.json', ingestSafetyProof) : null,
     query_eval: await writeJson(options.outputDir, 'query-eval.json', queryEval),
     query_evals: queryEvals.length > 1 ? await writeJson(options.outputDir, 'query-evals.json', queryEvals) : null,
     client_contract: await writeJson(options.outputDir, 'client-contract.json', clientContract),
@@ -617,11 +580,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   }
 }
 
-export {
-  buildPlan,
-  parseArgs,
-  proofDocuments,
-  proofEmbeddingSelection,
-  queryEvalCases,
-  validateProofInput,
-};
+export { buildPlan, parseArgs, proofDocuments, proofEmbeddingSelection, queryEvalCases, validateProofInput };

@@ -45,20 +45,7 @@ const TABLE_SPECS = {
   schema_drafts: {
     target: 'kb_schema_drafts',
     key: ['id'],
-    columns: [
-      'id',
-      'project',
-      'domain',
-      'name',
-      'spec',
-      'source',
-      'sample_count',
-      'staged_file_ids',
-      'errors',
-      'status',
-      'created_at',
-      'updated_at',
-    ],
+    columns: ['id', 'project', 'domain', 'name', 'spec', 'source', 'sample_count', 'staged_file_ids', 'errors', 'status', 'created_at', 'updated_at'],
     json: ['spec', 'staged_file_ids', 'errors'],
     defaults: {
       project: 'default',
@@ -101,71 +88,27 @@ const TABLE_SPECS = {
   entities: {
     target: 'kb_entities',
     key: ['project', 'domain', 'type', 'identity_key'],
-    columns: [
-      'id',
-      'project',
-      'domain',
-      'type',
-      'identity_key',
-      'display_name',
-      'fields',
-      'parent_id',
-      'created_at',
-      'updated_at',
-    ],
+    columns: ['id', 'project', 'domain', 'type', 'identity_key', 'display_name', 'fields', 'parent_id', 'created_at', 'updated_at'],
     json: ['fields'],
     defaults: { project: 'default', fields: {}, created_at: nowIso, updated_at: nowIso },
   },
   entity_mentions: {
     target: 'kb_entity_mentions',
     key: ['entity_id', 'file_id', 'schema_id'],
-    columns: [
-      'id',
-      'project',
-      'domain',
-      'entity_id',
-      'file_id',
-      'schema_id',
-      'field_values',
-      'confidence',
-      'created_at',
-    ],
+    columns: ['id', 'project', 'domain', 'entity_id', 'file_id', 'schema_id', 'field_values', 'confidence', 'created_at'],
     json: ['field_values'],
     defaults: { project: 'default', domain: '', field_values: {}, confidence: 0, created_at: nowIso },
   },
   entity_relationships: {
     target: 'kb_entity_relationships',
     key: ['project', 'domain', 'rel_type', 'src_id', 'dst_id'],
-    columns: [
-      'id',
-      'project',
-      'domain',
-      'rel_type',
-      'src_id',
-      'dst_id',
-      'evidence_file',
-      'evidence_page',
-      'created_at',
-    ],
+    columns: ['id', 'project', 'domain', 'rel_type', 'src_id', 'dst_id', 'evidence_file', 'evidence_page', 'created_at'],
     defaults: { project: 'default', evidence_file: null, evidence_page: null, created_at: nowIso },
   },
   provenance_spans: {
     target: 'kb_provenance_spans',
     key: ['id'],
-    columns: [
-      'id',
-      'project',
-      'domain',
-      'file_id',
-      'entity_id',
-      'field',
-      'page_start',
-      'page_end',
-      'element_id',
-      'excerpt',
-      'bbox',
-      'created_at',
-    ],
+    columns: ['id', 'project', 'domain', 'file_id', 'entity_id', 'field', 'page_start', 'page_end', 'element_id', 'excerpt', 'bbox', 'created_at'],
     json: ['bbox'],
     defaults: {
       project: 'default',
@@ -257,20 +200,7 @@ const TABLE_SPECS = {
   query_traces: {
     target: 'kb_query_traces',
     key: ['id'],
-    columns: [
-      'id',
-      'project',
-      'domain',
-      'question',
-      'scope',
-      'filters',
-      'retrieved',
-      'answer',
-      'citations',
-      'confidence',
-      'latency_ms',
-      'created_at',
-    ],
+    columns: ['id', 'project', 'domain', 'question', 'scope', 'filters', 'retrieved', 'answer', 'citations', 'confidence', 'latency_ms', 'created_at'],
     json: ['scope', 'filters', 'retrieved', 'citations', 'confidence'],
     defaults: {
       project: 'default',
@@ -714,7 +644,8 @@ function validateReferences(tables, warnings) {
   for (const row of tables.entity_relationships) {
     if (!entities.has(row.src_id)) warnings.push(`entity_relationships ${row.id} references missing src entity ${row.src_id}`);
     if (!entities.has(row.dst_id)) warnings.push(`entity_relationships ${row.id} references missing dst entity ${row.dst_id}`);
-    if (row.evidence_file && !files.has(row.evidence_file)) warnings.push(`entity_relationships ${row.id} references missing evidence file ${row.evidence_file}`);
+    if (row.evidence_file && !files.has(row.evidence_file))
+      warnings.push(`entity_relationships ${row.id} references missing evidence file ${row.evidence_file}`);
   }
   for (const row of tables.provenance_spans) {
     if (!files.has(row.file_id)) warnings.push(`provenance_spans ${row.id} references missing file ${row.file_id}`);

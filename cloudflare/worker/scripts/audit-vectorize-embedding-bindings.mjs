@@ -4,16 +4,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REQUIRED_MODELS } from './audit-free-ai-embedding-contract.mjs';
+import { trailingDimension } from './lib/trailing-dimension.mjs';
 
 const DEFAULT_CONFIG_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../wrangler.jsonc');
-
-function trailingDimension(value) {
-  if (typeof value !== 'string') return null;
-  const match = value.trim().match(/(?:^|[-_])(\d{2,5})$/);
-  if (!match) return null;
-  const dimension = Number(match[1]);
-  return Number.isInteger(dimension) && dimension > 0 ? dimension : null;
-}
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
@@ -84,12 +77,8 @@ export function auditVectorizeEmbeddingBindings({ configPath = DEFAULT_CONFIG_PA
     index_name: typeof entry?.index_name === 'string' ? entry.index_name : null,
     dimensions: trailingDimension(entry?.index_name),
   }));
-  const configuredDimensions = uniqueNumbers(configuredBindings
-    .map((entry) => entry.dimensions)
-    .filter((value) => typeof value === 'number'));
-  const missingDimensions = uniqueNumbers(REQUIRED_MODELS
-    .map((model) => model.dimensions)
-    .filter((dimensions) => !configuredDimensions.includes(dimensions)));
+  const configuredDimensions = uniqueNumbers(configuredBindings.map((entry) => entry.dimensions).filter((value) => typeof value === 'number'));
+  const missingDimensions = uniqueNumbers(REQUIRED_MODELS.map((model) => model.dimensions).filter((dimensions) => !configuredDimensions.includes(dimensions)));
   const models = REQUIRED_MODELS.map((model) => {
     const binding = configuredBindings.find((entry) => entry.dimensions === model.dimensions);
     return {

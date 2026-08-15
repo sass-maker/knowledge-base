@@ -3,6 +3,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { requestJson } from './lib/request-json.mjs';
 
 function usage() {
   console.error(`Usage:
@@ -199,7 +200,7 @@ export async function normalizeMigrationInput(options) {
     ? normalizeManifest(await readFile(manifestPath, 'utf8'), dirname(manifestPath))
     : options.objectRoot
       ? await collectObjectRootFiles(options.objectRoot)
-    : await collectDirectoryFiles(options.input, options.domain);
+      : await collectDirectoryFiles(options.input, options.domain);
   const rows = [];
   for (const file of files) {
     const info = await stat(file.path);
@@ -212,20 +213,6 @@ export async function normalizeMigrationInput(options) {
     });
   }
   return rows.sort((a, b) => a.domain.localeCompare(b.domain) || a.filename.localeCompare(b.filename));
-}
-
-async function requestJson(url, { key, method = 'GET', body } = {}) {
-  const res = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`${method} ${url} failed ${res.status}: ${JSON.stringify(payload)}`);
-  return payload;
 }
 
 async function uploadFile(baseUrl, key, file, inferSchema) {
@@ -304,22 +291,26 @@ export async function migrateRawFiles(options) {
   const applied = [];
   if (options.applySchema) {
     for (const [domain, spec] of latestSchemaByDomain) {
-      applied.push(await requestJson(`${baseUrl}/v1/kb/schemas`, {
-        key: options.key,
-        method: 'POST',
-        body: { ...spec, domain },
-      }));
+      applied.push(
+        await requestJson(`${baseUrl}/v1/kb/schemas`, {
+          key: options.key,
+          method: 'POST',
+          body: { ...spec, domain },
+        }),
+      );
     }
   }
   const queued = [];
   if (options.queueIngest) {
     const baseRunId = options.runId || `migrate-${Date.now()}`;
     for (const domain of domains) {
-      queued.push(await requestJson(`${baseUrl}/v1/kb/ingest/run`, {
-        key: options.key,
-        method: 'POST',
-        body: { domain, async: true, run_id: `${baseRunId}-${domain}` },
-      }));
+      queued.push(
+        await requestJson(`${baseUrl}/v1/kb/ingest/run`, {
+          key: options.key,
+          method: 'POST',
+          body: { domain, async: true, run_id: `${baseRunId}-${domain}` },
+        }),
+      );
     }
   }
   return {

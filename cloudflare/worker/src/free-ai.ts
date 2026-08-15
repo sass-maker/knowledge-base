@@ -28,7 +28,13 @@ export interface FreeAiEmbeddingModel {
 }
 
 const FREE_AI_EMBEDDING_MODELS: FreeAiEmbeddingModel[] = [
-  { id: 'gemini-embedding-001', provider: 'gemini', dimensions: 1536, supports_dimensions: true, aliases: ['text-embedding-3-small', 'text-embedding-3-large', 'text-embedding-004'] },
+  {
+    id: 'gemini-embedding-001',
+    provider: 'gemini',
+    dimensions: 1536,
+    supports_dimensions: true,
+    aliases: ['text-embedding-3-small', 'text-embedding-3-large', 'text-embedding-004'],
+  },
   { id: 'voyage-3.5-lite', provider: 'voyage_ai', dimensions: 1024 },
   { id: 'voyage-3-lite', provider: 'voyage_ai', dimensions: 1024 },
   { id: '@cf/baai/bge-large-en-v1.5', provider: 'workers_ai', dimensions: 1024 },
@@ -41,10 +47,6 @@ export interface FreeAiChatBody {
   max_tokens?: number;
   temperature?: number;
   response_format?: unknown;
-}
-
-export function freeAiEmbedEnabled(env: Env): boolean {
-  return env.RAG_EMBED_PROVIDER === 'free_ai';
 }
 
 export function freeAiSynthEnabled(env: Env): boolean {
@@ -104,7 +106,9 @@ export function freeAiEmbeddingDimensions(env: Env, profile: SemanticProfile): n
   return configuredDimensions(env, profile, configuredModel(env, profile));
 }
 
-export function freeAiEmbeddingCatalog(env: Env): Array<FreeAiEmbeddingModel & { configured_profile: SemanticProfile | null; compatible_profile: string | null }> {
+export function freeAiEmbeddingCatalog(
+  env: Env,
+): Array<FreeAiEmbeddingModel & { configured_profile: SemanticProfile | null; compatible_profile: string | null }> {
   const baseModel = configuredModel(env, 'base');
   const smallModel = configuredModel(env, 'small');
   const baseDimensions = freeAiEmbeddingDimensions(env, 'base');
@@ -151,15 +155,17 @@ function parseFreeAiModelRows(payload: unknown): FreeAiEmbeddingModel[] {
     if (item.type !== 'embedding') return [];
     if (typeof item.id !== 'string' || typeof item.provider !== 'string') return [];
     if (typeof item.dimensions !== 'number' || !Number.isFinite(item.dimensions) || item.dimensions <= 0) return [];
-    return [{
-      id: item.id,
-      provider: item.provider,
-      dimensions: Math.trunc(item.dimensions),
-      enabled: item.enabled !== false,
-      priority: typeof item.priority === 'number' && Number.isFinite(item.priority) ? item.priority : undefined,
-      supports_dimensions: item.supports_dimensions === true,
-      aliases: Array.isArray(item.aliases) ? item.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
-    }];
+    return [
+      {
+        id: item.id,
+        provider: item.provider,
+        dimensions: Math.trunc(item.dimensions),
+        enabled: item.enabled !== false,
+        priority: typeof item.priority === 'number' && Number.isFinite(item.priority) ? item.priority : undefined,
+        supports_dimensions: item.supports_dimensions === true,
+        aliases: Array.isArray(item.aliases) ? item.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
+      },
+    ];
   });
 }
 
@@ -194,8 +200,7 @@ async function gatewayFetchRetry(env: Env, url: string, init: RequestInit): Prom
   let res = await gatewayFetch(env, url, init);
   for (let attempt = 0; attempt < MAX_RETRIES && RETRY_STATUSES.has(res.status); attempt += 1) {
     const retryAfter = Number(res.headers.get('retry-after'));
-    const backoffMs =
-      Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 4000) : 400 * 2 ** attempt;
+    const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 4000) : 400 * 2 ** attempt;
     await new Promise((resolve) => setTimeout(resolve, backoffMs));
     res = await gatewayFetch(env, url, init);
   }
@@ -228,9 +233,10 @@ export async function freeAiEmbed(
   const profile: SemanticProfile = options.model === configuredModel(env, 'small') ? 'small' : 'base';
   const model = options.model?.trim() || configuredModel(env, profile);
   const provider = options.provider?.trim() || configuredProvider(env, profile, model);
-  const dimensions = options.dimensions && Number.isFinite(options.dimensions) && options.dimensions > 0
-    ? Math.trunc(options.dimensions)
-    : configuredDimensions(env, profile, model);
+  const dimensions =
+    options.dimensions && Number.isFinite(options.dimensions) && options.dimensions > 0
+      ? Math.trunc(options.dimensions)
+      : configuredDimensions(env, profile, model);
   const url = `${baseUrl(env)}/embeddings`;
   const pid = projectId(env);
   const vectors: number[][] = [];
@@ -270,9 +276,7 @@ export async function freeAiEmbed(
     for (const row of ordered) {
       const vector = extractVector(row);
       if (!vector || vector.length !== dimensions) {
-        throw new Error(
-          `free-ai embedding dimension mismatch: expected ${dimensions}, got ${vector ? vector.length : 'none'}`,
-        );
+        throw new Error(`free-ai embedding dimension mismatch: expected ${dimensions}, got ${vector ? vector.length : 'none'}`);
       }
       vectors.push(vector);
     }

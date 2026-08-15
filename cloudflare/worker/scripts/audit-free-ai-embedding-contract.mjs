@@ -37,8 +37,7 @@ function requiredAliasesPresent(source, aliases) {
 
 function deployScriptOk(script) {
   if (typeof script !== 'string') return false;
-  return /\baudit:cloudflare-costs\b/.test(script)
-    && /\bwrangler\s+deploy\b/.test(script);
+  return /\baudit:cloudflare-costs\b/.test(script) && /\bwrangler\s+deploy\b/.test(script);
 }
 
 export function auditFreeAiEmbeddingContract({ freeAiRepo = DEFAULT_FREE_AI_REPO } = {}) {
@@ -46,10 +45,12 @@ export function auditFreeAiEmbeddingContract({ freeAiRepo = DEFAULT_FREE_AI_REPO
   const checks = [];
 
   if (!existsSync(repo)) {
-    checks.push(check('free_ai_repo', false, {
-      repo,
-      error: `${relative(FLEET_ROOT, repo)} is missing`,
-    }));
+    checks.push(
+      check('free_ai_repo', false, {
+        repo,
+        error: `${relative(FLEET_ROOT, repo)} is missing`,
+      }),
+    );
     return {
       ok: false,
       free_ai_repo: repo,
@@ -61,48 +62,58 @@ export function auditFreeAiEmbeddingContract({ freeAiRepo = DEFAULT_FREE_AI_REPO
 
   const packagePath = resolve(repo, 'package.json');
   if (!existsSync(packagePath)) {
-    checks.push(check('package_script_smoke_embedding_models', false, {
-      file: 'package.json',
-      error: 'package.json is missing',
-    }));
-    checks.push(check('package_script_deploy_cloudflare', false, {
-      file: 'package.json',
-      error: 'package.json is missing',
-    }));
+    checks.push(
+      check('package_script_smoke_embedding_models', false, {
+        file: 'package.json',
+        error: 'package.json is missing',
+      }),
+    );
+    checks.push(
+      check('package_script_deploy_cloudflare', false, {
+        file: 'package.json',
+        error: 'package.json is missing',
+      }),
+    );
   } else {
     const pkg = JSON.parse(readText(packagePath));
-    checks.push(check('package_script_smoke_embedding_models', pkg?.scripts?.['smoke:embedding-models'] === 'node scripts/smoke-embedding-models.mjs', {
-      file: 'package.json',
-      script: pkg?.scripts?.['smoke:embedding-models'] ?? null,
-    }));
-    checks.push(check('package_script_deploy_cloudflare', deployScriptOk(pkg?.scripts?.deploy), {
-      file: 'package.json',
-      script: pkg?.scripts?.deploy ?? null,
-      required: 'deploy must run audit:cloudflare-costs and wrangler deploy',
-    }));
+    checks.push(
+      check('package_script_smoke_embedding_models', pkg?.scripts?.['smoke:embedding-models'] === 'node scripts/smoke-embedding-models.mjs', {
+        file: 'package.json',
+        script: pkg?.scripts?.['smoke:embedding-models'] ?? null,
+      }),
+    );
+    checks.push(
+      check('package_script_deploy_cloudflare', deployScriptOk(pkg?.scripts?.deploy), {
+        file: 'package.json',
+        script: pkg?.scripts?.deploy ?? null,
+        required: 'deploy must run audit:cloudflare-costs and wrangler deploy',
+      }),
+    );
   }
 
   const sourcePath = resolve(repo, 'src/index.ts');
   let source = '';
   if (!existsSync(sourcePath)) {
-    checks.push(check('source_embedding_candidates', false, {
-      file: 'src/index.ts',
-      error: 'src/index.ts is missing',
-    }));
+    checks.push(
+      check('source_embedding_candidates', false, {
+        file: 'src/index.ts',
+        error: 'src/index.ts is missing',
+      }),
+    );
   } else {
     source = readText(sourcePath);
-    const missingModels = REQUIRED_MODELS
-      .filter((model) => !requiredModelPattern(model).test(source))
-      .map((model) => model.id);
-    const missingAliases = REQUIRED_MODELS
-      .filter((model) => model.aliases && !requiredAliasesPresent(source, model.aliases))
-      .flatMap((model) => model.aliases ?? []);
-    checks.push(check('source_embedding_candidates', missingModels.length === 0 && missingAliases.length === 0, {
-      file: 'src/index.ts',
-      required_count: REQUIRED_MODELS.length,
-      missing_models: missingModels,
-      missing_aliases: missingAliases,
-    }));
+    const missingModels = REQUIRED_MODELS.filter((model) => !requiredModelPattern(model).test(source)).map((model) => model.id);
+    const missingAliases = REQUIRED_MODELS.filter((model) => model.aliases && !requiredAliasesPresent(source, model.aliases)).flatMap(
+      (model) => model.aliases ?? [],
+    );
+    checks.push(
+      check('source_embedding_candidates', missingModels.length === 0 && missingAliases.length === 0, {
+        file: 'src/index.ts',
+        required_count: REQUIRED_MODELS.length,
+        missing_models: missingModels,
+        missing_aliases: missingAliases,
+      }),
+    );
 
     const modelListPatterns = [
       /type:\s*['"]embedding['"]\s+as\s+const/,
@@ -112,26 +123,30 @@ export function auditFreeAiEmbeddingContract({ freeAiRepo = DEFAULT_FREE_AI_REPO
       /aliases:\s*candidate\.aliases\s*\?\?\s*\[\]/,
       /priority:\s*candidate\.priority/,
     ];
-    const missingPatterns = modelListPatterns
-      .filter((pattern) => !pattern.test(source))
-      .map((pattern) => String(pattern));
-    checks.push(check('model_list_embedding_rows', missingPatterns.length === 0, {
-      file: 'src/index.ts',
-      missing_patterns: missingPatterns,
-    }));
+    const missingPatterns = modelListPatterns.filter((pattern) => !pattern.test(source)).map((pattern) => String(pattern));
+    checks.push(
+      check('model_list_embedding_rows', missingPatterns.length === 0, {
+        file: 'src/index.ts',
+        missing_patterns: missingPatterns,
+      }),
+    );
   }
 
   const smokeScriptPath = resolve(repo, 'scripts/smoke-embedding-models.mjs');
-  checks.push(check('smoke_embedding_models_script', existsSync(smokeScriptPath), {
-    file: 'scripts/smoke-embedding-models.mjs',
-  }));
+  checks.push(
+    check('smoke_embedding_models_script', existsSync(smokeScriptPath), {
+      file: 'scripts/smoke-embedding-models.mjs',
+    }),
+  );
 
   const smokeTestPath = resolve(repo, 'test/embedding-model-smoke.spec.ts');
   if (!existsSync(smokeTestPath)) {
-    checks.push(check('smoke_embedding_models_tests', false, {
-      file: 'test/embedding-model-smoke.spec.ts',
-      error: 'test file is missing',
-    }));
+    checks.push(
+      check('smoke_embedding_models_tests', false, {
+        file: 'test/embedding-model-smoke.spec.ts',
+        error: 'test file is missing',
+      }),
+    );
   } else {
     const test = readText(smokeTestPath);
     const missingPatterns = [
@@ -141,11 +156,15 @@ export function auditFreeAiEmbeddingContract({ freeAiRepo = DEFAULT_FREE_AI_REPO
       /selected\?\.aliases/,
       /fails when the required embedding model is disabled/,
       /fails when the deployed catalog has no embedding rows/,
-    ].filter((pattern) => !pattern.test(test)).map((pattern) => String(pattern));
-    checks.push(check('smoke_embedding_models_tests', missingPatterns.length === 0, {
-      file: 'test/embedding-model-smoke.spec.ts',
-      missing_patterns: missingPatterns,
-    }));
+    ]
+      .filter((pattern) => !pattern.test(test))
+      .map((pattern) => String(pattern));
+    checks.push(
+      check('smoke_embedding_models_tests', missingPatterns.length === 0, {
+        file: 'test/embedding-model-smoke.spec.ts',
+        missing_patterns: missingPatterns,
+      }),
+    );
   }
 
   const blockers = checks.filter((item) => !item.ok);

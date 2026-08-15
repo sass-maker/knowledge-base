@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnCapture } from './lib/spawn-capture.mjs';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const FLEET_ROOT = resolve(REPO_ROOT, '..');
@@ -46,46 +46,10 @@ function parseArgs(argv) {
 }
 
 function defaultRunCommand(step) {
-  return new Promise((resolveResult) => {
-    const [bin, ...args] = step.command;
-    const child = spawn(process.platform === 'win32' && bin === 'pnpm' ? 'pnpm.cmd' : bin, args, {
-      cwd: step.cwd,
-      env: { ...process.env, NO_COLOR: '1' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let settled = false;
-    const stdout = [];
-    const stderr = [];
-    const finish = (result) => {
-      if (settled) return;
-      settled = true;
-      resolveResult(result);
-    };
-    child.stdout.on('data', (chunk) => stdout.push(String(chunk)));
-    child.stderr.on('data', (chunk) => stderr.push(String(chunk)));
-    child.once('error', (error) => {
-      finish({
-        exit_code: null,
-        signal: 'spawn_error',
-        stdout: stdout.join('').trim(),
-        stderr: [stderr.join('').trim(), error.message].filter(Boolean).join('\n'),
-      });
-    });
-    child.once('exit', (code, signal) => {
-      finish({
-        exit_code: typeof code === 'number' ? code : null,
-        signal: signal ?? null,
-        stdout: stdout.join('').trim(),
-        stderr: stderr.join('').trim(),
-      });
-    });
-  });
+  return spawnCapture(step.command, { cwd: step.cwd });
 }
 
-export async function runConsumerCloudflareBuilds({
-  steps = CONSUMER_CLOUDFLARE_BUILD_STEPS,
-  runCommand = defaultRunCommand,
-} = {}) {
+export async function runConsumerCloudflareBuilds({ steps = CONSUMER_CLOUDFLARE_BUILD_STEPS, runCommand = defaultRunCommand } = {}) {
   const checks = [];
   for (const step of steps) {
     const started = Date.now();
@@ -113,7 +77,9 @@ export async function runConsumerCloudflareBuilds({
 
 function printHuman(report) {
   for (const check of report.checks) {
-    console.log(`${check.ok ? 'PASS' : 'FAIL'} ${check.name} ${check.command} cwd=${check.cwd} exit=${check.exit_code ?? check.signal ?? 'unknown'} duration_ms=${check.duration_ms}`);
+    console.log(
+      `${check.ok ? 'PASS' : 'FAIL'} ${check.name} ${check.command} cwd=${check.cwd} exit=${check.exit_code ?? check.signal ?? 'unknown'} duration_ms=${check.duration_ms}`,
+    );
     if (!check.ok) {
       if (check.stdout_tail) console.log(check.stdout_tail);
       if (check.stderr_tail) console.error(check.stderr_tail);

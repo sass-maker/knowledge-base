@@ -29,9 +29,7 @@ function parseArgs(argv) {
 }
 
 function stripJsonComments(input) {
-  return input
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  return input.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
 function readText(path) {
@@ -57,9 +55,7 @@ function fail(name, detail = '') {
 }
 
 function serviceBinding(config, binding) {
-  return Array.isArray(config?.services)
-    ? config.services.find((entry) => entry?.binding === binding) ?? null
-    : null;
+  return Array.isArray(config?.services) ? (config.services.find((entry) => entry?.binding === binding) ?? null) : null;
 }
 
 function containsAll(text, patterns) {
@@ -67,34 +63,29 @@ function containsAll(text, patterns) {
 }
 
 function knowledgebaseFallbackUrlOk(text) {
-  return text.includes('https://knowledgebase.sarthakagrawal927.workers.dev')
-    && !/https:\/\/[^"'\s]*rag-service[^"'\s]*/i.test(text);
+  return text.includes('https://knowledgebase.sarthakagrawal927.workers.dev') && !/https:\/\/[^"'\s]*rag-service[^"'\s]*/i.test(text);
 }
 
 function starboardMetadataContractOk(route, helper) {
-  return containsAll(route, [/metadata:\s*\{[\s\S]*user_id:\s*userId[\s\S]*repo_id:\s*repo\.id[\s\S]*full_name:\s*repo\.full_name/])
-    || (route.includes('buildStarboardRagDocument') && containsAll(helper, [
-      /metadata:\s*\{[\s\S]*user_id:\s*userId[\s\S]*repo_id:\s*repo\.id[\s\S]*full_name:\s*repo\.full_name/,
-    ]));
+  return (
+    containsAll(route, [/metadata:\s*\{[\s\S]*user_id:\s*userId[\s\S]*repo_id:\s*repo\.id[\s\S]*full_name:\s*repo\.full_name/]) ||
+    (route.includes('buildStarboardRagDocument') &&
+      containsAll(helper, [/metadata:\s*\{[\s\S]*user_id:\s*userId[\s\S]*repo_id:\s*repo\.id[\s\S]*full_name:\s*repo\.full_name/]))
+  );
 }
 
 function starboardContentContractOk(route, helper) {
-  return containsAll(route, [/content:\s*texts\[i\]\s*\?\?\s*["']["']/, /language:\s*repo\.language/])
-    || (route.includes('buildStarboardRagDocument') && containsAll(helper, [
-      /const\s+content\s*=/,
-      /language:\s*repo\.language/,
-    ]));
+  return (
+    containsAll(route, [/content:\s*texts\[i\]\s*\?\?\s*["']["']/, /language:\s*repo\.language/]) ||
+    (route.includes('buildStarboardRagDocument') && containsAll(helper, [/const\s+content\s*=/, /language:\s*repo\.language/]))
+  );
 }
 
 function starboardReadmeContractOk(route, helper) {
-  return containsAll(route, [/fetchRepoReadmes/, /buildStarboardRagDocument/])
-    && containsAll(helper, [
-      /fetchRepoReadmeText/,
-      /\/readme/,
-      /Accept:\s*['"]application\/vnd\.github\.raw['"]/,
-      /README:\\n/,
-      /has_readme/,
-    ]);
+  return (
+    containsAll(route, [/fetchRepoReadmes/, /buildStarboardRagDocument/]) &&
+    containsAll(helper, [/fetchRepoReadmeText/, /\/readme/, /Accept:\s*['"]application\/vnd\.github\.raw['"]/, /README:\\n/, /has_readme/])
+  );
 }
 
 function starboardReadmeEvalOk(testSource) {
@@ -118,9 +109,7 @@ function resolveFirstExistingRepo(fleetRoot, names) {
 
 function deployCfScriptCheck(repo, consumerName) {
   const pkg = readPackageJson(repo);
-  const script = typeof pkg?.scripts?.['deploy:cf'] === 'string'
-    ? pkg.scripts['deploy:cf'].trim()
-    : '';
+  const script = typeof pkg?.scripts?.['deploy:cf'] === 'string' ? pkg.scripts['deploy:cf'].trim() : '';
   if (!script) return fail('deploy_cf_script', `${consumerName} package.json is missing scripts.deploy:cf`);
   if (!/\b(opennextjs-cloudflare|wrangler)\b/.test(script)) {
     return fail('deploy_cf_script', `deploy:cf must use Cloudflare deploy tooling, got ${script}`);
@@ -130,10 +119,7 @@ function deployCfScriptCheck(repo, consumerName) {
   const runsCfBuild = /\bpnpm\s+(run\s+)?cf:build\b/.test(script);
   const runsBuildCf = /\bpnpm\s+(run\s+)?build:cf\b/.test(script);
   if ((hasCfBuild || hasBuildCf) && !runsCfBuild && !runsBuildCf) {
-    const expected = [
-      hasCfBuild ? 'cf:build' : null,
-      hasBuildCf ? 'build:cf' : null,
-    ].filter(Boolean).join(' or ');
+    const expected = [hasCfBuild ? 'cf:build' : null, hasBuildCf ? 'build:cf' : null].filter(Boolean).join(' or ');
     return fail('deploy_cf_script', `deploy:cf must run ${expected} before deploy, got ${script}`);
   }
   return pass('deploy_cf_script', `deploy:cf = ${script}`);
@@ -159,9 +145,11 @@ function auditLinkchat(fleetRoot) {
   } else {
     const config = readJsonc(wranglerPath);
     const binding = serviceBinding(config, 'RAG_SERVICE');
-    checks.push(binding?.service === 'knowledgebase'
-      ? pass('rag_service_binding', 'RAG_SERVICE -> knowledgebase')
-      : fail('rag_service_binding', `expected RAG_SERVICE -> knowledgebase, got ${JSON.stringify(binding)}`));
+    checks.push(
+      binding?.service === 'knowledgebase'
+        ? pass('rag_service_binding', 'RAG_SERVICE -> knowledgebase')
+        : fail('rag_service_binding', `expected RAG_SERVICE -> knowledgebase, got ${JSON.stringify(binding)}`),
+    );
   }
 
   const clientPath = resolve(repo, 'src/lib/knowledgebase.ts');
@@ -169,64 +157,66 @@ function auditLinkchat(fleetRoot) {
     checks.push(fail('rag_client', 'src/lib/knowledgebase.ts is missing'));
   } else {
     const client = readText(clientPath);
-    checks.push(containsAll(client, [/getCloudflareContext/, /RAG_SERVICE_KEY/, /RAG_SERVICE/, /knowledgebase/])
-      ? pass('rag_client', 'knowledgebase client reads Cloudflare binding/key')
-      : fail('rag_client', 'knowledgebase.ts is missing Cloudflare binding/key or knowledgebase references'));
-    checks.push(containsAll(client, [
-      /createIndex/,
-      /ingestDocument/,
-      /deleteDocument/,
-      /search/,
-      /\/v1\/indexes/,
-      /\/v1\/indexes\/\$\{indexId\}\/ingest/,
-      /\/v1\/documents\/\$\{docId\}/,
-      /\/v1\/indexes\/\$\{indexId\}\/query/,
-    ])
-      ? pass('rag_client_crud_contract', 'knowledgebase client supports profile-memory create/ingest/delete/search')
-      : fail('rag_client_crud_contract', 'knowledgebase.ts must expose the full profile-memory RAG CRUD/search contract'));
-    checks.push(containsAll(client, [
-      /documents:\s*\[\s*\{\s*content,\s*metadata\s*\}\s*\]/,
-      /body:\s*JSON\.stringify\(\s*\{[\s\S]*query,\s*top_k:\s*topK[\s\S]*\}\s*\)/,
-    ])
-      ? pass('rag_client_payload_contract', 'knowledgebase client sends document content/metadata and query/top_k payloads')
-      : fail('rag_client_payload_contract', 'knowledgebase.ts must send knowledgebase document content/metadata and query/top_k payloads'));
-    checks.push(knowledgebaseFallbackUrlOk(client)
-      ? pass('rag_service_url_fallback', 'public fallback URL points at knowledgebase')
-      : fail('rag_service_url_fallback', 'public fallback URL must point at knowledgebase, not the retired rag-service'));
-    checks.push(/SAASMAKER_API_URL|SAASMAKER_ADMIN_KEY/.test(client)
-      ? fail('no_legacy_saas_maker_client_refs', 'knowledgebase.ts still references legacy SaasMaker RAG env')
-      : pass('no_legacy_saas_maker_client_refs'));
+    checks.push(
+      containsAll(client, [/getCloudflareContext/, /RAG_SERVICE_KEY/, /RAG_SERVICE/, /knowledgebase/])
+        ? pass('rag_client', 'knowledgebase client reads Cloudflare binding/key')
+        : fail('rag_client', 'knowledgebase.ts is missing Cloudflare binding/key or knowledgebase references'),
+    );
+    checks.push(
+      containsAll(client, [
+        /createIndex/,
+        /ingestDocument/,
+        /deleteDocument/,
+        /search/,
+        /\/v1\/indexes/,
+        /\/v1\/indexes\/\$\{indexId\}\/ingest/,
+        /\/v1\/documents\/\$\{docId\}/,
+        /\/v1\/indexes\/\$\{indexId\}\/query/,
+      ])
+        ? pass('rag_client_crud_contract', 'knowledgebase client supports profile-memory create/ingest/delete/search')
+        : fail('rag_client_crud_contract', 'knowledgebase.ts must expose the full profile-memory RAG CRUD/search contract'),
+    );
+    checks.push(
+      containsAll(client, [/documents:\s*\[\s*\{\s*content,\s*metadata\s*\}\s*\]/, /body:\s*JSON\.stringify\(\s*\{[\s\S]*query,\s*top_k:\s*topK[\s\S]*\}\s*\)/])
+        ? pass('rag_client_payload_contract', 'knowledgebase client sends document content/metadata and query/top_k payloads')
+        : fail('rag_client_payload_contract', 'knowledgebase.ts must send knowledgebase document content/metadata and query/top_k payloads'),
+    );
+    checks.push(
+      knowledgebaseFallbackUrlOk(client)
+        ? pass('rag_service_url_fallback', 'public fallback URL points at knowledgebase')
+        : fail('rag_service_url_fallback', 'public fallback URL must point at knowledgebase, not the retired rag-service'),
+    );
+    checks.push(
+      /SAASMAKER_API_URL|SAASMAKER_ADMIN_KEY/.test(client)
+        ? fail('no_legacy_saas_maker_client_refs', 'knowledgebase.ts still references legacy SaasMaker RAG env')
+        : pass('no_legacy_saas_maker_client_refs'),
+    );
   }
 
   const legacyHelper = resolve(repo, 'src/lib/saasmaker.ts');
-  checks.push(existsSync(legacyHelper)
-    ? fail('legacy_saas_maker_helper_removed', 'src/lib/saasmaker.ts still exists')
-    : pass('legacy_saas_maker_helper_removed'));
+  checks.push(
+    existsSync(legacyHelper) ? fail('legacy_saas_maker_helper_removed', 'src/lib/saasmaker.ts still exists') : pass('legacy_saas_maker_helper_removed'),
+  );
   const legacyRagClient = resolve(repo, 'src/lib/rag-service.ts');
-  checks.push(existsSync(legacyRagClient)
-    ? fail('legacy_rag_service_client_removed', 'src/lib/rag-service.ts still exists; use src/lib/knowledgebase.ts')
-    : pass('legacy_rag_service_client_removed'));
+  checks.push(
+    existsSync(legacyRagClient)
+      ? fail('legacy_rag_service_client_removed', 'src/lib/rag-service.ts still exists; use src/lib/knowledgebase.ts')
+      : pass('legacy_rag_service_client_removed'),
+  );
 
   const profileMemoryHelper = resolve(repo, 'src/lib/profile-memory-index.ts');
   if (!existsSync(profileMemoryHelper)) {
     checks.push(fail('profile_memory_index_helper', 'src/lib/profile-memory-index.ts is missing'));
   } else {
     const helper = readText(profileMemoryHelper);
-    checks.push(containsAll(helper, [
-      /@\/lib\/knowledgebase/,
-      /createIndex\(`linkchat-\$\{userId\}`\)/,
-      /smIndexId/,
-      /set\(\{\s*smIndexId:\s*index\.id\s*\}\)/,
-    ])
-      ? pass('profile_memory_index_helper', 'lazy per-account profile-memory index helper stores users.smIndexId')
-      : fail('profile_memory_index_helper', 'profile-memory helper must create linkchat-${userId} indexes and persist users.smIndexId'));
+    checks.push(
+      containsAll(helper, [/@\/lib\/knowledgebase/, /createIndex\(`linkchat-\$\{userId\}`\)/, /smIndexId/, /set\(\{\s*smIndexId:\s*index\.id\s*\}\)/])
+        ? pass('profile_memory_index_helper', 'lazy per-account profile-memory index helper stores users.smIndexId')
+        : fail('profile_memory_index_helper', 'profile-memory helper must create linkchat-${userId} indexes and persist users.smIndexId'),
+    );
   }
 
-  const routePaths = [
-    'src/app/api/pages/[pageId]/info/route.ts',
-    'src/app/api/pages/[pageId]/info/[blockId]/route.ts',
-    'src/app/api/chat/[slug]/route.ts',
-  ];
+  const routePaths = ['src/app/api/pages/[pageId]/info/route.ts', 'src/app/api/pages/[pageId]/info/[blockId]/route.ts', 'src/app/api/chat/[slug]/route.ts'];
   for (const route of routePaths) {
     const absolute = resolve(repo, route);
     if (!existsSync(absolute)) {
@@ -234,23 +224,27 @@ function auditLinkchat(fleetRoot) {
       continue;
     }
     const source = readText(absolute);
-    checks.push(source.includes('@/lib/knowledgebase') && !/@\/lib\/saasmaker|SAASMAKER_API_URL|SAASMAKER_ADMIN_KEY/.test(source)
-      ? pass(`route_${route}`, 'uses knowledgebase RAG client')
-      : fail(`route_${route}`, 'route does not use knowledgebase RAG client cleanly'));
+    checks.push(
+      source.includes('@/lib/knowledgebase') && !/@\/lib\/saasmaker|SAASMAKER_API_URL|SAASMAKER_ADMIN_KEY/.test(source)
+        ? pass(`route_${route}`, 'uses knowledgebase RAG client')
+        : fail(`route_${route}`, 'route does not use knowledgebase RAG client cleanly'),
+    );
   }
 
   const infoRoute = resolve(repo, 'src/app/api/pages/[pageId]/info/route.ts');
   if (existsSync(infoRoute)) {
     const source = readText(infoRoute);
-    checks.push(containsAll(source, [
-      /ensureProfileMemoryIndex\(auth\.userId\)/,
-      /userId:\s*auth\.userId/,
-      /pageId:\s*page\.id/,
-      /pageSlug:\s*page\.slug/,
-      /blockId:\s*block\.id/,
-    ])
-      ? pass('profile_memory_ingest_scope', 'profile-memory ingest is account-indexed and page/block-scoped')
-      : fail('profile_memory_ingest_scope', 'info-block ingest must use ensureProfileMemoryIndex and user/page/block metadata'));
+    checks.push(
+      containsAll(source, [
+        /ensureProfileMemoryIndex\(auth\.userId\)/,
+        /userId:\s*auth\.userId/,
+        /pageId:\s*page\.id/,
+        /pageSlug:\s*page\.slug/,
+        /blockId:\s*block\.id/,
+      ])
+        ? pass('profile_memory_ingest_scope', 'profile-memory ingest is account-indexed and page/block-scoped')
+        : fail('profile_memory_ingest_scope', 'info-block ingest must use ensureProfileMemoryIndex and user/page/block metadata'),
+    );
   }
 
   const knowledgebaseSettingsRoute = resolve(repo, 'src/app/api/settings/knowledgebase/route.ts');
@@ -258,9 +252,11 @@ function auditLinkchat(fleetRoot) {
     checks.push(fail('knowledgebase_settings_route', 'src/app/api/settings/knowledgebase/route.ts is missing'));
   } else {
     const source = readText(knowledgebaseSettingsRoute);
-    checks.push(containsAll(source, [/GET\(/, /POST\(/, /ensureProfileMemoryIndex\(auth\.userId\)/, /hasIndex/, /indexId/])
-      ? pass('knowledgebase_settings_route', 'settings route exposes read/repair index lifecycle')
-      : fail('knowledgebase_settings_route', 'settings route must expose GET status and POST repair for the account index'));
+    checks.push(
+      containsAll(source, [/GET\(/, /POST\(/, /ensureProfileMemoryIndex\(auth\.userId\)/, /hasIndex/, /indexId/])
+        ? pass('knowledgebase_settings_route', 'settings route exposes read/repair index lifecycle')
+        : fail('knowledgebase_settings_route', 'settings route must expose GET status and POST repair for the account index'),
+    );
   }
 
   return { repo: 'linkchat', ok: checks.every((check) => check.ok), checks };
@@ -285,13 +281,17 @@ function auditStarboard(fleetRoot) {
   } else {
     const config = readJsonc(wranglerPath);
     const binding = serviceBinding(config, 'RAG_SERVICE');
-    checks.push(binding?.service === 'knowledgebase'
-      ? pass('rag_service_binding', 'RAG_SERVICE -> knowledgebase')
-      : fail('rag_service_binding', `expected RAG_SERVICE -> knowledgebase, got ${JSON.stringify(binding)}`));
+    checks.push(
+      binding?.service === 'knowledgebase'
+        ? pass('rag_service_binding', 'RAG_SERVICE -> knowledgebase')
+        : fail('rag_service_binding', `expected RAG_SERVICE -> knowledgebase, got ${JSON.stringify(binding)}`),
+    );
     const indexId = String(config?.vars?.STARBOARD_RAG_INDEX_ID ?? '').trim();
-    checks.push(indexId
-      ? pass('starboard_rag_index_var', 'STARBOARD_RAG_INDEX_ID is configured as a Worker var')
-      : fail('starboard_rag_index_var', 'STARBOARD_RAG_INDEX_ID is missing from wrangler vars'));
+    checks.push(
+      indexId
+        ? pass('starboard_rag_index_var', 'STARBOARD_RAG_INDEX_ID is configured as a Worker var')
+        : fail('starboard_rag_index_var', 'STARBOARD_RAG_INDEX_ID is missing from wrangler vars'),
+    );
   }
 
   const clientPath = resolve(repo, 'src/lib/knowledgebase.ts');
@@ -299,18 +299,40 @@ function auditStarboard(fleetRoot) {
     checks.push(fail('rag_client', 'src/lib/knowledgebase.ts is missing'));
   } else {
     const client = readText(clientPath);
-    checks.push(containsAll(client, [/getCloudflareContext/, /cloudflareEnv\(\)\.RAG_SERVICE_KEY/, /cloudflareEnv\(\)\.STARBOARD_RAG_INDEX_ID/, /RAG_SERVICE/, /knowledgebase/])
-      ? pass('rag_client', 'knowledgebase client reads Cloudflare binding/key/index')
-      : fail('rag_client', 'knowledgebase.ts is missing Cloudflare binding/key/index or knowledgebase references'));
-    checks.push(containsAll(client, [/searchStarboardRag/, /ingestStarboardRagDocuments/, /\/v1\/indexes\/\$\{ragIndexId\}\/query/, /\/v1\/indexes\/\$\{ragIndexId\}\/ingest/])
-      ? pass('rag_client_search_and_ingest', 'knowledgebase client supports search and ingest')
-      : fail('rag_client_search_and_ingest', 'knowledgebase.ts must route both Starboard search and ingest through knowledgebase'));
-    checks.push(containsAll(client, [/filter:\s*\{\s*user_id:\s*userId\s*\}/, /metadata\.repo_id/, /top_k:\s*topK/, /mode:\s*["']semantic["']/])
-      ? pass('rag_client_user_scope', 'knowledgebase search is scoped by user_id, semantic mode, top_k, and maps repo_id metadata')
-      : fail('rag_client_user_scope', 'knowledgebase.ts must filter by user_id, send semantic mode/top_k, and map repo_id metadata from knowledgebase results'));
-    checks.push(knowledgebaseFallbackUrlOk(client)
-      ? pass('rag_service_url_fallback', 'public fallback URL points at knowledgebase')
-      : fail('rag_service_url_fallback', 'public fallback URL must point at knowledgebase, not the retired rag-service'));
+    checks.push(
+      containsAll(client, [
+        /getCloudflareContext/,
+        /cloudflareEnv\(\)\.RAG_SERVICE_KEY/,
+        /cloudflareEnv\(\)\.STARBOARD_RAG_INDEX_ID/,
+        /RAG_SERVICE/,
+        /knowledgebase/,
+      ])
+        ? pass('rag_client', 'knowledgebase client reads Cloudflare binding/key/index')
+        : fail('rag_client', 'knowledgebase.ts is missing Cloudflare binding/key/index or knowledgebase references'),
+    );
+    checks.push(
+      containsAll(client, [
+        /searchStarboardRag/,
+        /ingestStarboardRagDocuments/,
+        /\/v1\/indexes\/\$\{ragIndexId\}\/query/,
+        /\/v1\/indexes\/\$\{ragIndexId\}\/ingest/,
+      ])
+        ? pass('rag_client_search_and_ingest', 'knowledgebase client supports search and ingest')
+        : fail('rag_client_search_and_ingest', 'knowledgebase.ts must route both Starboard search and ingest through knowledgebase'),
+    );
+    checks.push(
+      containsAll(client, [/filter:\s*\{\s*user_id:\s*userId\s*\}/, /metadata\.repo_id/, /top_k:\s*topK/, /mode:\s*["']semantic["']/])
+        ? pass('rag_client_user_scope', 'knowledgebase search is scoped by user_id, semantic mode, top_k, and maps repo_id metadata')
+        : fail(
+            'rag_client_user_scope',
+            'knowledgebase.ts must filter by user_id, send semantic mode/top_k, and map repo_id metadata from knowledgebase results',
+          ),
+    );
+    checks.push(
+      knowledgebaseFallbackUrlOk(client)
+        ? pass('rag_service_url_fallback', 'public fallback URL points at knowledgebase')
+        : fail('rag_service_url_fallback', 'public fallback URL must point at knowledgebase, not the retired rag-service'),
+    );
   }
 
   const starsRoute = resolve(repo, 'src/app/api/stars/route.ts');
@@ -318,9 +340,11 @@ function auditStarboard(fleetRoot) {
     checks.push(fail('stars_route', 'src/app/api/stars/route.ts is missing'));
   } else {
     const route = readText(starsRoute);
-    checks.push(route.includes('searchStarboardRag') && !/generateEmbedding|vector_top_k/.test(route)
-      ? pass('stars_route', 'relevance route uses knowledgebase RAG without local vector fallback')
-      : fail('stars_route', 'relevance route still has local semantic fallback or missing shared RAG call'));
+    checks.push(
+      route.includes('searchStarboardRag') && !/generateEmbedding|vector_top_k/.test(route)
+        ? pass('stars_route', 'relevance route uses knowledgebase RAG without local vector fallback')
+        : fail('stars_route', 'relevance route still has local semantic fallback or missing shared RAG call'),
+    );
   }
 
   const syncRoute = resolve(repo, 'src/app/api/stars/sync/route.ts');
@@ -330,33 +354,45 @@ function auditStarboard(fleetRoot) {
     checks.push(fail('stars_sync_route', 'src/app/api/stars/sync/route.ts is missing'));
   } else {
     const route = readText(syncRoute);
-    checks.push(route.includes('ingestStarboardRagDocuments') && route.includes('@/lib/knowledgebase')
-      ? pass('stars_sync_route', 'sync route ingests repo documents through knowledgebase RAG')
-      : fail('stars_sync_route', 'sync route must use ingestStarboardRagDocuments from the knowledgebase RAG client'));
-    checks.push(starboardMetadataContractOk(route, documentHelperSource)
-      ? pass('stars_sync_metadata_contract', 'sync route sends user_id/repo_id/full_name metadata to knowledgebase')
-      : fail('stars_sync_metadata_contract', 'sync route must send user_id, repo_id, and full_name metadata for knowledgebase filtering/results'));
-    checks.push(starboardContentContractOk(route, documentHelperSource)
-      ? pass('stars_sync_content_contract', 'sync route sends repo text content and language metadata to knowledgebase')
-      : fail('stars_sync_content_contract', 'sync route must send repo text content and language metadata to knowledgebase ingest'));
-    checks.push(starboardReadmeContractOk(route, documentHelperSource)
-      ? pass('stars_sync_readme_contract', 'sync route fetches full GitHub READMEs and includes them in knowledgebase content')
-      : fail('stars_sync_readme_contract', 'sync route must fetch full GitHub READMEs and include them in knowledgebase content'));
+    checks.push(
+      route.includes('ingestStarboardRagDocuments') && route.includes('@/lib/knowledgebase')
+        ? pass('stars_sync_route', 'sync route ingests repo documents through knowledgebase RAG')
+        : fail('stars_sync_route', 'sync route must use ingestStarboardRagDocuments from the knowledgebase RAG client'),
+    );
+    checks.push(
+      starboardMetadataContractOk(route, documentHelperSource)
+        ? pass('stars_sync_metadata_contract', 'sync route sends user_id/repo_id/full_name metadata to knowledgebase')
+        : fail('stars_sync_metadata_contract', 'sync route must send user_id, repo_id, and full_name metadata for knowledgebase filtering/results'),
+    );
+    checks.push(
+      starboardContentContractOk(route, documentHelperSource)
+        ? pass('stars_sync_content_contract', 'sync route sends repo text content and language metadata to knowledgebase')
+        : fail('stars_sync_content_contract', 'sync route must send repo text content and language metadata to knowledgebase ingest'),
+    );
+    checks.push(
+      starboardReadmeContractOk(route, documentHelperSource)
+        ? pass('stars_sync_readme_contract', 'sync route fetches full GitHub READMEs and includes them in knowledgebase content')
+        : fail('stars_sync_readme_contract', 'sync route must fetch full GitHub READMEs and include them in knowledgebase content'),
+    );
   }
 
   const legacyRagClient = resolve(repo, 'src/lib/rag-service.ts');
-  checks.push(existsSync(legacyRagClient)
-    ? fail('legacy_rag_service_client_removed', 'src/lib/rag-service.ts still exists; use src/lib/knowledgebase.ts')
-    : pass('legacy_rag_service_client_removed'));
+  checks.push(
+    existsSync(legacyRagClient)
+      ? fail('legacy_rag_service_client_removed', 'src/lib/rag-service.ts still exists; use src/lib/knowledgebase.ts')
+      : pass('legacy_rag_service_client_removed'),
+  );
 
   const readmeEvalPath = resolve(repo, 'src/__tests__/knowledgebase-rag.test.ts');
   if (!existsSync(readmeEvalPath)) {
     checks.push(fail('starboard_readme_recall_eval', 'src/__tests__/knowledgebase-rag.test.ts is missing'));
   } else {
     const testSource = readText(readmeEvalPath);
-    checks.push(starboardReadmeEvalOk(testSource)
-      ? pass('starboard_readme_recall_eval', 'README-only recall and bounded ingest batching are covered by Starboard tests')
-      : fail('starboard_readme_recall_eval', 'Starboard must keep a deterministic README-only recall + batching regression test'));
+    checks.push(
+      starboardReadmeEvalOk(testSource)
+        ? pass('starboard_readme_recall_eval', 'README-only recall and bounded ingest batching are covered by Starboard tests')
+        : fail('starboard_readme_recall_eval', 'Starboard must keep a deterministic README-only recall + batching regression test'),
+    );
   }
 
   return { repo: 'starboard', ok: checks.every((check) => check.ok), checks };
@@ -364,19 +400,12 @@ function auditStarboard(fleetRoot) {
 
 export function auditConsumerRagIntegrations(options = {}) {
   const fleetRoot = resolve(options.fleetRoot ?? FLEET_ROOT);
-  const consumers = [
-    auditLinkchat(fleetRoot),
-    auditStarboard(fleetRoot),
-  ];
+  const consumers = [auditLinkchat(fleetRoot), auditStarboard(fleetRoot)];
   return {
     ok: consumers.every((consumer) => consumer.ok),
     fleet_root: fleetRoot,
     consumers,
-    blockers: consumers.flatMap((consumer) =>
-      consumer.checks
-        .filter((check) => !check.ok)
-        .map((check) => `${consumer.repo}:${check.name}`),
-    ),
+    blockers: consumers.flatMap((consumer) => consumer.checks.filter((check) => !check.ok).map((check) => `${consumer.repo}:${check.name}`)),
   };
 }
 

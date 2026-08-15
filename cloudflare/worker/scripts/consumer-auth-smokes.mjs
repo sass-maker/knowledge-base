@@ -132,15 +132,20 @@ async function runKartePublicSmoke(fetchImpl, baseUrl) {
     };
   }
 
-  const chat = await requestText(fetchImpl, `${root}/api/chat/atlas-demo`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      conversationId: conversation.body.id,
-      visitorEmail,
-      query: 'what is this profile about?',
-    }),
-  }, 15000);
+  const chat = await requestText(
+    fetchImpl,
+    `${root}/api/chat/atlas-demo`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversationId: conversation.body.id,
+        visitorEmail,
+        query: 'what is this profile about?',
+      }),
+    },
+    15000,
+  );
   const ok = chat.res.status === 200 && chat.text.trim().length > 0;
   return {
     ok,
@@ -169,9 +174,8 @@ async function runConsumerPublicSmokes(options = {}) {
   const consumers = [];
   for (const config of consumerPublicConfigs(env)) {
     try {
-      const result = config.kind === 'public_demo_chat'
-        ? await runKartePublicSmoke(fetchImpl, config.baseUrl)
-        : await runStarboardPublicSmoke(fetchImpl, config.baseUrl);
+      const result =
+        config.kind === 'public_demo_chat' ? await runKartePublicSmoke(fetchImpl, config.baseUrl) : await runStarboardPublicSmoke(fetchImpl, config.baseUrl);
       consumers.push({
         consumer: config.consumer,
         public: true,
@@ -246,12 +250,8 @@ export async function runConsumerAuthSmokes(options = {}) {
     authenticated: consumers.every((consumer) => consumer.authenticated),
     public_consumers: publicConsumers,
     consumers,
-    blockers: consumers
-      .filter((consumer) => !consumer.ok)
-      .map((consumer) => `${consumer.consumer}:${consumer.blocker ?? 'smoke_failed'}`),
-    public_blockers: publicConsumers
-      .filter((consumer) => !consumer.ok)
-      .map((consumer) => `${consumer.consumer}:${consumer.blocker ?? 'public_smoke_failed'}`),
+    blockers: consumers.filter((consumer) => !consumer.ok).map((consumer) => `${consumer.consumer}:${consumer.blocker ?? 'smoke_failed'}`),
+    public_blockers: publicConsumers.filter((consumer) => !consumer.ok).map((consumer) => `${consumer.consumer}:${consumer.blocker ?? 'public_smoke_failed'}`),
   };
 }
 

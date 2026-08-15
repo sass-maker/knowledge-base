@@ -1,3 +1,5 @@
+import { percentile, summarizeLatencies } from './bench-utils';
+
 interface Env {
   RAG_SERVICE: Fetcher;
   RAG_SERVICE_KEY?: string;
@@ -25,26 +27,6 @@ function elapsedMs(started: number): number {
   return Math.round((performance.now() - started) * 100) / 100;
 }
 
-function percentile(sorted: number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  const index = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
-  return sorted[index] ?? 0;
-}
-
-function summarizeLatencies(samples: number[]) {
-  const sorted = [...samples].sort((a, b) => a - b);
-  const total = sorted.reduce((sum, value) => sum + value, 0);
-  return {
-    count: sorted.length,
-    min_ms: Math.round((sorted[0] ?? 0) * 100) / 100,
-    p50_ms: Math.round(percentile(sorted, 50) * 100) / 100,
-    p95_ms: Math.round(percentile(sorted, 95) * 100) / 100,
-    p99_ms: Math.round(percentile(sorted, 99) * 100) / 100,
-    max_ms: Math.round((sorted.at(-1) ?? 0) * 100) / 100,
-    mean_ms: Math.round((sorted.length ? total / sorted.length : 0) * 100) / 100,
-  };
-}
-
 function readBearer(request: Request): string {
   const auth = request.headers.get('Authorization') ?? '';
   const match = auth.match(/^Bearer\s+(.+)$/i);
@@ -59,14 +41,16 @@ function isAuthorized(request: Request, env: Env): boolean {
 async function callRag(env: Env, path: string, body: unknown): Promise<{ payload: any; cache: string; timing: any }> {
   const key = env.RAG_SERVICE_KEY?.trim();
   if (!key) throw new Error('RAG_SERVICE_KEY is not configured');
-  const res = await env.RAG_SERVICE.fetch(new Request(`https://knowledgebase.internal${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  }));
+  const res = await env.RAG_SERVICE.fetch(
+    new Request(`https://knowledgebase.internal${path}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }),
+  );
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`RAG request failed ${res.status}: ${JSON.stringify(payload)}`);
   return {
@@ -94,13 +78,13 @@ async function handleBenchmark(request: Request, env: Env): Promise<Response> {
     for (const query of queries) {
       await callRag(env, `/v1/indexes/${indexId}/query`, {
         query,
-	        top_k: topK,
-	        mode: body.mode,
-	        semantic_model: body.semantic_model,
-	        rerank: body.rerank,
-	        rerank_model: body.rerank_model,
-	        mmr: body.mmr,
-	      });
+        top_k: topK,
+        mode: body.mode,
+        semantic_model: body.semantic_model,
+        rerank: body.rerank,
+        rerank_model: body.rerank_model,
+        mmr: body.mmr,
+      });
     }
   }
 
@@ -121,13 +105,13 @@ async function handleBenchmark(request: Request, env: Env): Promise<Response> {
       const started = performance.now();
       const result = await callRag(env, `/v1/indexes/${indexId}/query`, {
         query,
-	        top_k: topK,
-	        mode: body.mode,
-	        semantic_model: body.semantic_model,
-	        rerank: body.rerank,
-	        rerank_model: body.rerank_model,
-	        mmr: body.mmr,
-	      });
+        top_k: topK,
+        mode: body.mode,
+        semantic_model: body.semantic_model,
+        rerank: body.rerank,
+        rerank_model: body.rerank_model,
+        mmr: body.mmr,
+      });
       const ms = elapsedMs(started);
       const data = Array.isArray(result.payload.data) ? result.payload.data : [];
       const ragServerMs = typeof result.timing?.total_ms === 'number' ? result.timing.total_ms : null;

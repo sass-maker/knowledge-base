@@ -76,14 +76,18 @@ export async function runSiblingRetirementReadiness(options) {
     baseUrl: options.baseUrl,
     expectedDeployFingerprint,
   });
-  checks.push(check('deployed-legacy-route-parity', legacyRoutes.ok, {
-    checked: legacyRoutes.checked,
-    failed: Array.isArray(legacyRoutes.failed) ? legacyRoutes.failed : [],
-  }));
-  checks.push(check('deployed-worker-fingerprint', legacyRoutes.deploy_fingerprint === expectedDeployFingerprint, {
-    deploy_fingerprint: legacyRoutes.deploy_fingerprint ?? null,
-    expected_deploy_fingerprint: expectedDeployFingerprint,
-  }));
+  checks.push(
+    check('deployed-legacy-route-parity', legacyRoutes.ok, {
+      checked: legacyRoutes.checked,
+      failed: Array.isArray(legacyRoutes.failed) ? legacyRoutes.failed : [],
+    }),
+  );
+  checks.push(
+    check('deployed-worker-fingerprint', legacyRoutes.deploy_fingerprint === expectedDeployFingerprint, {
+      deploy_fingerprint: legacyRoutes.deploy_fingerprint ?? null,
+      expected_deploy_fingerprint: expectedDeployFingerprint,
+    }),
+  );
 
   const deployedCurrentForOcr = legacyRoutes.ok && legacyRoutes.deploy_fingerprint === expectedDeployFingerprint;
   const deployed = await (options.deployReadinessRunner ?? runDeployReadiness)({
@@ -96,56 +100,66 @@ export async function runSiblingRetirementReadiness(options) {
     expectedDeployFingerprint,
   });
   const failedDeployedChecks = Array.isArray(deployed.checks)
-    ? deployed.checks.filter((item) => !item.ok).map((item) => item.name).filter(Boolean)
-    : [];
-  if (!deployedCurrentForOcr) failedDeployedChecks.push('nvda-scanned-ocr-live');
-  checks.push(check('deployed-auth-and-ocr-ready', deployed.ok && deployedCurrentForOcr, {
-    failed_checks: [...new Set(failedDeployedChecks)],
-    live_ocr_skipped_until_current_deploy: !deployedCurrentForOcr,
-  }));
-
-  const preflight = await (options.preflightRunner ?? runWorkerPreflight)();
-  checks.push(check('worker-local-preflight', preflight.ok, {
-    errors: Number.isFinite(preflight.errors) ? preflight.errors : null,
-    warnings: Number.isFinite(preflight.warnings) ? preflight.warnings : null,
-    failed_checks: Array.isArray(preflight.checks)
-      ? preflight.checks
-        .filter((item) => item?.severity === 'error')
+    ? deployed.checks
+        .filter((item) => !item.ok)
         .map((item) => item.name)
         .filter(Boolean)
-      : [],
-  }));
+    : [];
+  if (!deployedCurrentForOcr) failedDeployedChecks.push('nvda-scanned-ocr-live');
+  checks.push(
+    check('deployed-auth-and-ocr-ready', deployed.ok && deployedCurrentForOcr, {
+      failed_checks: [...new Set(failedDeployedChecks)],
+      live_ocr_skipped_until_current_deploy: !deployedCurrentForOcr,
+    }),
+  );
+
+  const preflight = await (options.preflightRunner ?? runWorkerPreflight)();
+  checks.push(
+    check('worker-local-preflight', preflight.ok, {
+      errors: Number.isFinite(preflight.errors) ? preflight.errors : null,
+      warnings: Number.isFinite(preflight.warnings) ? preflight.warnings : null,
+      failed_checks: Array.isArray(preflight.checks)
+        ? preflight.checks
+            .filter((item) => item?.severity === 'error')
+            .map((item) => item.name)
+            .filter(Boolean)
+        : [],
+    }),
+  );
 
   const siblingAudit = await (options.siblingAuditRunner ?? auditSiblingRagService)();
-  checks.push(check('no-active-external-rag-service-references', siblingAudit.external_references_ok === true, {
-    active_external_reference_count: Array.isArray(siblingAudit.active_external_references)
-      ? siblingAudit.active_external_references.length
-      : null,
-  }));
-  checks.push(check('sibling-rag-service-delete-target-known', siblingAudit.sibling_exists === true || siblingAudit.ok === true, {
-    sibling_exists: siblingAudit.sibling_exists === true,
-    sibling_deployable_surfaces: Array.isArray(siblingAudit.sibling_deployable_surfaces)
-      ? siblingAudit.sibling_deployable_surfaces
-      : [],
-  }));
+  checks.push(
+    check('no-active-external-rag-service-references', siblingAudit.external_references_ok === true, {
+      active_external_reference_count: Array.isArray(siblingAudit.active_external_references) ? siblingAudit.active_external_references.length : null,
+    }),
+  );
+  checks.push(
+    check('sibling-rag-service-delete-target-known', siblingAudit.sibling_exists === true || siblingAudit.ok === true, {
+      sibling_exists: siblingAudit.sibling_exists === true,
+      sibling_deployable_surfaces: Array.isArray(siblingAudit.sibling_deployable_surfaces) ? siblingAudit.sibling_deployable_surfaces : [],
+    }),
+  );
 
   const fullPort = await (options.fullPortRunner ?? runFullPortGapGate)();
   const remainingFeatures = remainingGapFeatures(fullPort);
-  const onlySiblingGapRemains = remainingFeatures.length === 0
-    || (remainingFeatures.length === 1 && remainingFeatures[0] === 'sibling_rag_service_retirement');
-  checks.push(check('full-port-gaps-clear-for-sibling-retirement', onlySiblingGapRemains, {
-    remaining_features: remainingFeatures,
-    exit_code: fullPort.exit_code ?? null,
-    error: fullPort.error ?? null,
-  }));
+  const onlySiblingGapRemains = remainingFeatures.length === 0 || (remainingFeatures.length === 1 && remainingFeatures[0] === 'sibling_rag_service_retirement');
+  checks.push(
+    check('full-port-gaps-clear-for-sibling-retirement', onlySiblingGapRemains, {
+      remaining_features: remainingFeatures,
+      exit_code: fullPort.exit_code ?? null,
+      error: fullPort.error ?? null,
+    }),
+  );
 
   const siblingGapOpen = remainingFeatures.includes('sibling_rag_service_retirement');
   const siblingExists = siblingAudit.sibling_exists === true;
-  checks.push(check('sibling-retirement-gap-matches-audit', siblingGapOpen === siblingExists, {
-    sibling_exists: siblingExists,
-    sibling_gap_open: siblingGapOpen,
-    remaining_features: remainingFeatures,
-  }));
+  checks.push(
+    check('sibling-retirement-gap-matches-audit', siblingGapOpen === siblingExists, {
+      sibling_exists: siblingExists,
+      sibling_gap_open: siblingGapOpen,
+      remaining_features: remainingFeatures,
+    }),
+  );
 
   return {
     ok: checks.every((item) => item.ok),

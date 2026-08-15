@@ -8,45 +8,20 @@ export interface OperatorProject {
   updated_at: string;
 }
 
-let selectedProject = "";
+let selectedProject = '';
 let includeInternalScopes = false;
 
-const INTERNAL_PROJECT_NAMES = new Set([
-  "default",
-  "proof-s",
-  "s-grade-dry-run",
-  "saas-maker",
-  "verify",
-]);
+const INTERNAL_PROJECT_NAMES = new Set(['default', 'proof-s', 's-grade-dry-run', 'saas-maker', 'verify']);
 
-const INTERNAL_PROJECT_PREFIXES = [
-  "deploy-smoke-",
-  "e2e-",
-  "proof-",
-  "s-grade-",
-  "smoke-",
-];
+const INTERNAL_PROJECT_PREFIXES = ['deploy-smoke-', 'e2e-', 'proof-', 's-grade-', 'smoke-'];
 
-const INTERNAL_DOMAIN_NAMES = new Set([
-  "legal",
-  "notes",
-  "personal_notes",
-  "sec",
-  "stack-notes",
-]);
+const INTERNAL_DOMAIN_NAMES = new Set(['legal', 'notes', 'personal_notes', 'sec', 'stack-notes']);
 
-const INTERNAL_DOMAIN_PREFIXES = [
-  "codex-rag-smoke-",
-  "deploy-smoke-",
-  "e2e-",
-  "perf-",
-  "s-grade-",
-  "smoke-",
-];
+const INTERNAL_DOMAIN_PREFIXES = ['codex-rag-smoke-', 'deploy-smoke-', 'e2e-', 'perf-', 's-grade-', 'smoke-'];
 
 const PROJECT_LABELS: Record<string, string> = {
-  "tenant-a": "Research Papers",
-  starboard: "Starboard",
+  'tenant-a': 'Research Papers',
+  starboard: 'Starboard',
 };
 
 export function setApiProjectScope(project: string, includeInternal: boolean) {
@@ -68,16 +43,12 @@ export function isInternalProject(project: OperatorProject): boolean {
 }
 
 function isInternalProjectName(project: string): boolean {
-  return INTERNAL_PROJECT_NAMES.has(project)
-    || INTERNAL_PROJECT_PREFIXES.some((prefix) => project.startsWith(prefix));
+  return INTERNAL_PROJECT_NAMES.has(project) || INTERNAL_PROJECT_PREFIXES.some((prefix) => project.startsWith(prefix));
 }
 
 export function isInternalDomain(domain: string): boolean {
   if (includeInternalScopes) return false;
-  if (
-    INTERNAL_DOMAIN_NAMES.has(domain)
-    && (selectedProject === "default" || isInternalProjectName(selectedProject))
-  ) {
+  if (INTERNAL_DOMAIN_NAMES.has(domain) && (selectedProject === 'default' || isInternalProjectName(selectedProject))) {
     return true;
   }
   return INTERNAL_DOMAIN_PREFIXES.some((prefix) => domain.startsWith(prefix));
@@ -90,14 +61,9 @@ export function projectLabel(project: string): string {
     .split(/[-_]+/)
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+    .join(' ');
 }
 
 export function sortProjects(projects: OperatorProject[]): OperatorProject[] {
-  return [...projects].sort(
-    (left, right) =>
-      right.file_count - left.file_count
-      || right.kind_count - left.kind_count
-      || left.name.localeCompare(right.name),
-  );
+  return [...projects].sort((left, right) => right.file_count - left.file_count || right.kind_count - left.kind_count || left.name.localeCompare(right.name));
 }

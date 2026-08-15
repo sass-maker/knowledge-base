@@ -164,42 +164,36 @@ function summarizeInventory({ projects, domains, indexes, files, jobs, traces, e
 function costSignals({ traces, evalSummary, benchmark }) {
   const traceRows = Array.isArray(traces?.traces) ? traces.traces : [];
   const evalSummaries = Array.isArray(evalSummary?.summaries) ? evalSummary.summaries : [];
-  const aiEvalRates = evalSummaries
-    .map((summary) => Number(summary?.avg_ai_use_rate ?? summary?.ai_use_rate))
-    .filter((value) => Number.isFinite(value));
+  const aiEvalRates = evalSummaries.map((summary) => Number(summary?.avg_ai_use_rate ?? summary?.ai_use_rate)).filter((value) => Number.isFinite(value));
   return {
     recent_trace_count: traceRows.length,
     traces_with_citations: traceRows.filter((trace) => Array.isArray(trace?.citations) && trace.citations.length > 0).length,
     avg_trace_latency_ms: average(traceRows.map((trace) => trace?.latency_ms)),
     avg_eval_ai_use_rate: average(aiEvalRates),
-    benchmark_cache_hit_rate: typeof benchmark?.cache_hit_rate === 'number'
-      ? Math.round(benchmark.cache_hit_rate * 10000) / 10000
-      : null,
+    benchmark_cache_hit_rate: typeof benchmark?.cache_hit_rate === 'number' ? Math.round(benchmark.cache_hit_rate * 10000) / 10000 : null,
     note: 'Workers AI and free-ai spend risk is driven by embedding misses, OCR, rerank/synthesis, and AI judge options; default extractive and lexical paths stay cheaper.',
   };
 }
 
 function traceHasStageTimings(trace) {
   const stages = trace?.confidence?.timing_stages;
-  return Array.isArray(stages)
-    && stages.some((stage) => typeof stage?.stage === 'string' && typeof stage?.latency_ms === 'number');
+  return Array.isArray(stages) && stages.some((stage) => typeof stage?.stage === 'string' && typeof stage?.latency_ms === 'number');
 }
 
 function traceHasEmptyResultDiagnostics(trace) {
   const diagnostics = trace?.confidence?.empty_result_diagnostics;
-  return diagnostics
-    && typeof diagnostics === 'object'
-    && typeof diagnostics.result_count === 'number'
-    && typeof diagnostics.status === 'string';
+  return diagnostics && typeof diagnostics === 'object' && typeof diagnostics.result_count === 'number' && typeof diagnostics.status === 'string';
 }
 
 function drilldownHasEmptyResultDiagnostics(drilldown) {
   const quality = drilldown?.quality;
-  return quality
-    && typeof quality === 'object'
-    && typeof quality.status === 'string'
-    && typeof quality.retrieved_count === 'number'
-    && typeof quality.citation_count === 'number';
+  return (
+    quality &&
+    typeof quality === 'object' &&
+    typeof quality.status === 'string' &&
+    typeof quality.retrieved_count === 'number' &&
+    typeof quality.citation_count === 'number'
+  );
 }
 
 function visibleText(html) {
@@ -225,8 +219,7 @@ function uiCapabilities(ui) {
     hosted_ui: hasHostedUi,
     custom_input: hasHostedUi && /\/v1\/kb\/ingest\/text/.test(text),
     async_status: hasHostedUi && /loadRunProgress|\/v1\/kb\/ingest\/runs/.test(text),
-    hides_rag_internals: hasHostedUi
-      && !/\b(Index id|Embedding|Vectorize|chunk|RAG)\b/i.test(rendered),
+    hides_rag_internals: hasHostedUi && !/\b(Index id|Embedding|Vectorize|chunk|RAG)\b/i.test(rendered),
   };
 }
 
@@ -279,17 +272,7 @@ export async function runOperatorReport(options = {}) {
     return report;
   }
 
-  const [
-    projects,
-    domains,
-    indexes,
-    files,
-    jobs,
-    sourceSets,
-    traces,
-    evalSummary,
-    embeddingModels,
-  ] = await Promise.all([
+  const [projects, domains, indexes, files, jobs, sourceSets, traces, evalSummary, embeddingModels] = await Promise.all([
     requestJson(fetchImpl, `${baseUrl}/v1/kb/projects`, { key }),
     requestJson(fetchImpl, `${baseUrl}/v1/kb/domains`, { key }),
     requestJson(fetchImpl, `${baseUrl}/v1/indexes`, { key }),
@@ -368,8 +351,7 @@ export async function runOperatorReport(options = {}) {
     trace_export: traceExport?.ok === true,
     trace_drilldown: traceDrilldown?.ok === true,
     stage_timings: traceRows.some(traceHasStageTimings),
-    empty_result_diagnostics: traceRows.some(traceHasEmptyResultDiagnostics)
-      || drilldownHasEmptyResultDiagnostics(traceDrilldown?.payload),
+    empty_result_diagnostics: traceRows.some(traceHasEmptyResultDiagnostics) || drilldownHasEmptyResultDiagnostics(traceDrilldown?.payload),
   };
   report.ok = report.checks.every((check) => check.ok);
   return report;
@@ -385,14 +367,18 @@ function printHuman(report) {
     console.log('\nInventory');
     console.log(`  projects=${report.inventory.project_count} domains=${report.inventory.domain_count} indexes=${report.inventory.index_count}`);
     console.log(`  files=${report.inventory.file_count} bytes=${report.inventory.file_bytes} statuses=${JSON.stringify(report.inventory.files_by_status)}`);
-    console.log(`  jobs=${report.inventory.job_count} statuses=${JSON.stringify(report.inventory.jobs_by_status)} stages=${JSON.stringify(report.inventory.jobs_by_stage)}`);
+    console.log(
+      `  jobs=${report.inventory.job_count} statuses=${JSON.stringify(report.inventory.jobs_by_status)} stages=${JSON.stringify(report.inventory.jobs_by_stage)}`,
+    );
     console.log(`  traces=${report.inventory.recent_trace_count} avg_trace_latency_ms=${report.inventory.avg_trace_latency_ms ?? 'n/a'}`);
     console.log(`  eval_reports=${report.inventory.eval_report_count} eval_kinds=${report.inventory.eval_kinds.join(',') || 'none'}`);
     console.log(`  embedding_models=${report.inventory.embedding_model_count} selectable=${report.inventory.selectable_embedding_model_count}`);
   }
   if (report.capabilities) {
     console.log('\nCapabilities');
-    console.log(`  hosted_ui=${report.capabilities.hosted_ui} custom_input=${report.capabilities.custom_input} async_status=${report.capabilities.async_status} hides_rag_internals=${report.capabilities.hides_rag_internals}`);
+    console.log(
+      `  hosted_ui=${report.capabilities.hosted_ui} custom_input=${report.capabilities.custom_input} async_status=${report.capabilities.async_status} hides_rag_internals=${report.capabilities.hides_rag_internals}`,
+    );
   }
   if (report.benchmark) {
     console.log('\nBenchmark');
@@ -402,7 +388,9 @@ function printHuman(report) {
   }
   if (report.cost_signals) {
     console.log('\nCost signals');
-    console.log(`  avg_trace_latency_ms=${report.cost_signals.avg_trace_latency_ms ?? 'n/a'} avg_eval_ai_use_rate=${report.cost_signals.avg_eval_ai_use_rate ?? 'n/a'} benchmark_cache_hit_rate=${report.cost_signals.benchmark_cache_hit_rate ?? 'n/a'}`);
+    console.log(
+      `  avg_trace_latency_ms=${report.cost_signals.avg_trace_latency_ms ?? 'n/a'} avg_eval_ai_use_rate=${report.cost_signals.avg_eval_ai_use_rate ?? 'n/a'} benchmark_cache_hit_rate=${report.cost_signals.benchmark_cache_hit_rate ?? 'n/a'}`,
+    );
     console.log(`  ${report.cost_signals.note}`);
   }
   if (report.blockers.length > 0) console.log(`\nblockers=${report.blockers.join(',')}`);

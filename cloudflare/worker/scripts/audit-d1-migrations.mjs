@@ -10,10 +10,7 @@ const REQUIRED_MIGRATIONS = [
   {
     name: 'index_embedding_model_columns',
     file: '0005_index_embedding_model.sql',
-    patterns: [
-      /ALTER\s+TABLE\s+indexes\s+ADD\s+COLUMN\s+embedding_model\s+TEXT\b/i,
-      /ALTER\s+TABLE\s+indexes\s+ADD\s+COLUMN\s+embedding_provider\s+TEXT\b/i,
-    ],
+    patterns: [/ALTER\s+TABLE\s+indexes\s+ADD\s+COLUMN\s+embedding_model\s+TEXT\b/i, /ALTER\s+TABLE\s+indexes\s+ADD\s+COLUMN\s+embedding_provider\s+TEXT\b/i],
   },
   {
     name: 'kb_domain_embedding_model_columns',
@@ -49,10 +46,12 @@ export async function auditD1Migrations({ migrationsDir = DEFAULT_MIGRATIONS_DIR
     files = await readdir(migrationsDir);
     checks.push(check('migrations_dir', true, { migrations_dir: migrationsDir, migration_count: files.length }));
   } catch (error) {
-    checks.push(check('migrations_dir', false, {
-      migrations_dir: migrationsDir,
-      error: String(error instanceof Error ? error.message : error),
-    }));
+    checks.push(
+      check('migrations_dir', false, {
+        migrations_dir: migrationsDir,
+        error: String(error instanceof Error ? error.message : error),
+      }),
+    );
     return {
       ok: false,
       migrations_dir: migrationsDir,
@@ -64,21 +63,23 @@ export async function auditD1Migrations({ migrationsDir = DEFAULT_MIGRATIONS_DIR
   for (const migration of REQUIRED_MIGRATIONS) {
     const path = resolve(migrationsDir, migration.file);
     if (!files.includes(migration.file)) {
-      checks.push(check(migration.name, false, {
-        file: migration.file,
-        error: 'required migration file is missing',
-      }));
+      checks.push(
+        check(migration.name, false, {
+          file: migration.file,
+          error: 'required migration file is missing',
+        }),
+      );
       continue;
     }
 
     const sql = await readFile(path, 'utf8');
-    const missingPatterns = migration.patterns
-      .filter((pattern) => !pattern.test(sql))
-      .map((pattern) => String(pattern));
-    checks.push(check(migration.name, missingPatterns.length === 0, {
-      file: migration.file,
-      missing_patterns: missingPatterns,
-    }));
+    const missingPatterns = migration.patterns.filter((pattern) => !pattern.test(sql)).map((pattern) => String(pattern));
+    checks.push(
+      check(migration.name, missingPatterns.length === 0, {
+        file: migration.file,
+        missing_patterns: missingPatterns,
+      }),
+    );
   }
 
   const blockers = checks.filter((item) => !item.ok);

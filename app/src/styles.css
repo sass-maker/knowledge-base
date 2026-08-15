@@ -88,8 +88,14 @@
 
 /* Page fade-in */
 @keyframes page-fade {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .page-fade {
   animation: page-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -97,16 +103,15 @@
 
 /* Skeleton shimmer */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 .skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--muted) 25%,
-    var(--card) 50%,
-    var(--muted) 75%,
-  );
+  background: linear-gradient(90deg, var(--muted) 25%, var(--card) 50%, var(--muted) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: var(--radius-sm);
@@ -123,7 +128,7 @@ button:active:not(:disabled) {
   position: relative;
 }
 .nav-item-active::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 50%;
@@ -135,10 +140,16 @@ button:active:not(:disabled) {
 }
 
 /* Smooth select/input focus */
-input, select, textarea {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+input,
+select,
+textarea {
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px oklch(0.72 0.14 180 / 0.15);
   outline: none;
@@ -146,8 +157,14 @@ input:focus, select:focus, textarea:focus {
 
 /* Trace expand smooth */
 @keyframes expand-down {
-  from { opacity: 0; max-height: 0; }
-  to { opacity: 1; max-height: 500px; }
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
 }
 .expand-down {
   animation: expand-down 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -161,8 +178,14 @@ input:focus, select:focus, textarea:focus {
 
 /* Result card stagger */
 @keyframes result-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .result-card {
   animation: result-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
@@ -170,7 +193,9 @@ input:focus, select:focus, textarea:focus {
 
 /* Spinner */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .spin {
   animation: spin 0.8s linear infinite;

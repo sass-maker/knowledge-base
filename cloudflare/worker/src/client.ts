@@ -40,7 +40,7 @@ export interface KnowledgebaseResult {
   metadata?: Record<string, unknown>;
 }
 
-export interface KnowledgebaseCitation {
+interface KnowledgebaseCitation {
   index: number;
   document_id: string;
   chunk_id: string;
@@ -102,7 +102,7 @@ export class KnowledgebaseClient {
       },
       body: JSON.stringify(body),
     });
-    const payload = await res.json().catch(() => ({})) as { error?: unknown };
+    const payload = (await res.json().catch(() => ({}))) as { error?: unknown };
     if (!res.ok) {
       const message = typeof payload?.error === 'string' ? payload.error : `Knowledgebase request failed: ${res.status}`;
       throw new Error(message);

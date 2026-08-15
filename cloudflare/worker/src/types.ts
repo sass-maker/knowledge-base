@@ -72,7 +72,7 @@ export interface VectorizeVector {
   namespace?: string;
 }
 
-export interface VectorizeMatch {
+interface VectorizeMatch {
   id: string;
   score: number;
   metadata?: JsonRecord;

@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import { backfill, normalizeInput } from './backfill-saas-maker.mjs';
 import { scoreResults, summarizeLatencies } from './benchmark-rag.mjs';
+import { requestJson } from './lib/request-json.mjs';
 
 function usage() {
   console.error(`Usage:
@@ -70,20 +71,6 @@ function sleep(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
-}
-
-async function requestJson(url, { key, method = 'GET', body } = {}) {
-  const res = await fetch(url, {
-    method,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`${method} ${url} failed ${res.status}: ${JSON.stringify(payload)}`);
-  return payload;
 }
 
 function pickQueryChunks(chunks, limit) {
@@ -155,10 +142,7 @@ export async function smokeSaasMakerExport(options) {
         });
         const elapsed = performance.now() - started;
         const data = Array.isArray(payload.data) ? payload.data : [];
-        const hit = scoreResults(
-          { expected_chunk_ids: [chunk.id], expected_document_ids: [], expected_contains: [] },
-          data,
-        );
+        const hit = scoreResults({ expected_chunk_ids: [chunk.id], expected_document_ids: [], expected_contains: [] }, data);
         if (hit) hits += 1;
         samples.push(elapsed);
         queries.push({

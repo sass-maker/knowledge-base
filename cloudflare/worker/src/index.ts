@@ -1,6 +1,7 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
 import { Hono, type Context } from 'hono';
 import { requireServiceKey, type Variables } from './auth';
+import { percentile, summarizeLatencies } from './bench-utils';
 import { parseCacheOptions, stableStringify, TtlCache } from './cache';
 import { chunkText } from './chunk';
 import { D1Repository } from './d1-repository';
@@ -59,23 +60,7 @@ const INGEST_JOB_LEASE_MS = 5 * 60 * 1000;
 const INGEST_PARSE_TIMEOUT_MS = 45 * 1000;
 const INGEST_QUEUE_MAX_ATTEMPTS = 5;
 const MAX_RECORD_INDEX_TEXT_CHARS = 1800;
-const STOP_WORDS = new Set([
-  'a',
-  'an',
-  'and',
-  'are',
-  'for',
-  'from',
-  'how',
-  'the',
-  'this',
-  'that',
-  'what',
-  'when',
-  'where',
-  'which',
-  'with',
-]);
+const STOP_WORDS = new Set(['a', 'an', 'and', 'are', 'for', 'from', 'how', 'the', 'this', 'that', 'what', 'when', 'where', 'which', 'with']);
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 type QueryPayload = { data: SearchResult[] };
 type TimingValue = number | string | boolean;
@@ -96,10 +81,7 @@ type QueueCapableApp = ReturnType<typeof createApp> & {
 };
 
 export class KbIngestWorkflow extends WorkflowEntrypoint<Env, KbIngestQueueMessage> {
-  async run(
-    event: Readonly<WorkflowEvent<KbIngestQueueMessage>>,
-    step: WorkflowStep,
-  ): Promise<JsonRecord> {
+  async run(event: Readonly<WorkflowEvent<KbIngestQueueMessage>>, step: WorkflowStep): Promise<JsonRecord> {
     const payload = await step.do('validate ingest payload', async () => {
       const body = event.payload;
       if (!body || body.kind !== 'kb_ingest' || !body.project || !body.domain) {
@@ -117,18 +99,22 @@ export class KbIngestWorkflow extends WorkflowEntrypoint<Env, KbIngestQueueMessa
       };
     });
 
-    await step.do('enqueue ingest queue message', {
-      retries: { limit: 3, delay: '10 seconds', backoff: 'exponential' },
-      timeout: '1 minute',
-    }, async () => {
-      if (!this.env.INGEST_QUEUE) throw new Error('INGEST_QUEUE is not configured');
-      const response = await this.env.INGEST_QUEUE.send(payload);
-      return {
-        run_id: payload.run_id ?? null,
-        backlog_count: response.metadata.metrics.backlogCount,
-        backlog_bytes: response.metadata.metrics.backlogBytes,
-      };
-    });
+    await step.do(
+      'enqueue ingest queue message',
+      {
+        retries: { limit: 3, delay: '10 seconds', backoff: 'exponential' },
+        timeout: '1 minute',
+      },
+      async () => {
+        if (!this.env.INGEST_QUEUE) throw new Error('INGEST_QUEUE is not configured');
+        const response = await this.env.INGEST_QUEUE.send(payload);
+        return {
+          run_id: payload.run_id ?? null,
+          backlog_count: response.metadata.metrics.backlogCount,
+          backlog_bytes: response.metadata.metrics.backlogBytes,
+        };
+      },
+    );
 
     return {
       run_id: payload.run_id ?? null,
@@ -454,7 +440,10 @@ function listField(record: JsonRecord, key: string): string[] {
 
 function clampIndexText(value: string): string {
   if (value.length <= MAX_RECORD_INDEX_TEXT_CHARS) return value;
-  const clipped = value.slice(0, MAX_RECORD_INDEX_TEXT_CHARS).replace(/\s+\S*$/, '').trimEnd();
+  const clipped = value
+    .slice(0, MAX_RECORD_INDEX_TEXT_CHARS)
+    .replace(/\s+\S*$/, '')
+    .trimEnd();
   return `${clipped || value.slice(0, MAX_RECORD_INDEX_TEXT_CHARS).trimEnd()}...`;
 }
 
@@ -498,12 +487,15 @@ function sortResultsByVectorOrder(ids: string[], rows: ChunkRecord[]): ChunkReco
 }
 
 function fuseHybridResults(lexical: QueryPayload | null, semantic: QueryPayload, topK: number): QueryPayload {
-  const fused = new Map<string, SearchResult & {
-    lexical_rrf?: number;
-    semantic_rrf?: number;
-    lexical_score?: number;
-    semantic_score?: number;
-  }>();
+  const fused = new Map<
+    string,
+    SearchResult & {
+      lexical_rrf?: number;
+      semantic_rrf?: number;
+      lexical_score?: number;
+      semantic_score?: number;
+    }
+  >();
   const add = (result: SearchResult, rank: number, source: 'lexical' | 'semantic') => {
     const existing = fused.get(result.chunk_id) ?? {
       ...result,
@@ -522,9 +514,7 @@ function fuseHybridResults(lexical: QueryPayload | null, semantic: QueryPayload,
       existing.semantic_rrf = contribution;
       existing.semantic_score = result.score;
     }
-    const sources = Array.isArray(existing.metadata.hybrid_sources)
-      ? existing.metadata.hybrid_sources
-      : [];
+    const sources = Array.isArray(existing.metadata.hybrid_sources) ? existing.metadata.hybrid_sources : [];
     existing.metadata = {
       ...existing.metadata,
       hybrid_sources: sources.includes(source) ? sources : [...sources, source],
@@ -548,7 +538,12 @@ function contentTokens(text: string): Set<string> {
 }
 
 function sparseTokens(text: string): string[] {
-  return text.toLowerCase().match(/[a-z0-9][a-z0-9-]{2,}/g)?.filter((token) => !STOP_WORDS.has(token)) ?? [];
+  return (
+    text
+      .toLowerCase()
+      .match(/[a-z0-9][a-z0-9-]{2,}/g)
+      ?.filter((token) => !STOP_WORDS.has(token)) ?? []
+  );
 }
 
 function stemLexicalToken(token: string): string {
@@ -604,11 +599,7 @@ function lexicalTokenSimilarity(queryToken: string, chunkToken: string): number 
   const queryStem = stemLexicalToken(queryToken);
   const chunkStem = stemLexicalToken(chunkToken);
   if (queryStem === chunkStem) return 0.92;
-  if (
-    queryToken.length >= 5
-    && chunkToken.length >= 5
-    && (queryToken.includes(chunkToken) || chunkToken.includes(queryToken))
-  ) return 0.82;
+  if (queryToken.length >= 5 && chunkToken.length >= 5 && (queryToken.includes(chunkToken) || chunkToken.includes(queryToken))) return 0.82;
   if (queryToken.length < 5 || chunkToken.length < 5) return 0;
   const maxLength = Math.max(queryToken.length, chunkToken.length);
   const maxDistance = maxLength <= 7 ? 1 : 2;
@@ -617,10 +608,7 @@ function lexicalTokenSimilarity(queryToken: string, chunkToken: string): number 
   return Math.max(0, 1 - distance / maxLength);
 }
 
-function bestLexicalMatch(
-  queryToken: string,
-  counts: Map<string, number>,
-): { token: string; count: number; similarity: number } | null {
+function bestLexicalMatch(queryToken: string, counts: Map<string, number>): { token: string; count: number; similarity: number } | null {
   const exact = counts.get(queryToken);
   if (exact) return { token: queryToken, count: exact, similarity: 1 };
   let best: { token: string; count: number; similarity: number } | null = null;
@@ -634,7 +622,10 @@ function bestLexicalMatch(
   return best;
 }
 
-function sparseLexicalScore(chunks: ChunkRecord[], queryTokens: string[]): Array<{
+function sparseLexicalScore(
+  chunks: ChunkRecord[],
+  queryTokens: string[],
+): Array<{
   chunk: ChunkRecord;
   score: number;
   overlap: number;
@@ -652,10 +643,7 @@ function sparseLexicalScore(chunks: ChunkRecord[], queryTokens: string[]): Array
   for (const token of uniqueQueryTokens) {
     documentFrequency.set(token, chunkTerms.filter((entry) => bestLexicalMatch(token, entry.counts)).length);
   }
-  const averageLength = Math.max(
-    1,
-    chunkTerms.reduce((sum, entry) => sum + entry.tokens.length, 0) / chunkTerms.length,
-  );
+  const averageLength = Math.max(1, chunkTerms.reduce((sum, entry) => sum + entry.tokens.length, 0) / chunkTerms.length);
   const k1 = 1.2;
   const b = 0.75;
   return chunkTerms
@@ -687,42 +675,20 @@ function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   return intersection / (a.size + b.size - intersection);
 }
 
-function rerankAndDiversifyResults(payload: QueryPayload, query: string, topK: number, useMmr: boolean): QueryPayload {
-  if (payload.data.length <= 1) return payload;
-  const queryTokens = tokenizeLexicalQuery(query);
-  const queryTokenSet = new Set(queryTokens);
-  const candidates = payload.data.map((result) => {
-    const tokens = contentTokens(result.chunk_content);
-    let overlap = 0;
-    for (const token of queryTokenSet) {
-      if (tokens.has(token)) overlap += 1;
-    }
-    const rerankScore = result.score + (queryTokens.length ? (overlap / queryTokens.length) * 0.08 : 0);
-    return {
-      result: {
-        ...result,
-        score: rerankScore,
-        metadata: {
-          ...result.metadata,
-          rerank_score: rerankScore,
-          rerank_overlap: overlap,
-        } as JsonRecord,
-      },
-      tokens,
-      score: rerankScore,
-    };
-  }).sort((a, b) => b.score - a.score);
-  if (!useMmr) return { data: candidates.slice(0, topK).map((item) => item.result) };
-  const selected: typeof candidates = [];
+interface MmrCandidate {
+  result: SearchResult;
+  tokens: Set<string>;
+  score: number;
+}
+
+function selectMmrRanked(candidates: MmrCandidate[], topK: number): SearchResult[] {
+  const selected: MmrCandidate[] = [];
   const remaining = [...candidates];
   while (remaining.length > 0 && selected.length < topK) {
     let bestIndex = 0;
     let bestScore = -Infinity;
     for (const [i, candidate] of remaining.entries()) {
-      const maxSimilarity = selected.reduce(
-        (max, item) => Math.max(max, jaccardSimilarity(candidate.tokens, item.tokens)),
-        0,
-      );
+      const maxSimilarity = selected.reduce((max, item) => Math.max(max, jaccardSimilarity(candidate.tokens, item.tokens)), 0);
       const mmrScore = 0.82 * candidate.score - 0.18 * maxSimilarity;
       if (mmrScore > bestScore) {
         bestScore = mmrScore;
@@ -739,39 +705,44 @@ function rerankAndDiversifyResults(payload: QueryPayload, query: string, topK: n
       selected.push(chosen);
     }
   }
-  return { data: selected.map((item) => item.result) };
+  return selected.map((item) => item.result);
+}
+
+function rerankAndDiversifyResults(payload: QueryPayload, query: string, topK: number, useMmr: boolean): QueryPayload {
+  if (payload.data.length <= 1) return payload;
+  const queryTokens = tokenizeLexicalQuery(query);
+  const queryTokenSet = new Set(queryTokens);
+  const candidates = payload.data
+    .map((result) => {
+      const tokens = contentTokens(result.chunk_content);
+      let overlap = 0;
+      for (const token of queryTokenSet) {
+        if (tokens.has(token)) overlap += 1;
+      }
+      const rerankScore = result.score + (queryTokens.length ? (overlap / queryTokens.length) * 0.08 : 0);
+      return {
+        result: {
+          ...result,
+          score: rerankScore,
+          metadata: {
+            ...result.metadata,
+            rerank_score: rerankScore,
+            rerank_overlap: overlap,
+          } as JsonRecord,
+        },
+        tokens,
+        score: rerankScore,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+  if (!useMmr) return { data: candidates.slice(0, topK).map((item) => item.result) };
+  return { data: selectMmrRanked(candidates, topK) };
 }
 
 function diversifyRankedResults(results: SearchResult[], topK: number, useMmr: boolean): QueryPayload {
   if (!useMmr) return { data: results.slice(0, topK) };
   const candidates = results.map((result) => ({ result, tokens: contentTokens(result.chunk_content), score: result.score }));
-  const selected: typeof candidates = [];
-  const remaining = [...candidates];
-  while (remaining.length > 0 && selected.length < topK) {
-    let bestIndex = 0;
-    let bestScore = -Infinity;
-    for (const [i, candidate] of remaining.entries()) {
-      const maxSimilarity = selected.reduce(
-        (max, item) => Math.max(max, jaccardSimilarity(candidate.tokens, item.tokens)),
-        0,
-      );
-      const mmrScore = 0.82 * candidate.score - 0.18 * maxSimilarity;
-      if (mmrScore > bestScore) {
-        bestScore = mmrScore;
-        bestIndex = i;
-      }
-    }
-    const [chosen] = remaining.splice(bestIndex, 1);
-    if (chosen) {
-      chosen.result.metadata = {
-        ...chosen.result.metadata,
-        mmr_score: bestScore,
-        mmr_rank: selected.length + 1,
-      };
-      selected.push(chosen);
-    }
-  }
-  return { data: selected.map((item) => item.result) };
+  return { data: selectMmrRanked(candidates, topK) };
 }
 
 function rerankModelFromBody(body: QueryBody): RerankModel {
@@ -923,11 +894,7 @@ function vectorizeProfileForIndex(env: Env, index: IndexRecord, body: QueryBody 
   return profile;
 }
 
-function embeddingProfileForIndex(
-  env: Env,
-  index: IndexRecord,
-  vectorizeProfile: ConfiguredVectorizeProfile,
-): ResolvedEmbeddingProfile {
+function embeddingProfileForIndex(env: Env, index: IndexRecord, vectorizeProfile: ConfiguredVectorizeProfile): ResolvedEmbeddingProfile {
   const storedModel = index.embedding_model?.trim();
   const useStoredModel = Boolean(storedModel) && index.dimensions === vectorizeProfile.dimensions;
   if (!useStoredModel && vectorizeProfile.key !== vectorizeProfile.semanticModel) {
@@ -965,20 +932,23 @@ function vectorDimensionError(label: string, vector: number[], expectedDimension
 
 function isEmbeddingReadinessError(error: unknown): error is Error {
   if (!(error instanceof Error)) return false;
-  return error.message.includes('embedding model')
-    || error.message.includes('embedding dimensions')
-    || error.message.includes('embedding profile is not configured')
-    || error.message.includes('free-ai model catalog');
+  return (
+    error.message.includes('embedding model') ||
+    error.message.includes('embedding dimensions') ||
+    error.message.includes('embedding profile is not configured') ||
+    error.message.includes('free-ai model catalog')
+  );
 }
 
 async function resolveCreateEmbeddingProfile(env: Env, body: CreateIndexBody): Promise<ResolvedEmbeddingProfile> {
   const requestedModel = body.embedding_model?.trim();
   const requestedProvider = body.embedding_provider?.trim();
-  const explicitProfile = body.embedding_profile === 'small' || body.semantic_model === 'small'
-    ? 'small'
-    : body.embedding_profile === 'base' || body.semantic_model === 'base'
-      ? 'base'
-      : null;
+  const explicitProfile =
+    body.embedding_profile === 'small' || body.semantic_model === 'small'
+      ? 'small'
+      : body.embedding_profile === 'base' || body.semantic_model === 'base'
+        ? 'base'
+        : null;
 
   if (requestedModel && env.RAG_EMBED_PROVIDER !== 'free_ai') {
     throw new Error('embedding_model selection requires RAG_EMBED_PROVIDER=free_ai');
@@ -1068,25 +1038,11 @@ function sharedEmbeddingCacheEnabled(env: Env): boolean {
   return env.RAG_SHARED_EMBEDDING_CACHE_ENABLED === 'true';
 }
 
-function vectorMetadata(
-  tenant: string,
-  indexId: string,
-  documentId: string,
-  chunkIndex: number,
-  content: string,
-  metadata: JsonRecord,
-): JsonRecord {
+function vectorMetadata(tenant: string, indexId: string, documentId: string, chunkIndex: number, content: string, metadata: JsonRecord): JsonRecord {
   const full = buildVectorMetadata(tenant, indexId, documentId, chunkIndex, content, metadata);
   if (jsonByteLength(full) <= VECTOR_METADATA_SAFE_BYTES) return full;
 
-  const compact = buildVectorMetadata(
-    tenant,
-    indexId,
-    documentId,
-    chunkIndex,
-    content,
-    compactChunkMetadataForVectorize(metadata),
-  );
+  const compact = buildVectorMetadata(tenant, indexId, documentId, chunkIndex, content, compactChunkMetadataForVectorize(metadata));
   if (jsonByteLength(compact) <= VECTOR_METADATA_SAFE_BYTES) return compact;
 
   return {
@@ -1100,14 +1056,7 @@ function vectorMetadata(
 
 const VECTOR_METADATA_SAFE_BYTES = 9_500;
 
-function buildVectorMetadata(
-  tenant: string,
-  indexId: string,
-  documentId: string,
-  chunkIndex: number,
-  content: string,
-  metadata: JsonRecord,
-): JsonRecord {
+function buildVectorMetadata(tenant: string, indexId: string, documentId: string, chunkIndex: number, content: string, metadata: JsonRecord): JsonRecord {
   return {
     tenant,
     index_id: indexId,
@@ -1192,9 +1141,7 @@ function searchResultFromVectorMetadata(match: { id: string; score: number; meta
 }
 
 function tokenizeLexicalQuery(query: string): string[] {
-  const tokens = query
-    .toLowerCase()
-    .match(/[a-z0-9][a-z0-9-]{2,}/g);
+  const tokens = query.toLowerCase().match(/[a-z0-9][a-z0-9-]{2,}/g);
   if (!tokens) return [];
   return Array.from(new Set(tokens.filter((token) => !STOP_WORDS.has(token)))).slice(0, 8);
 }
@@ -1221,12 +1168,7 @@ function variantTokenCount(value: string): number {
   return tokenizeLexicalQuery(value).length;
 }
 
-function pushQueryVariant(
-  variants: QueryPlanVariant[],
-  seen: Set<string>,
-  query: string,
-  kind: QueryPlanVariantKind,
-): void {
+function pushQueryVariant(variants: QueryPlanVariant[], seen: Set<string>, query: string, kind: QueryPlanVariantKind): void {
   const normalized = normalizeSemanticQuery(query);
   if (!normalized || seen.has(normalized) || variantTokenCount(normalized) === 0) return;
   variants.push({ query: normalized, kind });
@@ -1257,10 +1199,13 @@ function fuseQueryPlanResults(
   entries: Array<{ query: string; kind: 'original' | QueryPlanVariantKind; payload: QueryPayload | null }>,
   topK: number,
 ): QueryPayload {
-  const fused = new Map<string, SearchResult & {
-    query_plan_sources?: string[];
-    query_plan_score?: number;
-  }>();
+  const fused = new Map<
+    string,
+    SearchResult & {
+      query_plan_sources?: string[];
+      query_plan_score?: number;
+    }
+  >();
   for (const entry of entries) {
     entry.payload?.data.forEach((result, rank) => {
       const source = entry.kind === 'original' ? 'original' : `${entry.kind}:${entry.query}`;
@@ -1311,26 +1256,6 @@ async function deterministicId(prefix: string, value: string): Promise<string> {
   return `${prefix}_${(await sha256Hex(buffer)).slice(0, 32)}`;
 }
 
-function percentile(sorted: number[], p: number): number {
-  if (sorted.length === 0) return 0;
-  const index = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
-  return sorted[index] ?? 0;
-}
-
-function summarizeLatencies(samples: number[]) {
-  const sorted = [...samples].sort((a, b) => a - b);
-  const total = sorted.reduce((sum, value) => sum + value, 0);
-  return {
-    count: sorted.length,
-    min_ms: Math.round((sorted[0] ?? 0) * 100) / 100,
-    p50_ms: Math.round(percentile(sorted, 50) * 100) / 100,
-    p95_ms: Math.round(percentile(sorted, 95) * 100) / 100,
-    p99_ms: Math.round(percentile(sorted, 99) * 100) / 100,
-    max_ms: Math.round((sorted.at(-1) ?? 0) * 100) / 100,
-    mean_ms: Math.round((sorted.length ? total / sorted.length : 0) * 100) / 100,
-  };
-}
-
 function evalMatch(result: SearchResult, testCase: SearchEvalCase): boolean {
   if (testCase.expected_chunk_ids?.includes(result.chunk_id)) return true;
   if (testCase.expected_document_ids?.includes(result.document_id)) return true;
@@ -1340,20 +1265,13 @@ function evalMatch(result: SearchResult, testCase: SearchEvalCase): boolean {
 }
 
 function queryEvalHit(payload: KbAnswerPayload, testCase: QueryEvalCase): boolean {
-  const expectedText = (
-    testCase.expected_answer_text
-    ?? testCase.expected_citation_text
-    ?? testCase.expected_text
-    ?? ''
-  ).trim().toLowerCase();
+  const expectedText = (testCase.expected_answer_text ?? testCase.expected_citation_text ?? testCase.expected_text ?? '').trim().toLowerCase();
   const hasExpectedIds = Boolean(testCase.expected_chunk_ids?.length || testCase.expected_document_ids?.length);
   if (hasExpectedIds && payload.data.some((result) => evalMatch(result, testCase))) return true;
   if (!expectedText) return hasExpectedIds ? false : payload.data.length > 0;
-  const evidenceText = [
-    payload.answer,
-    ...payload.citations.map((citation) => citation.excerpt),
-    ...payload.data.map((item) => item.chunk_content),
-  ].join('\n').toLowerCase();
+  const evidenceText = [payload.answer, ...payload.citations.map((citation) => citation.excerpt), ...payload.data.map((item) => item.chunk_content)]
+    .join('\n')
+    .toLowerCase();
   return evidenceText.includes(expectedText);
 }
 
@@ -1386,7 +1304,11 @@ function visionOcrModelChain(value: string | undefined): string[] {
 }
 
 function normalizeEvalText(value: string): string {
-  return value.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().replace(/\s+/g, ' ').trim();
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function evalTextTokens(value: string): string[] {
@@ -1428,9 +1350,7 @@ function overlapCount(left: string[], right: string[]): number {
 }
 
 function qualityTokens(text: string | null | undefined): string[] {
-  const tokens = (text ?? '')
-    .toLowerCase()
-    .match(/[a-z0-9][a-z0-9-]{2,}/g);
+  const tokens = (text ?? '').toLowerCase().match(/[a-z0-9][a-z0-9-]{2,}/g);
   if (!tokens) return [];
   return Array.from(new Set(tokens.filter((token) => !STOP_WORDS.has(token))));
 }
@@ -1440,16 +1360,9 @@ function roundedRatio(numerator: number, denominator: number): number | null {
   return Math.round((numerator / denominator) * 1000) / 1000;
 }
 
-function answerSupportQuality(
-  answer: string | null | undefined,
-  citations: CitationRecord[],
-  retrieved: SearchResult[],
-): JsonRecord {
+function answerSupportQuality(answer: string | null | undefined, citations: CitationRecord[], retrieved: SearchResult[]): JsonRecord {
   const answerTokens = qualityTokens(answer);
-  const evidenceText = [
-    ...citations.map((citation) => citation.excerpt),
-    ...retrieved.map((result) => result.chunk_content),
-  ].join('\n');
+  const evidenceText = [...citations.map((citation) => citation.excerpt), ...retrieved.map((result) => result.chunk_content)].join('\n');
   const evidenceTokens = new Set(qualityTokens(evidenceText));
   const supportedTokens = answerTokens.filter((token) => evidenceTokens.has(token));
   const unsupportedTokens = answerTokens.filter((token) => !evidenceTokens.has(token));
@@ -1472,15 +1385,16 @@ function answerSupportQuality(
     };
   });
   const coverage = roundedRatio(supportedTokens.length, answerTokens.length);
-  const status = !answer || answerTokens.length === 0
-    ? 'no_answer'
-    : citations.length === 0
-      ? 'no_citations'
-      : (coverage ?? 0) >= 0.65
-        ? 'supported'
-        : (coverage ?? 0) >= 0.35
-          ? 'partial'
-          : 'weak';
+  const status =
+    !answer || answerTokens.length === 0
+      ? 'no_answer'
+      : citations.length === 0
+        ? 'no_citations'
+        : (coverage ?? 0) >= 0.65
+          ? 'supported'
+          : (coverage ?? 0) >= 0.35
+            ? 'partial'
+            : 'weak';
   return {
     status,
     answer_token_count: answerTokens.length,
@@ -1499,13 +1413,16 @@ function confidenceWithVerification(confidence: JsonRecord, quality: JsonRecord)
   const coverage = typeof quality.citation_coverage === 'number' ? quality.citation_coverage : null;
   const status = typeof quality.status === 'string' ? quality.status : 'unknown';
   const currentLevel = typeof confidence.level === 'string' ? confidence.level : 'low';
-  const verifiedLevel = status === 'supported'
-    ? currentLevel
-    : status === 'partial'
-      ? currentLevel === 'high' ? 'medium' : currentLevel
-      : status === 'no_answer' || status === 'no_citations'
-        ? 'none'
-        : 'low';
+  const verifiedLevel =
+    status === 'supported'
+      ? currentLevel
+      : status === 'partial'
+        ? currentLevel === 'high'
+          ? 'medium'
+          : currentLevel
+        : status === 'no_answer' || status === 'no_citations'
+          ? 'none'
+          : 'low';
   return {
     ...confidence,
     level: verifiedLevel,
@@ -1544,9 +1461,7 @@ function aiTextResponse(response: unknown): string {
 // otherwise use Cloudflare Workers AI. Matches the embedTexts signature so it
 // drops into the createApp `embed` dependency.
 function defaultEmbed(env: Env, texts: string[], options: EmbeddingCallOptions = {}): Promise<number[][]> {
-  return env.RAG_EMBED_PROVIDER === 'free_ai'
-    ? freeAiEmbed(env, texts, options)
-    : embedTexts(env, texts, options);
+  return env.RAG_EMBED_PROVIDER === 'free_ai' ? freeAiEmbed(env, texts, options) : embedTexts(env, texts, options);
 }
 
 // Chat/synthesis provider seam: free-ai gateway or Workers AI. Both return a
@@ -1570,13 +1485,13 @@ async function runAiChat(
 function parseJudgeJson(text: string): JsonRecord | null {
   try {
     const parsed = JSON.parse(text) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as JsonRecord : null;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as JsonRecord) : null;
   } catch {
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return null;
     try {
       const parsed = JSON.parse(match[0]) as unknown;
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as JsonRecord : null;
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as JsonRecord) : null;
     } catch {
       return null;
     }
@@ -1610,9 +1525,7 @@ async function synthesizeAnswerWithAi(input: {
   retrieved: SearchResult[];
   model?: string | undefined;
 }): Promise<{ answer: string; model: string }> {
-  const model = freeAiSynthEnabled(input.env)
-    ? freeAiSynthModel(input.env)
-    : input.model?.trim() || input.env.RAG_ANSWER_MODEL?.trim() || DEFAULT_ANSWER_MODEL;
+  const model = freeAiSynthEnabled(input.env) ? freeAiSynthModel(input.env) : input.model?.trim() || input.env.RAG_ANSWER_MODEL?.trim() || DEFAULT_ANSWER_MODEL;
   const evidence = boundedEvidenceText(input.citations, input.retrieved);
   const response = await runAiChat(input.env, model, {
     messages: [
@@ -1629,11 +1542,7 @@ async function synthesizeAnswerWithAi(input: {
         content: JSON.stringify({
           question: input.question,
           evidence,
-          instructions: [
-            'Return a concise answer.',
-            'Use only citation ids present in the evidence.',
-            'Do not mention evidence ids that are not provided.',
-          ],
+          instructions: ['Return a concise answer.', 'Use only citation ids present in the evidence.', 'Do not mention evidence ids that are not provided.'],
         }),
       },
     ],
@@ -1696,10 +1605,7 @@ async function answerFromEvidence(input: {
   }
   return {
     answer,
-    confidence: confidenceWithVerification(
-      input.baseConfidence,
-      answerSupportQuality(answer, input.citations, input.retrieved),
-    ),
+    confidence: confidenceWithVerification(input.baseConfidence, answerSupportQuality(answer, input.citations, input.retrieved)),
     answerMode,
     answerModel,
     aiUsed,
@@ -1716,9 +1622,7 @@ async function judgeAnswerWithAi(input: {
   retrieved: SearchResult[];
   model?: string;
 }): Promise<JsonRecord> {
-  const model = freeAiSynthEnabled(input.env)
-    ? freeAiSynthModel(input.env)
-    : input.model?.trim() || DEFAULT_EVAL_JUDGE_MODEL;
+  const model = freeAiSynthEnabled(input.env) ? freeAiSynthModel(input.env) : input.model?.trim() || DEFAULT_EVAL_JUDGE_MODEL;
   const evidence = boundedEvidenceText(input.citations, input.retrieved);
   const response = await runAiChat(input.env, model, {
     messages: [
@@ -1760,16 +1664,8 @@ async function judgeAnswerWithAi(input: {
     },
   });
   const parsed = parseJudgeJson(aiTextResponse(response));
-  const status = typeof parsed?.status === 'string' && ['supported', 'partial', 'unsupported'].includes(parsed.status)
-    ? parsed.status
-    : 'unsupported';
-  const score = typeof parsed?.score === 'number'
-    ? Math.min(1, Math.max(0, parsed.score))
-    : status === 'supported'
-      ? 1
-      : status === 'partial'
-        ? 0.5
-        : 0;
+  const status = typeof parsed?.status === 'string' && ['supported', 'partial', 'unsupported'].includes(parsed.status) ? parsed.status : 'unsupported';
+  const score = typeof parsed?.score === 'number' ? Math.min(1, Math.max(0, parsed.score)) : status === 'supported' ? 1 : status === 'partial' ? 0.5 : 0;
   return {
     model_judged: true,
     model_judge_model: model,
@@ -1816,10 +1712,7 @@ function compareTraces(baseline: QueryTraceRecord, candidate: QueryTraceRecord):
       candidate: traceRoute(candidate),
       changed: traceRoute(baseline) !== traceRoute(candidate),
     },
-    latency_delta_ms:
-      typeof baseline.latency_ms === 'number' && typeof candidate.latency_ms === 'number'
-        ? candidate.latency_ms - baseline.latency_ms
-        : null,
+    latency_delta_ms: typeof baseline.latency_ms === 'number' && typeof candidate.latency_ms === 'number' ? candidate.latency_ms - baseline.latency_ms : null,
     retrieved: {
       baseline_count: baselineIds.length,
       candidate_count: candidateIds.length,
@@ -1853,13 +1746,7 @@ function summarizeIngestRun(runId: string, jobs: IngestJobRecord[]): JsonRecord 
   const failed = by_status.failed ?? 0;
   const completed = succeeded + failed;
   const active = total - completed;
-  const state = total === 0
-    ? 'not_found'
-    : active > 0
-      ? 'running'
-      : failed > 0
-        ? 'failed'
-        : 'succeeded';
+  const state = total === 0 ? 'not_found' : active > 0 ? 'running' : failed > 0 ? 'failed' : 'succeeded';
   return {
     run_id: runId,
     state,
@@ -1878,7 +1765,7 @@ function summarizeIngestRun(runId: string, jobs: IngestJobRecord[]): JsonRecord 
 }
 
 function classifyIngestFailure(error: unknown): JsonRecord {
-  const message = String(error instanceof Error ? error.message : error ?? '').trim();
+  const message = String(error instanceof Error ? error.message : (error ?? '')).trim();
   const lower = message.toLowerCase();
   let category = 'unknown';
   let retryable = true;
@@ -1895,10 +1782,12 @@ function classifyIngestFailure(error: unknown): JsonRecord {
     retryable = false;
   } else if (lower.includes('parse timed out') || lower.includes('parse timeout')) {
     category = 'parse_timeout';
-  } else if (lower.includes('schema')
-    || lower.includes('domain is required')
-    || lower.includes('document content is required')
-    || lower.includes('data must contain at least one record')) {
+  } else if (
+    lower.includes('schema') ||
+    lower.includes('domain is required') ||
+    lower.includes('document content is required') ||
+    lower.includes('data must contain at least one record')
+  ) {
     category = 'validation';
     retryable = false;
   }
@@ -1920,28 +1809,20 @@ function isIngestJobLeaseActive(job: IngestJobRecord, now: number, leaseMs: numb
 function withParseTimeout<T>(promise: Promise<T>, timeoutMs: number, filename: string): Promise<T> {
   return Promise.race([
     promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`parse timed out after ${timeoutMs}ms for ${filename}`)), timeoutMs),
-    ),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`parse timed out after ${timeoutMs}ms for ${filename}`)), timeoutMs)),
   ]);
 }
 
 function chunkPreviewFromChunks(chunks: Array<{ id?: string; content?: string; chunkIndex?: number; chunk_index?: number }>, limit = 3): JsonRecord[] {
   return chunks.slice(0, limit).map((chunk, index) => ({
     chunk_id: chunk.id ?? null,
-    chunk_index: typeof chunk.chunkIndex === 'number'
-      ? chunk.chunkIndex
-      : typeof chunk.chunk_index === 'number'
-        ? chunk.chunk_index
-        : index,
+    chunk_index: typeof chunk.chunkIndex === 'number' ? chunk.chunkIndex : typeof chunk.chunk_index === 'number' ? chunk.chunk_index : index,
     text_preview: String(chunk.content ?? '').slice(0, 240),
   }));
 }
 
 function chunkPreviewFromFileResults(files: JsonRecord[], limit = 3): JsonRecord[] {
-  return files.flatMap((file) => (
-    Array.isArray(file.chunk_preview) ? file.chunk_preview.map(jsonRecord) : []
-  )).slice(0, limit);
+  return files.flatMap((file) => (Array.isArray(file.chunk_preview) ? file.chunk_preview.map(jsonRecord) : [])).slice(0, limit);
 }
 
 function ingestSafetyEvidence(input: {
@@ -1979,33 +1860,39 @@ function summarizeSourceSets(files: FileRecord[]): JsonRecord[] {
     rows.push(file);
     grouped.set(file.domain, rows);
   }
-  return [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([domain, rows]) => {
-    const by_status: Record<string, number> = {};
-    const by_mime: Record<string, number> = {};
-    let bytes = 0;
-    for (const file of rows) {
-      by_status[file.status] = (by_status[file.status] ?? 0) + 1;
-      by_mime[file.mime || 'unknown'] = (by_mime[file.mime || 'unknown'] ?? 0) + 1;
-      bytes += file.bytes;
-    }
-    const failed = by_status.failed ?? 0;
-    const pending = by_status.pending ?? 0;
-    const indexing = by_status.indexing ?? 0;
-    const lastUpdated = rows.map((file) => file.updated_at).sort().at(-1) ?? null;
-    return {
-      id: sourceSetId(domain),
-      domain,
-      file_count: rows.length,
-      bytes,
-      by_status,
-      by_mime,
-      failed_files: failed,
-      pending_files: pending,
-      active_files: indexing,
-      attention_files: failed + pending + indexing,
-      last_updated_at: lastUpdated,
-    };
-  });
+  return [...grouped.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([domain, rows]) => {
+      const by_status: Record<string, number> = {};
+      const by_mime: Record<string, number> = {};
+      let bytes = 0;
+      for (const file of rows) {
+        by_status[file.status] = (by_status[file.status] ?? 0) + 1;
+        by_mime[file.mime || 'unknown'] = (by_mime[file.mime || 'unknown'] ?? 0) + 1;
+        bytes += file.bytes;
+      }
+      const failed = by_status.failed ?? 0;
+      const pending = by_status.pending ?? 0;
+      const indexing = by_status.indexing ?? 0;
+      const lastUpdated =
+        rows
+          .map((file) => file.updated_at)
+          .sort()
+          .at(-1) ?? null;
+      return {
+        id: sourceSetId(domain),
+        domain,
+        file_count: rows.length,
+        bytes,
+        by_status,
+        by_mime,
+        failed_files: failed,
+        pending_files: pending,
+        active_files: indexing,
+        attention_files: failed + pending + indexing,
+        last_updated_at: lastUpdated,
+      };
+    });
 }
 
 function filesForSourceSetAction(files: FileRecord[], action: string): FileRecord[] {
@@ -2066,7 +1953,10 @@ function writeTraceAnalytics(env: Env, trace: QueryTraceRecord): void {
   });
 }
 
-function writeEvalReportAnalytics(env: Env, report: { id: string; project: string; domain: string | null; index_id: string | null; kind: string; summary: JsonRecord }): void {
+function writeEvalReportAnalytics(
+  env: Env,
+  report: { id: string; project: string; domain: string | null; index_id: string | null; kind: string; summary: JsonRecord },
+): void {
   writeAnalyticsPoint(env, {
     indexes: [report.project],
     blobs: [
@@ -2107,28 +1997,28 @@ function summarizeEvalReports(reports: Array<{ kind: string; domain: string | nu
     bucket.push(report);
     byGroup.set(key, bucket);
   }
-  return [...byGroup.values()].map((items) => {
-    const sorted = [...items].sort((a, b) => b.created_at.localeCompare(a.created_at));
-    const latest = sorted[0];
-    return {
-      kind: latest?.kind ?? null,
-      domain: latest?.domain ?? null,
-      report_count: items.length,
-      latest_created_at: latest?.created_at ?? null,
-      avg_hit_rate: average(items.map((item) => numberFromRecord(item.summary, 'hit_rate'))),
-      avg_mrr: average(items.map((item) => numberFromRecord(item.summary, 'mrr'))),
-      avg_citation_rate: average(items.map((item) => numberFromRecord(item.summary, 'citation_rate'))),
-      avg_faithfulness_rate: average(items.map((item) => numberFromRecord(item.summary, 'faithfulness_rate'))),
-	      avg_faithfulness_score: average(items.map((item) => numberFromRecord(item.summary, 'avg_faithfulness_score'))),
-	      avg_unsupported_answer_tokens: average(items.map((item) => numberFromRecord(item.summary, 'avg_unsupported_answer_tokens'))),
-	      avg_ai_use_rate: average(items.map((item) => numberFromRecord(item.summary, 'ai_use_rate'))),
-	      avg_model_judge_score: average(items.map((item) => numberFromRecord(item.summary, 'avg_model_judge_score'))),
-	      avg_p95_ms: average(items.map((item) => latencyP95(item.summary))),
-      latest_summary: latest?.summary ?? null,
-    };
-  }).sort((a, b) =>
-    String(a.kind).localeCompare(String(b.kind)) || String(a.domain ?? '').localeCompare(String(b.domain ?? '')),
-  );
+  return [...byGroup.values()]
+    .map((items) => {
+      const sorted = [...items].sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const latest = sorted[0];
+      return {
+        kind: latest?.kind ?? null,
+        domain: latest?.domain ?? null,
+        report_count: items.length,
+        latest_created_at: latest?.created_at ?? null,
+        avg_hit_rate: average(items.map((item) => numberFromRecord(item.summary, 'hit_rate'))),
+        avg_mrr: average(items.map((item) => numberFromRecord(item.summary, 'mrr'))),
+        avg_citation_rate: average(items.map((item) => numberFromRecord(item.summary, 'citation_rate'))),
+        avg_faithfulness_rate: average(items.map((item) => numberFromRecord(item.summary, 'faithfulness_rate'))),
+        avg_faithfulness_score: average(items.map((item) => numberFromRecord(item.summary, 'avg_faithfulness_score'))),
+        avg_unsupported_answer_tokens: average(items.map((item) => numberFromRecord(item.summary, 'avg_unsupported_answer_tokens'))),
+        avg_ai_use_rate: average(items.map((item) => numberFromRecord(item.summary, 'ai_use_rate'))),
+        avg_model_judge_score: average(items.map((item) => numberFromRecord(item.summary, 'avg_model_judge_score'))),
+        avg_p95_ms: average(items.map((item) => latencyP95(item.summary))),
+        latest_summary: latest?.summary ?? null,
+      };
+    })
+    .sort((a, b) => String(a.kind).localeCompare(String(b.kind)) || String(a.domain ?? '').localeCompare(String(b.domain ?? '')));
 }
 
 function oneLineExcerpt(text: string, maxLength = 420): string {
@@ -2155,7 +2045,11 @@ function sentenceSpans(text: string): string[] {
     .filter(Boolean);
 }
 
-function bestEvidenceSpan(text: string, question: string | undefined, maxLength = 420): {
+function bestEvidenceSpan(
+  text: string,
+  question: string | undefined,
+  maxLength = 420,
+): {
   excerpt: string;
   terms: string[];
 } {
@@ -2237,8 +2131,7 @@ function strongLexicalFastPath(payload: QueryPayload | null): boolean {
   const top = payload?.data[0];
   if (!top) return false;
   const overlap = typeof top.metadata?.lexical_overlap === 'number' ? top.metadata.lexical_overlap : 0;
-  return top.score >= SEMANTIC_LEXICAL_FAST_PATH_MIN_SCORE
-    && overlap >= SEMANTIC_LEXICAL_FAST_PATH_MIN_OVERLAP;
+  return top.score >= SEMANTIC_LEXICAL_FAST_PATH_MIN_SCORE && overlap >= SEMANTIC_LEXICAL_FAST_PATH_MIN_OVERLAP;
 }
 
 function searchResultFromEntity(entity: EntityRecord, score: number, route = 'd1_entities', extraMetadata: JsonRecord = {}): SearchResult {
@@ -2282,7 +2175,8 @@ function fieldMatches(value: unknown, expected: string): boolean {
 
 function parseStructuredFieldFilters(question: string): Array<{ field: string; normalized_field: string; value: string }> {
   const filters: Array<{ field: string; normalized_field: string; value: string }> = [];
-  const pattern = /\b([a-zA-Z_][a-zA-Z0-9_ -]{1,40})\s*(?::|=|\bis\b|\bequals\b)\s*["']?([^"',?;\n]+?)["']?(?=\s+(?:and|or)\s+[a-zA-Z_][a-zA-Z0-9_ -]{1,40}\s*(?::|=|\bis\b|\bequals\b)|[?;,\n]|$)/gi;
+  const pattern =
+    /\b([a-zA-Z_][a-zA-Z0-9_ -]{1,40})\s*(?::|=|\bis\b|\bequals\b)\s*["']?([^"',?;\n]+?)["']?(?=\s+(?:and|or)\s+[a-zA-Z_][a-zA-Z0-9_ -]{1,40}\s*(?::|=|\bis\b|\bequals\b)|[?;,\n]|$)/gi;
   for (const match of question.matchAll(pattern)) {
     const field = (match[1] ?? '').trim();
     const value = (match[2] ?? '').trim();
@@ -2303,9 +2197,9 @@ async function structuredFieldQueryResults(
   const filters = parseStructuredFieldFilters(question);
   if (filters.length === 0) return { filters: [], entities: [] };
   const entities = await repo.listEntities(tenant, domain, undefined, 500);
-  const matches = entities.filter((entity) =>
-    filters.every((filter) => fieldMatches(entityFieldValue(entity, filter.normalized_field), filter.value)),
-  ).slice(0, limit);
+  const matches = entities
+    .filter((entity) => filters.every((filter) => fieldMatches(entityFieldValue(entity, filter.normalized_field), filter.value)))
+    .slice(0, limit);
   if (matches.length === 0) return { filters: [], entities: [] };
   return {
     filters: filters.map((filter) => ({ field: filter.field, normalized_field: filter.normalized_field, value: filter.value })),
@@ -2313,11 +2207,7 @@ async function structuredFieldQueryResults(
   };
 }
 
-function searchResultFromRelationship(
-  relationship: EntityRelationshipRecord,
-  entitiesById: Map<string, EntityRecord>,
-  score: number,
-): SearchResult {
+function searchResultFromRelationship(relationship: EntityRelationshipRecord, entitiesById: Map<string, EntityRecord>, score: number): SearchResult {
   const source = entitiesById.get(relationship.src_id);
   const target = entitiesById.get(relationship.dst_id);
   const sourceLabel = source?.display_name ?? source?.identity_key ?? relationship.src_id;
@@ -2344,16 +2234,10 @@ function searchResultFromRelationship(
   };
 }
 
-async function graphResultsForEntities(
-  repo: MetadataRepository,
-  tenant: string,
-  domain: string,
-  entities: EntityRecord[],
-  limit = 8,
-): Promise<SearchResult[]> {
+async function graphResultsForEntities(repo: MetadataRepository, tenant: string, domain: string, entities: EntityRecord[], limit = 8): Promise<SearchResult[]> {
   const relationships: EntityRelationshipRecord[] = [];
   for (const entity of entities.slice(0, 5)) {
-    relationships.push(...await repo.listRelationships(tenant, domain, undefined, entity.id, limit));
+    relationships.push(...(await repo.listRelationships(tenant, domain, undefined, entity.id, limit)));
   }
   const unique = new Map<string, EntityRelationshipRecord>();
   for (const relationship of relationships) {
@@ -2371,9 +2255,7 @@ async function graphResultsForEntities(
       if (entityIds.has(entity.id)) knownEntities.set(entity.id, entity);
     }
   }
-  return [...unique.values()]
-    .slice(0, limit)
-    .map((relationship, i) => searchResultFromRelationship(relationship, knownEntities, 0.9 / (i + 1)));
+  return [...unique.values()].slice(0, limit).map((relationship, i) => searchResultFromRelationship(relationship, knownEntities, 0.9 / (i + 1)));
 }
 
 function answerFromStructuredEntities(question: string, citations: CitationRecord[]): string {
@@ -2381,9 +2263,7 @@ function answerFromStructuredEntities(question: string, citations: CitationRecor
     return `I cannot answer "${question}" from structured entities in this domain.`;
   }
   const strongest = citations.slice(0, 3).map((citation) => {
-    const label = stringMetadata(citation.metadata.display_name)
-      ?? stringMetadata(citation.metadata.identity_key)
-      ?? citation.document_id;
+    const label = stringMetadata(citation.metadata.display_name) ?? stringMetadata(citation.metadata.identity_key) ?? citation.document_id;
     return `${label}: ${citation.excerpt} [${citation.index}]`;
   });
   return strongest.join(' ');
@@ -2398,14 +2278,14 @@ function contextWithIndex(c: AppContext, indexId: string): AppContext {
     ...c,
     req: {
       ...c.req,
-      param: (name: string) => name === 'id' ? indexId : c.req.param(name),
+      param: (name: string) => (name === 'id' ? indexId : c.req.param(name)),
     },
   } as AppContext;
 }
 
 function recordFromDocumentMetadata(metadata: JsonRecord): JsonRecord | null {
   const record = metadata.record;
-  return record && typeof record === 'object' && !Array.isArray(record) ? record as JsonRecord : null;
+  return record && typeof record === 'object' && !Array.isArray(record) ? (record as JsonRecord) : null;
 }
 
 function parseArtifactKey(domain: string, contentHash: string): string {
@@ -2433,9 +2313,7 @@ function filenameForImportedUrl(rawUrl: string, contentType: string | null): str
 }
 
 function secUserAgent(env: Env, config?: SourceImportBody['config']): string {
-  return config?.user_agent?.trim()
-    || env.RAG_SEC_USER_AGENT?.trim()
-    || 'knowledgebase-rag-service contact@example.invalid';
+  return config?.user_agent?.trim() || env.RAG_SEC_USER_AGENT?.trim() || 'knowledgebase-rag-service contact@example.invalid';
 }
 
 function secHeaders(userAgent: string): HeadersInit {
@@ -2476,7 +2354,7 @@ function filingWithinDays(filingDate: string, days: number): boolean {
 async function fetchJson<T>(url: string, userAgent: string): Promise<T> {
   const response = await fetch(url, { headers: secHeaders(userAgent) });
   if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
-  return await response.json() as T;
+  return (await response.json()) as T;
 }
 
 async function secTickerLookup(userAgent: string): Promise<Map<string, EdgarTickerRow>> {
@@ -2497,10 +2375,7 @@ async function edgarCandidatesForCompany(input: {
   perTickerPerForm: number;
   remaining: number;
 }): Promise<EdgarFilingCandidate[]> {
-  const submissions = await fetchJson<EdgarSubmissionsResponse>(
-    `https://data.sec.gov/submissions/CIK${input.cik}.json`,
-    input.userAgent,
-  );
+  const submissions = await fetchJson<EdgarSubmissionsResponse>(`https://data.sec.gov/submissions/CIK${input.cik}.json`, input.userAgent);
   const recent = submissions.filings?.recent ?? {};
   const forms = asStringArray(recent.form);
   const seenPerForm = new Map<string, number>();
@@ -2538,11 +2413,7 @@ function isQueryPayload(value: unknown): value is QueryPayload {
   return Boolean(value && typeof value === 'object' && Array.isArray((value as QueryPayload).data));
 }
 
-function withTimingHeaders(
-  timing: RagTiming,
-  cache: CacheStatus,
-  started: number,
-): Record<string, string> {
+function withTimingHeaders(timing: RagTiming, cache: CacheStatus, started: number): Record<string, string> {
   timing.cache = cache;
   timing.total_ms = elapsedMs(started);
   const serverTiming = Object.entries(timing)
@@ -2625,9 +2496,10 @@ async function workerHealth(env: Env): Promise<WorkerHealthPayload> {
 function readyzPayload(health: WorkerHealthPayload): JsonRecord {
   return {
     status: health.ok && health.vectorize && health.r2 ? 'ok' : 'degraded',
-    db: health.error && !health.d1_schema_check_skipped
-      ? { ok: false, schema_ok: health.d1_schema, error: health.error.slice(0, 200) }
-      : { ok: health.d1, schema_ok: health.d1_schema, schema_check_skipped: health.d1_schema_check_skipped === true },
+    db:
+      health.error && !health.d1_schema_check_skipped
+        ? { ok: false, schema_ok: health.d1_schema, error: health.error.slice(0, 200) }
+        : { ok: health.d1, schema_ok: health.d1_schema, schema_check_skipped: health.d1_schema_check_skipped === true },
     vector: { ok: health.vectorize, backend: 'vectorize' },
     object: { ok: health.r2, backend: 'r2' },
     worker: { version: health.version, deploy_fingerprint: health.deploy_fingerprint },
@@ -2838,13 +2710,7 @@ export function createApp(options: AppOptions = {}) {
     return true;
   }
 
-  async function embedOne(
-    env: Env,
-    tenant: string,
-    text: string,
-    profile: ResolvedEmbeddingProfile,
-    timing?: RagTiming,
-  ): Promise<number[]> {
+  async function embedOne(env: Env, tenant: string, text: string, profile: ResolvedEmbeddingProfile, timing?: RagTiming): Promise<number[]> {
     const started = performance.now();
     embeddingCache.configure(parseCacheOptions(env));
     const key = buildCacheKey({ model: profile.model, provider: profile.provider ?? null, dimensions: profile.dimensions, tenant, text });
@@ -2879,13 +2745,7 @@ export function createApp(options: AppOptions = {}) {
     return vector;
   }
 
-  async function rerankWithWorkersAi(
-    env: Env,
-    payload: QueryPayload,
-    query: string,
-    body: QueryBody,
-    timing: RagTiming,
-  ): Promise<QueryPayload> {
+  async function rerankWithWorkersAi(env: Env, payload: QueryPayload, query: string, body: QueryBody, timing: RagTiming): Promise<QueryPayload> {
     const topK = clampTopK(body.top_k);
     if (payload.data.length <= 1) return payload;
     const started = performance.now();
@@ -2906,17 +2766,19 @@ export function createApp(options: AppOptions = {}) {
         .flatMap((row, i) => {
           const result = candidates[row.id];
           if (!result) return [];
-          return [{
-            ...result,
-            score: row.score,
-            metadata: {
-              ...result.metadata,
-              retrieval_score: result.score,
-              neural_rerank_model: DEFAULT_RERANKER_MODEL,
-              neural_rerank_score: row.score,
-              neural_rerank_rank: i + 1,
-            } as JsonRecord,
-          }];
+          return [
+            {
+              ...result,
+              score: row.score,
+              metadata: {
+                ...result.metadata,
+                retrieval_score: result.score,
+                neural_rerank_model: DEFAULT_RERANKER_MODEL,
+                neural_rerank_score: row.score,
+                neural_rerank_rank: i + 1,
+              } as JsonRecord,
+            },
+          ];
         });
       if (scored.length === 0) throw new Error('Workers AI reranker response was empty');
       timing.rerank = body.mmr === false ? 'workers_ai' : 'workers_ai_mmr';
@@ -2951,23 +2813,16 @@ export function createApp(options: AppOptions = {}) {
     return rerankAndDiversifyResults(payload, query, clampTopK(body.top_k), body.mmr !== false);
   }
 
-  async function getSharedQueryCache(
-    env: Env,
-    tenant: string,
-    indexId: string,
-    cacheKey: string,
-    timing?: RagTiming,
-  ): Promise<QueryPayload | null> {
+  async function getSharedQueryCache(env: Env, tenant: string, indexId: string, cacheKey: string, timing?: RagTiming): Promise<QueryPayload | null> {
     if (!sharedQueryCacheEnabled(env)) return null;
     if (!parseCacheOptions(env).enabled) return null;
     const started = performance.now();
     try {
-      const row = await env.DB
-        .prepare(
-          `SELECT payload
+      const row = await env.DB.prepare(
+        `SELECT payload
              FROM query_cache
             WHERE cache_key = ? AND tenant = ? AND index_id = ? AND expires_at > ?`,
-        )
+      )
         .bind(cacheKey, tenant, indexId, Date.now())
         .first<{ payload: string }>();
       if (!row?.payload) return null;
@@ -2980,22 +2835,15 @@ export function createApp(options: AppOptions = {}) {
     }
   }
 
-  async function setSharedQueryCache(
-    env: Env,
-    tenant: string,
-    indexId: string,
-    cacheKey: string,
-    payload: QueryPayload,
-  ): Promise<void> {
+  async function setSharedQueryCache(env: Env, tenant: string, indexId: string, cacheKey: string, payload: QueryPayload): Promise<void> {
     if (!sharedQueryCacheEnabled(env)) return;
     const cacheOptions = parseCacheOptions(env);
     if (!cacheOptions.enabled) return;
     try {
-      await env.DB
-        .prepare(
-          `INSERT OR REPLACE INTO query_cache (cache_key, tenant, index_id, payload, expires_at)
+      await env.DB.prepare(
+        `INSERT OR REPLACE INTO query_cache (cache_key, tenant, index_id, payload, expires_at)
            VALUES (?, ?, ?, ?, ?)`,
-        )
+      )
         .bind(cacheKey, tenant, indexId, JSON.stringify(payload), Date.now() + cacheOptions.ttlMs)
         .run();
     } catch {
@@ -3005,31 +2853,22 @@ export function createApp(options: AppOptions = {}) {
 
   async function clearSharedQueryCache(env: Env, tenant: string, indexId: string): Promise<void> {
     try {
-      await env.DB
-        .prepare('DELETE FROM query_cache WHERE tenant = ? AND index_id = ?')
-        .bind(tenant, indexId)
-        .run();
+      await env.DB.prepare('DELETE FROM query_cache WHERE tenant = ? AND index_id = ?').bind(tenant, indexId).run();
     } catch {
       // Best effort cache invalidation; in-memory cache is cleared separately.
     }
   }
 
-  async function getSharedEmbeddingCache(
-    env: Env,
-    tenant: string,
-    cacheKey: string,
-    timing?: RagTiming,
-  ): Promise<number[] | null> {
+  async function getSharedEmbeddingCache(env: Env, tenant: string, cacheKey: string, timing?: RagTiming): Promise<number[] | null> {
     if (!sharedEmbeddingCacheEnabled(env)) return null;
     if (!parseCacheOptions(env).enabled) return null;
     const started = performance.now();
     try {
-      const row = await env.DB
-        .prepare(
-          `SELECT vector
+      const row = await env.DB.prepare(
+        `SELECT vector
              FROM embedding_cache
             WHERE cache_key = ? AND tenant = ? AND expires_at > ?`,
-        )
+      )
         .bind(cacheKey, tenant, Date.now())
         .first<{ vector: string }>();
       if (!row?.vector) return null;
@@ -3042,32 +2881,17 @@ export function createApp(options: AppOptions = {}) {
     }
   }
 
-  async function setSharedEmbeddingCache(
-    env: Env,
-    tenant: string,
-    cacheKey: string,
-    profile: ResolvedEmbeddingProfile,
-    vector: number[],
-  ): Promise<void> {
+  async function setSharedEmbeddingCache(env: Env, tenant: string, cacheKey: string, profile: ResolvedEmbeddingProfile, vector: number[]): Promise<void> {
     if (!sharedEmbeddingCacheEnabled(env)) return;
     const cacheOptions = parseCacheOptions(env);
     if (!cacheOptions.enabled) return;
     try {
-      await env.DB
-        .prepare(
-          `INSERT OR REPLACE INTO embedding_cache
+      await env.DB.prepare(
+        `INSERT OR REPLACE INTO embedding_cache
              (cache_key, tenant, model, provider, dimensions, vector, expires_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .bind(
-          cacheKey,
-          tenant,
-          profile.model,
-          profile.provider ?? null,
-          profile.dimensions,
-          JSON.stringify(vector),
-          Date.now() + cacheOptions.ttlMs,
-        )
+      )
+        .bind(cacheKey, tenant, profile.model, profile.provider ?? null, profile.dimensions, JSON.stringify(vector), Date.now() + cacheOptions.ttlMs)
         .run();
     } catch {
       // Embedding caching is an optimization. A missing migration or transient D1 write failure should not fail retrieval.
@@ -3085,13 +2909,20 @@ export function createApp(options: AppOptions = {}) {
     }
   }
 
-  async function deleteKbFiles(env: Env, tenant: string, files: FileRecord[]): Promise<{
+  async function deleteKbFiles(
+    env: Env,
+    tenant: string,
+    files: FileRecord[],
+  ): Promise<{
     deletedFiles: FileRecord[];
     deletedVectors: number;
   }> {
     const metadataRepo = makeMetadataRepository(env);
     const ragRepo = makeRepository(env);
-    const vectorIds = await metadataRepo.listKbChunkVectorIds(tenant, files.map((file) => file.id));
+    const vectorIds = await metadataRepo.listKbChunkVectorIds(
+      tenant,
+      files.map((file) => file.id),
+    );
     if (vectorIds.length > 0) {
       await deleteVectorsFromAllProfiles(env, vectorIds);
       await ragRepo.deleteChunksByIds(tenant, vectorIds);
@@ -3103,7 +2934,10 @@ export function createApp(options: AppOptions = {}) {
         if (artifact) await env.RAW_DOCS.delete(artifact.object_key);
       }
     }
-    const deletedFiles = await metadataRepo.deleteFiles(tenant, files.map((file) => file.id));
+    const deletedFiles = await metadataRepo.deleteFiles(
+      tenant,
+      files.map((file) => file.id),
+    );
     for (const domain of new Set(files.map((file) => file.domain))) {
       await clearKbDomainCaches(env, tenant, domain);
     }
@@ -3115,26 +2949,19 @@ export function createApp(options: AppOptions = {}) {
     tenant: string,
     relationships: Awaited<ReturnType<MetadataRepository['listRelationships']>>,
   ): Promise<typeof relationships> {
-    return await Promise.all(relationships.map(async (relationship) => {
-      const [src, dst] = await Promise.all([
-        metadataRepo.getEntity(tenant, relationship.src_id),
-        metadataRepo.getEntity(tenant, relationship.dst_id),
-      ]);
-      return {
-        ...relationship,
-        src_name: src?.display_name ?? src?.identity_key ?? null,
-        dst_name: dst?.display_name ?? dst?.identity_key ?? null,
-      };
-    }));
+    return await Promise.all(
+      relationships.map(async (relationship) => {
+        const [src, dst] = await Promise.all([metadataRepo.getEntity(tenant, relationship.src_id), metadataRepo.getEntity(tenant, relationship.dst_id)]);
+        return {
+          ...relationship,
+          src_name: src?.display_name ?? src?.identity_key ?? null,
+          dst_name: dst?.display_name ?? dst?.identity_key ?? null,
+        };
+      }),
+    );
   }
 
-  function persistSharedQueryCache(
-    c: AppContext,
-    tenant: string,
-    indexId: string,
-    cacheKey: string,
-    payload: QueryPayload,
-  ): Promise<void> | undefined {
+  function persistSharedQueryCache(c: AppContext, tenant: string, indexId: string, cacheKey: string, payload: QueryPayload): Promise<void> | undefined {
     const promise = setSharedQueryCache(c.env, tenant, indexId, cacheKey, payload);
     try {
       c.executionCtx.waitUntil(promise);
@@ -3144,13 +2971,7 @@ export function createApp(options: AppOptions = {}) {
     }
   }
 
-  async function getCachedLexicalChunks(
-    env: Env,
-    repo: Repository,
-    tenant: string,
-    indexId: string,
-    timing?: RagTiming,
-  ): Promise<ChunkRecord[]> {
+  async function getCachedLexicalChunks(env: Env, repo: Repository, tenant: string, indexId: string, timing?: RagTiming): Promise<ChunkRecord[]> {
     const started = performance.now();
     lexicalChunkCache.configure(parseCacheOptions(env));
     const key = buildCacheKey({ tenant, indexId });
@@ -3187,7 +3008,11 @@ export function createApp(options: AppOptions = {}) {
     }
   }
 
-  async function runTextQuery(c: AppContext, query: string, body: QueryBody): Promise<{
+  async function runTextQuery(
+    c: AppContext,
+    query: string,
+    body: QueryBody,
+  ): Promise<{
     payload: QueryPayload;
     cache: CacheStatus;
     timing: RagTiming;
@@ -3205,9 +3030,7 @@ export function createApp(options: AppOptions = {}) {
     const vectorizeProfile = vectorizeProfileForIndex(c.env, index, body);
     const embeddingProfile = embeddingProfileForIndex(c.env, index, vectorizeProfile);
     const normalizedQuery = normalizeSemanticQuery(query);
-    const queryPlan = body.mode === 'lexical' && body.query_rewrite !== true && body.query_decompose !== true
-      ? { variants: [] }
-      : buildQueryPlan(query, body);
+    const queryPlan = body.mode === 'lexical' && body.query_rewrite !== true && body.query_decompose !== true ? { variants: [] } : buildQueryPlan(query, body);
     const cacheKey = buildCacheKey({
       tenant,
       indexId,
@@ -3240,9 +3063,7 @@ export function createApp(options: AppOptions = {}) {
     }
     let lexical: QueryPayload | null = null;
     if (body.mode !== 'semantic') {
-      const lexicalTopK = body.mode === 'hybrid'
-        ? Math.min(MAX_TOP_K, clampTopK(body.top_k) * 2)
-        : clampTopK(body.top_k);
+      const lexicalTopK = body.mode === 'hybrid' ? Math.min(MAX_TOP_K, clampTopK(body.top_k) * 2) : clampTopK(body.top_k);
       lexical = await queryByLexicalPlan(c, query, { ...body, top_k: lexicalTopK }, queryPlan, timing);
       if (body.mode !== 'hybrid' && lexical && lexical.data.length > 0) {
         const lexicalPayload = await rerankQueryPayload(c.env, lexical, query, body, timing, false);
@@ -3282,13 +3103,9 @@ export function createApp(options: AppOptions = {}) {
     }
     const vector = await embedOne(c.env, tenant, normalizedQuery, embeddingProfile, timing);
     const widenedTopK = Math.min(MAX_TOP_K, clampTopK(body.top_k) * 2);
-    const semanticBody = body.mode === 'hybrid'
-      ? { ...body, top_k: widenedTopK }
-      : body;
+    const semanticBody = body.mode === 'hybrid' ? { ...body, top_k: widenedTopK } : body;
     const semantic = await queryByVector(c, vector, semanticBody, timing, vectorizeProfile);
-    const fused = body.mode === 'hybrid'
-      ? fuseHybridResults(lexical, semantic, widenedTopK)
-      : semantic;
+    const fused = body.mode === 'hybrid' ? fuseHybridResults(lexical, semantic, widenedTopK) : semantic;
     let payload = await rerankQueryPayload(c.env, fused, query, body, timing, body.mode === 'hybrid');
     if (body.mode === 'hybrid') {
       timing.retrieval = 'hybrid_rrf';
@@ -3353,12 +3170,16 @@ export function createApp(options: AppOptions = {}) {
         throw new Error(`domain index ${existingIndex.id} is missing a stored embedding model; recreate the domain index before changing embedding_model`);
       }
       if (existingIndex.embedding_model !== profile.model) {
-        throw new Error(`domain index already uses embedding model ${existingIndex.embedding_model}; delete and recreate the domain index before selecting ${profile.model}`);
+        throw new Error(
+          `domain index already uses embedding model ${existingIndex.embedding_model}; delete and recreate the domain index before selecting ${profile.model}`,
+        );
       }
       const existingProvider = existingIndex.embedding_provider ?? null;
       const selectedProvider = profile.provider ?? null;
       if (existingProvider !== selectedProvider) {
-        throw new Error(`domain index already uses embedding provider ${existingProvider ?? 'unknown'}; delete and recreate the domain index before selecting ${selectedProvider ?? 'unknown'}`);
+        throw new Error(
+          `domain index already uses embedding provider ${existingProvider ?? 'unknown'}; delete and recreate the domain index before selecting ${selectedProvider ?? 'unknown'}`,
+        );
       }
       if (existingIndex.dimensions !== profile.dimensions) {
         throw new Error(`domain index dimensions ${existingIndex.dimensions} do not match selected embedding dimensions ${profile.dimensions}`);
@@ -3470,14 +3291,7 @@ export function createApp(options: AppOptions = {}) {
       id: chunk.id,
       values: vectors[i] ?? [],
       namespace: vectorNamespace(tenant, indexId),
-      metadata: vectorMetadata(
-        tenant,
-        indexId,
-        chunk.documentId,
-        chunk.chunkIndex,
-        chunk.content,
-        chunk.metadata,
-      ),
+      metadata: vectorMetadata(tenant, indexId, chunk.documentId, chunk.chunkIndex, chunk.content, chunk.metadata),
     }));
     if (rows.length > 0) await profile.binding.upsert(rows);
   }
@@ -3495,35 +3309,31 @@ export function createApp(options: AppOptions = {}) {
     if (!index) throw new Error('Index not found');
     const vectorizeProfile = vectorizeProfileForIndex(env, index);
     const embeddingProfile = embeddingProfileForIndex(env, index, vectorizeProfile);
-    const smallProfile = embeddingProfile.vectorizeProfile === 'base'
-      ? configuredVectorizeProfiles(env).find((profile) => profile.key === 'small')
-      : undefined;
+    const smallProfile = embeddingProfile.vectorizeProfile === 'base' ? configuredVectorizeProfiles(env).find((profile) => profile.key === 'small') : undefined;
     const pendingChunks: CreateChunkInput[] = [];
     const pendingChunkContents: string[] = [];
     for (const input of documents) {
       const content = input.content.trim();
       if (!content) continue;
       if (content.length > MAX_DOC_SIZE) throw new Error('document content too large');
-      const documentId = input.external_id
-        ? await deterministicId('doc', `${tenant}:${indexId}:${input.external_id}`)
-        : crypto.randomUUID();
+      const documentId = input.external_id ? await deterministicId('doc', `${tenant}:${indexId}:${input.external_id}`) : crypto.randomUUID();
       const existingDocument = await repo.getDocument(tenant, documentId);
-      const document = existingDocument ?? await repo.createDocument({
-        id: documentId,
-        tenant,
-        indexId,
-        externalId: input.external_id,
-        content,
-        metadata: input.metadata,
-      });
+      const document =
+        existingDocument ??
+        (await repo.createDocument({
+          id: documentId,
+          tenant,
+          indexId,
+          externalId: input.external_id,
+          content,
+          metadata: input.metadata,
+        }));
       const chunkContents = chunkText(content, chunking);
       const chunkRows: CreateChunkInput[] = [];
       for (let i = 0; i < chunkContents.length; i += 1) {
         const chunk = chunkContents[i] ?? '';
         chunkRows.push({
-          id: input.external_id
-            ? await deterministicId('chk', `${tenant}:${indexId}:${input.external_id}:${i}:${chunk}`)
-            : crypto.randomUUID(),
+          id: input.external_id ? await deterministicId('chk', `${tenant}:${indexId}:${input.external_id}:${i}:${chunk}`) : crypto.randomUUID(),
           tenant,
           indexId,
           documentId: document.id,
@@ -3538,9 +3348,7 @@ export function createApp(options: AppOptions = {}) {
     }
     if (pendingChunks.length === 0) return out;
     const vectors = await embed(env, pendingChunkContents, embeddingOptionsForProfile(embeddingProfile));
-    const smallVectors = smallProfile
-      ? await embed(env, pendingChunkContents, { model: embeddingModel(env, 'small') })
-      : [];
+    const smallVectors = smallProfile ? await embed(env, pendingChunkContents, { model: embeddingModel(env, 'small') }) : [];
     await repo.insertChunks(pendingChunks);
     await upsertChunkVectors(env, tenant, indexId, pendingChunks, vectors, vectorizeProfile);
     if (smallProfile && smallVectors.length > 0) {
@@ -3599,21 +3407,19 @@ export function createApp(options: AppOptions = {}) {
   app.get('/v1/kb/projects', async (c) => {
     const tenant = c.get('tenant');
     const repo = makeMetadataRepository(c.env);
-    const [projects, domains, status] = await Promise.all([
-      repo.listProjects(tenant),
-      repo.listDomains(tenant),
-      repo.corpusStatus(tenant),
-    ]);
-    const project = projects[0] ?? await repo.upsertProject(tenant);
+    const [projects, domains, status] = await Promise.all([repo.listProjects(tenant), repo.listDomains(tenant), repo.corpusStatus(tenant)]);
+    const project = projects[0] ?? (await repo.upsertProject(tenant));
     return c.json({
-      data: [{
-        ...project,
-        name: tenant,
-        project: tenant,
-        domain_count: domains.length,
-        domains,
-        status,
-      }],
+      data: [
+        {
+          ...project,
+          name: tenant,
+          project: tenant,
+          domain_count: domains.length,
+          domains,
+          status,
+        },
+      ],
     });
   });
 
@@ -3673,9 +3479,8 @@ export function createApp(options: AppOptions = {}) {
   app.get('/v1/embedding-models', async (c) => {
     const provider = c.env.RAG_EMBED_PROVIDER === 'free_ai' ? 'free_ai' : 'workers_ai';
     const vectorizeProfiles = configuredVectorizeProfiles(c.env);
-    let freeAiModels: EmbeddingModelCatalogRow[] = provider === 'free_ai'
-      ? freeAiEmbeddingCatalog(c.env).map((item) => ({ ...item, vectorize_binding: null, selectable: false }))
-      : [];
+    let freeAiModels: EmbeddingModelCatalogRow[] =
+      provider === 'free_ai' ? freeAiEmbeddingCatalog(c.env).map((item) => ({ ...item, vectorize_binding: null, selectable: false })) : [];
     let catalogSource: 'free_ai' | 'static' | 'none' = provider === 'free_ai' ? 'static' : 'none';
     let catalogError: string | null = null;
     if (provider === 'free_ai') {
@@ -3684,7 +3489,8 @@ export function createApp(options: AppOptions = {}) {
           const compatibleProfile = vectorizeProfiles.find((profile) => profile.dimensions === item.dimensions) ?? null;
           return {
             ...item,
-            configured_profile: item.id === embeddingModel(c.env, 'base') ? 'base' as const : item.id === embeddingModel(c.env, 'small') ? 'small' as const : null,
+            configured_profile:
+              item.id === embeddingModel(c.env, 'base') ? ('base' as const) : item.id === embeddingModel(c.env, 'small') ? ('small' as const) : null,
             compatible_profile: compatibleProfile?.key ?? null,
             vectorize_binding: compatibleProfile?.bindingName ?? null,
             selectable: item.enabled !== false && Boolean(compatibleProfile?.bindingName),
@@ -3760,9 +3566,7 @@ export function createApp(options: AppOptions = {}) {
   app.get('/v1/kb/schemas/:domain/active', async (c) => {
     const domain = c.req.param('domain').trim();
     const repo = makeMetadataRepository(c.env);
-    const schema = (await repo.listSchemas(c.get('tenant'))).find(
-      (row) => row.domain === domain && row.is_active === 1,
-    );
+    const schema = (await repo.listSchemas(c.get('tenant'))).find((row) => row.domain === domain && row.is_active === 1);
     if (!schema) return c.json({ error: 'active schema not found' }, 404);
     return c.json(schema);
   });
@@ -3772,28 +3576,30 @@ export function createApp(options: AppOptions = {}) {
     const domain = c.req.param('domain').trim();
     const body = (await c.req.json().catch(() => ({}))) as { file_ids?: string[] };
     const repo = makeMetadataRepository(c.env);
-    const activeSchema = (await repo.listSchemas(tenant)).find(
-      (schema) => schema.domain === domain && schema.is_active === 1,
-    );
+    const activeSchema = (await repo.listSchemas(tenant)).find((schema) => schema.domain === domain && schema.is_active === 1);
     if (!activeSchema) return c.json({ error: 'active schema not found' }, 404);
     const readiness = await validateKbSchedulingReadiness(c, tenant, domain);
     if (readiness) return readiness;
     const selectedIds = new Set((body.file_ids ?? []).filter(Boolean));
-    const files = selectedIds.size > 0
-      ? (await Promise.all([...selectedIds].map((id) => repo.getFile(tenant, id))))
-          .filter((file): file is FileRecord => Boolean(file && file.domain === domain))
-      : await repo.listFiles(tenant, domain);
+    const files =
+      selectedIds.size > 0
+        ? (await Promise.all([...selectedIds].map((id) => repo.getFile(tenant, id)))).filter((file): file is FileRecord =>
+            Boolean(file && file.domain === domain),
+          )
+        : await repo.listFiles(tenant, domain);
     const jobs = [];
     for (const file of files) {
       await repo.setFileStatus(tenant, file.id, 'pending');
-      jobs.push(await repo.upsertIngestJob({
-        project: tenant,
-        domain,
-        fileId: file.id,
-        schemaId: activeSchema.id,
-        status: 'queued',
-        stage: 'parse',
-      }));
+      jobs.push(
+        await repo.upsertIngestJob({
+          project: tenant,
+          domain,
+          fileId: file.id,
+          schemaId: activeSchema.id,
+          status: 'queued',
+          stage: 'parse',
+        }),
+      );
     }
     return c.json({
       project: tenant,
@@ -3834,13 +3640,8 @@ export function createApp(options: AppOptions = {}) {
     if (!domain) return c.json({ error: 'domain is required' }, 400);
     const embeddingSelection = await applyKbDomainEmbeddingSelection(c, c.get('tenant'), domain, body);
     if (embeddingSelection) return embeddingSelection;
-    const records = [
-      ...(Array.isArray(body.records) ? body.records : []),
-      ...recordsFromUnknown(body.input),
-    ];
-    const sampleTexts = Array.isArray(body.sample_texts)
-      ? body.sample_texts.map((sample) => String(sample || '')).filter(Boolean)
-      : [];
+    const records = [...(Array.isArray(body.records) ? body.records : []), ...recordsFromUnknown(body.input)];
+    const sampleTexts = Array.isArray(body.sample_texts) ? body.sample_texts.map((sample) => String(sample || '')).filter(Boolean) : [];
     if (records.length === 0 && sampleTexts.length === 0) {
       return c.json({ error: 'records, sample_texts, or input is required' }, 400);
     }
@@ -3922,15 +3723,13 @@ export function createApp(options: AppOptions = {}) {
       uploaded.type || null,
       bytes,
       c.env.AI,
-      typeof body.markdown_conversion === 'string' ? body.markdown_conversion : c.env.RAG_MARKDOWN_CONVERSION ?? 'auto',
-      typeof body.vision_ocr_model === 'string' ? body.vision_ocr_model : c.env.RAG_VISION_OCR_MODEL ?? '',
+      typeof body.markdown_conversion === 'string' ? body.markdown_conversion : (c.env.RAG_MARKDOWN_CONVERSION ?? 'auto'),
+      typeof body.vision_ocr_model === 'string' ? body.vision_ocr_model : (c.env.RAG_VISION_OCR_MODEL ?? ''),
     );
     if (parsed.documents.length === 0 || !parsed.text) {
       return c.json({ error: 'uploaded file has no parseable text content', file, parser: parsed.parser }, 400);
     }
-    const records = parsed.documents
-      .map((doc) => recordFromDocumentMetadata(doc.metadata))
-      .filter((record): record is JsonRecord => Boolean(record));
+    const records = parsed.documents.map((doc) => recordFromDocumentMetadata(doc.metadata)).filter((record): record is JsonRecord => Boolean(record));
     const spec = inferSchema({
       domain,
       records,
@@ -3992,7 +3791,11 @@ export function createApp(options: AppOptions = {}) {
   app.get('/v1/kb/files', async (c) => {
     const repo = makeMetadataRepository(c.env);
     const domain = c.req.query('domain')?.trim() || undefined;
-    const statuses = c.req.query('status')?.split(',').map((status) => status.trim()).filter(Boolean);
+    const statuses = c.req
+      .query('status')
+      ?.split(',')
+      .map((status) => status.trim())
+      .filter(Boolean);
     return c.json({ data: await repo.listFiles(c.get('tenant'), domain, statuses) });
   });
 
@@ -4004,7 +3807,12 @@ export function createApp(options: AppOptions = {}) {
     if (!body.contentHash) return c.json({ error: 'content_hash is required' }, 400);
     if (!body.objectKey) return c.json({ error: 'object_key is required' }, 400);
     if (!Number.isFinite(body.bytes) || body.bytes < 0) return c.json({ error: 'bytes must be non-negative' }, 400);
-    const embeddingSelection = await applyKbDomainEmbeddingSelection(c, c.get('tenant'), body.domain, rawBody as { embedding_model?: string; embedding_provider?: string });
+    const embeddingSelection = await applyKbDomainEmbeddingSelection(
+      c,
+      c.get('tenant'),
+      body.domain,
+      rawBody as { embedding_model?: string; embedding_provider?: string },
+    );
     if (embeddingSelection) return embeddingSelection;
     const readiness = await validateKbSchedulingReadiness(c, c.get('tenant'), body.domain);
     if (readiness) return readiness;
@@ -4053,9 +3861,7 @@ export function createApp(options: AppOptions = {}) {
     if (!file) return c.json({ error: 'file not found' }, 404);
     const readiness = await validateKbSchedulingReadiness(c, tenant, file.domain);
     if (readiness) return readiness;
-    const activeSchema = (await repo.listSchemas(tenant)).find(
-      (schema) => schema.domain === file.domain && schema.is_active === 1,
-    );
+    const activeSchema = (await repo.listSchemas(tenant)).find((schema) => schema.domain === file.domain && schema.is_active === 1);
     await repo.setFileStatus(tenant, file.id, 'pending');
     const job = await repo.upsertIngestJob({
       project: tenant,
@@ -4140,7 +3946,11 @@ export function createApp(options: AppOptions = {}) {
   app.get('/v1/kb/jobs', async (c) => {
     const repo = makeMetadataRepository(c.env);
     const domain = c.req.query('domain')?.trim() || undefined;
-    const statuses = c.req.query('status')?.split(',').map((status) => status.trim()).filter(Boolean);
+    const statuses = c.req
+      .query('status')
+      ?.split(',')
+      .map((status) => status.trim())
+      .filter(Boolean);
     const limit = Number(c.req.query('limit') ?? 100);
     const jobs = await repo.listIngestJobs(c.get('tenant'), domain, statuses, limit);
     return c.json({ project: c.get('tenant'), domain: domain ?? null, jobs });
@@ -4160,9 +3970,11 @@ export function createApp(options: AppOptions = {}) {
     });
   });
 
-  app.get('/v1/kb/sources', (c) => c.json({
-    sources: ['upload', 'url', 'edgar'],
-  }));
+  app.get('/v1/kb/sources', (c) =>
+    c.json({
+      sources: ['upload', 'url', 'edgar'],
+    }),
+  );
 
   app.post('/v1/kb/sources/import', async (c) => {
     if (!c.env.RAW_DOCS) return c.json({ error: 'RAW_DOCS R2 bucket is not configured' }, 500);
@@ -4172,12 +3984,15 @@ export function createApp(options: AppOptions = {}) {
     const source = body.source?.trim() || '';
     if (!domain) return c.json({ error: 'domain is required' }, 400);
     if (source !== 'url' && source !== 'edgar') {
-      return c.json({
-        error: 'unsupported Cloudflare source',
-        source,
-        supported_sources: ['url', 'edgar'],
-        upload_route: '/v1/kb/files/upload',
-      }, 400);
+      return c.json(
+        {
+          error: 'unsupported Cloudflare source',
+          source,
+          supported_sources: ['url', 'edgar'],
+          upload_route: '/v1/kb/files/upload',
+        },
+        400,
+      );
     }
     const embeddingSelection = await applyKbDomainEmbeddingSelection(c, tenant, domain, body);
     if (embeddingSelection) return embeddingSelection;
@@ -4186,20 +4001,12 @@ export function createApp(options: AppOptions = {}) {
       if (readiness) return readiness;
     }
     const metadataRepo = makeMetadataRepository(c.env);
-    const activeSchema = (await metadataRepo.listSchemas(tenant)).find(
-      (schema) => schema.domain === domain && schema.is_active === 1,
-    );
+    const activeSchema = (await metadataRepo.listSchemas(tenant)).find((schema) => schema.domain === domain && schema.is_active === 1);
     const files: FileRecord[] = [];
     const jobs: IngestJobRecord[] = [];
     const errors: Array<{ url?: string; ticker?: string; cik?: string; error: string }> = [];
 
-    const registerImported = async (input: {
-      source: string;
-      filename: string;
-      mime: string | null;
-      bytes: ArrayBuffer;
-      metadata: Record<string, string>;
-    }) => {
+    const registerImported = async (input: { source: string; filename: string; mime: string | null; bytes: ArrayBuffer; metadata: Record<string, string> }) => {
       if (input.bytes.byteLength === 0) throw new Error('empty response');
       if (input.bytes.byteLength > 10_000_000) throw new Error('response exceeds 10 MB source import limit');
       const contentHash = await sha256Hex(input.bytes);
@@ -4227,19 +4034,24 @@ export function createApp(options: AppOptions = {}) {
       });
       files.push(file);
       if (body.auto_ingest !== false) {
-        jobs.push(await metadataRepo.upsertIngestJob({
-          project: tenant,
-          domain,
-          fileId: file.id,
-          schemaId: activeSchema?.id ?? null,
-          status: 'queued',
-          stage: 'parse',
-        }));
+        jobs.push(
+          await metadataRepo.upsertIngestJob({
+            project: tenant,
+            domain,
+            fileId: file.id,
+            schemaId: activeSchema?.id ?? null,
+            status: 'queued',
+            stage: 'parse',
+          }),
+        );
       }
     };
 
     if (source === 'url') {
-      const urls = (body.config?.urls ?? []).map((url) => url.trim()).filter(Boolean).slice(0, 20);
+      const urls = (body.config?.urls ?? [])
+        .map((url) => url.trim())
+        .filter(Boolean)
+        .slice(0, 20);
       if (urls.length === 0) return c.json({ error: 'config.urls must contain at least one URL' }, 400);
       for (const url of urls) {
         try {
@@ -4262,11 +4074,7 @@ export function createApp(options: AppOptions = {}) {
     if (source === 'edgar') {
       const config = body.config ?? {};
       const userAgent = secUserAgent(c.env, config);
-      const forms = new Set(
-        (config.forms ?? ['10-K', '10-Q', '8-K'])
-          .map((form) => form.trim())
-          .filter(Boolean),
-      );
+      const forms = new Set((config.forms ?? ['10-K', '10-Q', '8-K']).map((form) => form.trim()).filter(Boolean));
       if (forms.size === 0) return c.json({ error: 'config.forms must contain at least one form' }, 400);
       const days = Math.min(Math.max(Math.trunc(Number(config.days ?? 540)), 0), 3650);
       const perTickerPerForm = Math.min(Math.max(Math.trunc(Number(config.per_ticker_per_form ?? 2)), 1), 10);
@@ -4296,15 +4104,17 @@ export function createApp(options: AppOptions = {}) {
       for (const target of dedupedTargets) {
         if (candidates.length >= limitTotal) break;
         try {
-          candidates.push(...await edgarCandidatesForCompany({
-            ticker: target.ticker,
-            cik: target.cik,
-            userAgent,
-            forms,
-            days,
-            perTickerPerForm,
-            remaining: limitTotal - candidates.length,
-          }));
+          candidates.push(
+            ...(await edgarCandidatesForCompany({
+              ticker: target.ticker,
+              cik: target.cik,
+              userAgent,
+              forms,
+              days,
+              perTickerPerForm,
+              remaining: limitTotal - candidates.length,
+            })),
+          );
         } catch (error) {
           errors.push({
             ...(target.ticker ? { ticker: target.ticker } : {}),
@@ -4402,20 +4212,20 @@ export function createApp(options: AppOptions = {}) {
     if (action.startsWith('requeue_')) {
       const readiness = await validateKbSchedulingReadiness(c, tenant, domain);
       if (readiness) return readiness;
-      const activeSchema = (await metadataRepo.listSchemas(tenant)).find(
-        (schema) => schema.domain === domain && schema.is_active === 1,
-      );
+      const activeSchema = (await metadataRepo.listSchemas(tenant)).find((schema) => schema.domain === domain && schema.is_active === 1);
       const jobs = [];
       for (const file of files) {
         await metadataRepo.setFileStatus(tenant, file.id, 'pending');
-        jobs.push(await metadataRepo.upsertIngestJob({
-          project: tenant,
-          domain,
-          fileId: file.id,
-          schemaId: activeSchema?.id ?? null,
-          status: 'queued',
-          stage: 'parse',
-        }));
+        jobs.push(
+          await metadataRepo.upsertIngestJob({
+            project: tenant,
+            domain,
+            fileId: file.id,
+            schemaId: activeSchema?.id ?? null,
+            status: 'queued',
+            stage: 'parse',
+          }),
+        );
       }
       return c.json({ project: tenant, source_set_id: id, action, affected_files: files.length, jobs });
     }
@@ -4443,26 +4253,28 @@ export function createApp(options: AppOptions = {}) {
     const domain = (body.domain ?? body.kind)?.trim();
     const requestedEntityType = body.type?.trim();
     if (!domain) {
-      return c.json({
-        error: 'domain is required',
-        failure_classification: classifyIngestFailure('domain is required'),
-      }, 400);
+      return c.json(
+        {
+          error: 'domain is required',
+          failure_classification: classifyIngestFailure('domain is required'),
+        },
+        400,
+      );
     }
-    const records = (Array.isArray(body.data) ? body.data : [body.data])
-      .map(jsonRecord)
-      .filter((record) => Object.keys(record).length > 0);
+    const records = (Array.isArray(body.data) ? body.data : [body.data]).map(jsonRecord).filter((record) => Object.keys(record).length > 0);
     if (records.length === 0) {
-      return c.json({
-        error: 'data must contain at least one record',
-        failure_classification: classifyIngestFailure('data must contain at least one record'),
-      }, 400);
+      return c.json(
+        {
+          error: 'data must contain at least one record',
+          failure_classification: classifyIngestFailure('data must contain at least one record'),
+        },
+        400,
+      );
     }
     const embeddingSelection = await applyKbDomainEmbeddingSelection(c, tenant, domain, body);
     if (embeddingSelection) return embeddingSelection;
     const metadataRepo = makeMetadataRepository(c.env);
-    let activeSchema = (await metadataRepo.listSchemas(tenant)).find(
-      (schema) => schema.domain === domain && schema.is_active === 1,
-    );
+    let activeSchema = (await metadataRepo.listSchemas(tenant)).find((schema) => schema.domain === domain && schema.is_active === 1);
     let schemaAutoCreated = false;
     let readinessValidated = false;
     if (!activeSchema) {
@@ -4471,21 +4283,20 @@ export function createApp(options: AppOptions = {}) {
       readinessValidated = true;
       const inferred = inferSchema({ domain, records, name: 'auto-direct-record' });
       const inferredPrimary = inferred.entities[0]?.name;
-      const spec = requestedEntityType && inferredPrimary
-        ? {
-            ...inferred,
-            entities: inferred.entities.map((entity, index) => (
-              index === 0
-                ? { ...entity, name: requestedEntityType, aliases: Array.from(new Set([...entity.aliases, inferredPrimary])) }
-                : entity
-            )),
-            relationships: inferred.relationships.map((relationship) => ({
-              ...relationship,
-              from_type: relationship.from_type === inferredPrimary ? requestedEntityType : relationship.from_type,
-              to_type: relationship.to_type === inferredPrimary ? requestedEntityType : relationship.to_type,
-            })),
-          }
-        : inferred;
+      const spec =
+        requestedEntityType && inferredPrimary
+          ? {
+              ...inferred,
+              entities: inferred.entities.map((entity, index) =>
+                index === 0 ? { ...entity, name: requestedEntityType, aliases: Array.from(new Set([...entity.aliases, inferredPrimary])) } : entity,
+              ),
+              relationships: inferred.relationships.map((relationship) => ({
+                ...relationship,
+                from_type: relationship.from_type === inferredPrimary ? requestedEntityType : relationship.from_type,
+                to_type: relationship.to_type === inferredPrimary ? requestedEntityType : relationship.to_type,
+              })),
+            }
+          : inferred;
       activeSchema = await metadataRepo.insertSchema(tenant, domain, spec.name, spec);
       schemaAutoCreated = true;
     }
@@ -4500,10 +4311,7 @@ export function createApp(options: AppOptions = {}) {
     }
     const payload = JSON.stringify({ project: tenant, domain, type: entityType, data: records }, null, 2);
     const bytes = new TextEncoder().encode(payload);
-    const contentHash = await sha256Hex(bytes.buffer.slice(
-      bytes.byteOffset,
-      bytes.byteOffset + bytes.byteLength,
-    ) as ArrayBuffer);
+    const contentHash = await sha256Hex(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
     const filename = virtualInputFilename('records', entityType.toLowerCase(), 'json', contentHash);
     const objectKey = `raw/${safeObjectKeySegment(domain)}/${contentHash}`;
     await c.env.RAW_DOCS.put(objectKey, bytes, {
@@ -4528,24 +4336,27 @@ export function createApp(options: AppOptions = {}) {
     });
     const replayRoute = `/v1/kb/files/${file.id}/reprocess`;
     if (file.status === 'ready') {
-      return c.json({
-        project: tenant,
-        kind: domain,
-        domain,
-        type: entityType,
-        file_id: file.id,
-        schema_id: activeSchema.id,
-        schema_auto_created: schemaAutoCreated,
-        idempotent: true,
-        idempotent_replay: true,
-        chunks_indexed: 0,
-        ingest_safety: ingestSafetyEvidence({
-          idempotencyKey: body.idempotency_key,
-          contentHash,
-          replayRoute,
-          idempotentReplay: true,
-        }),
-      }, 200);
+      return c.json(
+        {
+          project: tenant,
+          kind: domain,
+          domain,
+          type: entityType,
+          file_id: file.id,
+          schema_id: activeSchema.id,
+          schema_auto_created: schemaAutoCreated,
+          idempotent: true,
+          idempotent_replay: true,
+          chunks_indexed: 0,
+          ingest_safety: ingestSafetyEvidence({
+            idempotencyKey: body.idempotency_key,
+            contentHash,
+            replayRoute,
+            idempotentReplay: true,
+          }),
+        },
+        200,
+      );
     }
     await metadataRepo.setFileStatus(tenant, file.id, 'indexing');
     const artifactKey = parseArtifactKey(domain, contentHash);
@@ -4563,27 +4374,31 @@ export function createApp(options: AppOptions = {}) {
         source: 'record',
       } as JsonRecord,
     }));
-    await c.env.RAW_DOCS.put(artifactKey, JSON.stringify({
-      parser: 'worker-direct-record-v1',
-      parser_version: '1',
-      project: tenant,
-      domain,
-      file_id: file.id,
-      filename,
-      content_hash: contentHash,
-      record_count: records.length,
-      document_count: docs.length,
-      documents: docs,
-    }), {
-      httpMetadata: { contentType: 'application/json' },
-      customMetadata: {
+    await c.env.RAW_DOCS.put(
+      artifactKey,
+      JSON.stringify({
+        parser: 'worker-direct-record-v1',
+        parser_version: '1',
         project: tenant,
         domain,
         file_id: file.id,
+        filename,
         content_hash: contentHash,
-        parser: 'worker-direct-record-v1',
+        record_count: records.length,
+        document_count: docs.length,
+        documents: docs,
+      }),
+      {
+        httpMetadata: { contentType: 'application/json' },
+        customMetadata: {
+          project: tenant,
+          domain,
+          file_id: file.id,
+          content_hash: contentHash,
+          parser: 'worker-direct-record-v1',
+        },
       },
-    });
+    );
     await metadataRepo.upsertParseArtifact({
       contentHash,
       parser: 'worker-direct-record-v1',
@@ -4599,36 +4414,43 @@ export function createApp(options: AppOptions = {}) {
       ingested = await ingestDocumentsToIndex(c.env, ragRepo, tenant, indexId, docs);
     } catch (error) {
       if (isEmbeddingReadinessError(error)) {
-        return c.json({
-          error: error.message,
-          failure_classification: classifyIngestFailure(error),
-          ingest_safety: ingestSafetyEvidence({
-            idempotencyKey: body.idempotency_key,
-            contentHash,
-            replayRoute,
-            failure: error,
-          }),
-        }, 400);
+        return c.json(
+          {
+            error: error.message,
+            failure_classification: classifyIngestFailure(error),
+            ingest_safety: ingestSafetyEvidence({
+              idempotencyKey: body.idempotency_key,
+              contentHash,
+              replayRoute,
+              failure: error,
+            }),
+          },
+          400,
+        );
       }
       throw error;
     }
     const chunkPreview = chunkPreviewFromChunks(ingested.flatMap((entry) => entry.chunks));
     let chunkMetadataFailure: JsonRecord | null = null;
     try {
-      await metadataRepo.insertKbChunks((await Promise.all(ingested.flatMap((entry) =>
-        entry.chunks.map(async (chunk) => ({
-          id: await deterministicId('kbchk', `${file.id}:${chunk.id}`),
-          project: tenant,
-          domain,
-          fileId: file.id,
-          vectorId: chunk.id,
-          pageStart: 0,
-          pageEnd: 0,
-          text: chunk.content,
-          contentHash,
-          metadata: chunk.metadata,
-        })),
-      ))));
+      await metadataRepo.insertKbChunks(
+        await Promise.all(
+          ingested.flatMap((entry) =>
+            entry.chunks.map(async (chunk) => ({
+              id: await deterministicId('kbchk', `${file.id}:${chunk.id}`),
+              project: tenant,
+              domain,
+              fileId: file.id,
+              vectorId: chunk.id,
+              pageStart: 0,
+              pageEnd: 0,
+              text: chunk.content,
+              contentHash,
+              metadata: chunk.metadata,
+            })),
+          ),
+        ),
+      );
     } catch (error) {
       chunkMetadataFailure = classifyIngestFailure(error);
     }
@@ -4663,28 +4485,31 @@ export function createApp(options: AppOptions = {}) {
     } catch (error) {
       cacheClearFailure = classifyIngestFailure(error);
     }
-    return c.json({
-      project: tenant,
-      kind: domain,
-      domain,
-      type: entityType,
-      file_id: file.id,
-      schema_id: activeSchema.id,
-      schema_auto_created: schemaAutoCreated,
-      entities_upserted: structured.entities,
-      chunks_indexed: ingested.reduce((sum, entry) => sum + entry.chunks.length, 0),
-      structured,
-      chunk_metadata_failure_classification: chunkMetadataFailure,
-      structured_failure_classification: structuredFailure,
-      cache_clear_failure_classification: cacheClearFailure,
-      idempotency_key: body.idempotency_key ?? contentHash,
-      ingest_safety: ingestSafetyEvidence({
-        idempotencyKey: body.idempotency_key,
-        contentHash,
-        chunkPreview,
-        replayRoute,
-      }),
-    }, 201);
+    return c.json(
+      {
+        project: tenant,
+        kind: domain,
+        domain,
+        type: entityType,
+        file_id: file.id,
+        schema_id: activeSchema.id,
+        schema_auto_created: schemaAutoCreated,
+        entities_upserted: structured.entities,
+        chunks_indexed: ingested.reduce((sum, entry) => sum + entry.chunks.length, 0),
+        structured,
+        chunk_metadata_failure_classification: chunkMetadataFailure,
+        structured_failure_classification: structuredFailure,
+        cache_clear_failure_classification: cacheClearFailure,
+        idempotency_key: body.idempotency_key ?? contentHash,
+        ingest_safety: ingestSafetyEvidence({
+          idempotencyKey: body.idempotency_key,
+          contentHash,
+          chunkPreview,
+          replayRoute,
+        }),
+      },
+      201,
+    );
   });
 
   app.post('/v1/kb/ingest/text', async (c) => {
@@ -4694,30 +4519,31 @@ export function createApp(options: AppOptions = {}) {
     const domain = (body.domain ?? body.kind)?.trim();
     const text = body.text?.trim();
     if (!domain) {
-      return c.json({
-        error: 'domain is required',
-        failure_classification: classifyIngestFailure('domain is required'),
-      }, 400);
+      return c.json(
+        {
+          error: 'domain is required',
+          failure_classification: classifyIngestFailure('domain is required'),
+        },
+        400,
+      );
     }
     if (!text) {
-      return c.json({
-        error: 'text must be non-empty',
-        failure_classification: classifyIngestFailure('text must be non-empty'),
-      }, 400);
+      return c.json(
+        {
+          error: 'text must be non-empty',
+          failure_classification: classifyIngestFailure('text must be non-empty'),
+        },
+        400,
+      );
     }
     const embeddingSelection = await applyKbDomainEmbeddingSelection(c, tenant, domain, body);
     if (embeddingSelection) return embeddingSelection;
     const readiness = await validateKbSchedulingReadiness(c, tenant, domain);
     if (readiness) return readiness;
     const metadataRepo = makeMetadataRepository(c.env);
-    const activeSchema = (await metadataRepo.listSchemas(tenant)).find(
-      (schema) => schema.domain === domain && schema.is_active === 1,
-    );
+    const activeSchema = (await metadataRepo.listSchemas(tenant)).find((schema) => schema.domain === domain && schema.is_active === 1);
     const bytes = new TextEncoder().encode(text);
-    const contentHash = await sha256Hex(bytes.buffer.slice(
-      bytes.byteOffset,
-      bytes.byteOffset + bytes.byteLength,
-    ) as ArrayBuffer);
+    const contentHash = await sha256Hex(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
     const filename = virtualInputFilename('text', body.title?.trim() || 'untitled', 'txt', contentHash);
     const objectKey = `raw/${safeObjectKeySegment(domain)}/${contentHash}`;
     await c.env.RAW_DOCS.put(objectKey, bytes, {
@@ -4742,34 +4568,39 @@ export function createApp(options: AppOptions = {}) {
     });
     const replayRoute = `/v1/kb/files/${file.id}/reprocess`;
     if (file.status === 'ready') {
-      return c.json({
-        project: tenant,
-        kind: domain,
-        domain,
-        file_id: file.id,
-        ingestion_mode: body.async === true ? 'queued' : 'inline',
-        idempotent: true,
-        idempotent_replay: true,
-        files: [{
+      return c.json(
+        {
+          project: tenant,
+          kind: domain,
+          domain,
           file_id: file.id,
-          filename: file.filename,
-          status: 'ready',
-          chunks_created: 0,
-          chunk_preview: [],
+          ingestion_mode: body.async === true ? 'queued' : 'inline',
+          idempotent: true,
+          idempotent_replay: true,
+          files: [
+            {
+              file_id: file.id,
+              filename: file.filename,
+              status: 'ready',
+              chunks_created: 0,
+              chunk_preview: [],
+              ingest_safety: ingestSafetyEvidence({
+                idempotencyKey: body.idempotency_key,
+                contentHash,
+                replayRoute,
+                idempotentReplay: true,
+              }),
+            },
+          ],
           ingest_safety: ingestSafetyEvidence({
             idempotencyKey: body.idempotency_key,
             contentHash,
             replayRoute,
             idempotentReplay: true,
           }),
-        }],
-        ingest_safety: ingestSafetyEvidence({
-          idempotencyKey: body.idempotency_key,
-          contentHash,
-          replayRoute,
-          idempotentReplay: true,
-        }),
-      }, 200);
+        },
+        200,
+      );
     }
     await metadataRepo.setFileStatus(tenant, file.id, 'pending');
     if (body.async !== true) {
@@ -4784,33 +4615,39 @@ export function createApp(options: AppOptions = {}) {
         ingested = await runKbIngest(c.env, tenant, ingestBody, 'direct-text');
       } catch (error) {
         if (isEmbeddingReadinessError(error)) {
-          return c.json({
-            error: error.message,
-            failure_classification: classifyIngestFailure(error),
-            ingest_safety: ingestSafetyEvidence({
-              idempotencyKey: body.idempotency_key,
-              contentHash,
-              replayRoute,
-              failure: error,
-            }),
-          }, 400);
+          return c.json(
+            {
+              error: error.message,
+              failure_classification: classifyIngestFailure(error),
+              ingest_safety: ingestSafetyEvidence({
+                idempotencyKey: body.idempotency_key,
+                contentHash,
+                replayRoute,
+                failure: error,
+              }),
+            },
+            400,
+          );
         }
         throw error;
       }
       const chunkPreview = chunkPreviewFromFileResults(ingested.files);
-      return c.json({
-        ...ingested,
-        kind: domain,
-        file_id: file.id,
-        ingestion_mode: 'inline',
-        idempotency_key: body.idempotency_key ?? contentHash,
-        ingest_safety: ingestSafetyEvidence({
-          idempotencyKey: body.idempotency_key,
-          contentHash,
-          chunkPreview,
-          replayRoute,
-        }),
-      }, 201);
+      return c.json(
+        {
+          ...ingested,
+          kind: domain,
+          file_id: file.id,
+          ingestion_mode: 'inline',
+          idempotency_key: body.idempotency_key ?? contentHash,
+          ingest_safety: ingestSafetyEvidence({
+            idempotencyKey: body.idempotency_key,
+            contentHash,
+            chunkPreview,
+            replayRoute,
+          }),
+        },
+        201,
+      );
     }
     const job = await metadataRepo.upsertIngestJob({
       project: tenant,
@@ -4820,61 +4657,63 @@ export function createApp(options: AppOptions = {}) {
       status: 'queued',
       stage: 'parse',
     });
-    return c.json({
-      project: tenant,
-      kind: domain,
-      domain,
-      file_id: file.id,
-      ingestion_mode: 'queued',
-      job_id: job.id,
-      job: {
-        ...job,
-        failure_classification: null,
-        replay: {
-          supported: true,
-          route: replayRoute,
+    return c.json(
+      {
+        project: tenant,
+        kind: domain,
+        domain,
+        file_id: file.id,
+        ingestion_mode: 'queued',
+        job_id: job.id,
+        job: {
+          ...job,
+          failure_classification: null,
+          replay: {
+            supported: true,
+            route: replayRoute,
+          },
         },
+        idempotency_key: body.idempotency_key ?? contentHash,
+        ingest_safety: ingestSafetyEvidence({
+          idempotencyKey: body.idempotency_key,
+          contentHash,
+          replayRoute,
+        }),
       },
-      idempotency_key: body.idempotency_key ?? contentHash,
-      ingest_safety: ingestSafetyEvidence({
-        idempotencyKey: body.idempotency_key,
-        contentHash,
-        replayRoute,
-      }),
-    }, 201);
+      201,
+    );
   });
 
-	  app.get('/v1/kb/ingest/runs/:run_id', async (c) => {
-	    const repo = makeMetadataRepository(c.env);
-	    const runId = c.req.param('run_id').trim();
-	    const domain = c.req.query('domain')?.trim() || undefined;
-	    const jobs = (await repo.listIngestJobs(c.get('tenant'), domain, undefined, 500))
-	      .filter((job) => job.workflow_id === runId);
-	    if (jobs.length === 0) return c.json({ error: 'ingest run not found' }, 404);
-	    let workflow: JsonRecord | null = null;
-	    if (c.env.KB_INGEST_WORKFLOW) {
-	      try {
-	        const instance = await c.env.KB_INGEST_WORKFLOW.get(runId);
-	        const status = await instance.status();
-	        workflow = {
-	          id: instance.id,
-	          status: status.status,
-	          ...(status.error ? { error: status.error } : {}),
-	        };
-	      } catch {
-	        workflow = null;
-	      }
-	    }
-	    return c.json({
-	      project: c.get('tenant'),
-	      domain: domain ?? null,
-	      run_id: runId,
-	      ...(workflow ? { workflow } : {}),
-	      summary: summarizeIngestRun(runId, jobs),
-	      replay_routes: jobs.map((job) => `/v1/kb/files/${job.file_id}/reprocess`),
-	      jobs,
-	    });
-	  });
+  app.get('/v1/kb/ingest/runs/:run_id', async (c) => {
+    const repo = makeMetadataRepository(c.env);
+    const runId = c.req.param('run_id').trim();
+    const domain = c.req.query('domain')?.trim() || undefined;
+    const jobs = (await repo.listIngestJobs(c.get('tenant'), domain, undefined, 500)).filter((job) => job.workflow_id === runId);
+    if (jobs.length === 0) return c.json({ error: 'ingest run not found' }, 404);
+    let workflow: JsonRecord | null = null;
+    if (c.env.KB_INGEST_WORKFLOW) {
+      try {
+        const instance = await c.env.KB_INGEST_WORKFLOW.get(runId);
+        const status = await instance.status();
+        workflow = {
+          id: instance.id,
+          status: status.status,
+          ...(status.error ? { error: status.error } : {}),
+        };
+      } catch {
+        workflow = null;
+      }
+    }
+    return c.json({
+      project: c.get('tenant'),
+      domain: domain ?? null,
+      run_id: runId,
+      ...(workflow ? { workflow } : {}),
+      summary: summarizeIngestRun(runId, jobs),
+      replay_routes: jobs.map((job) => `/v1/kb/files/${job.file_id}/reprocess`),
+      jobs,
+    });
+  });
 
   app.get('/v1/kb/parse-artifacts/:hash', async (c) => {
     const repo = makeMetadataRepository(c.env);
@@ -4896,24 +4735,23 @@ export function createApp(options: AppOptions = {}) {
     const metadataRepo = makeMetadataRepository(env);
     const runId = body.run_id?.trim() || null;
     const indexId = await ensureKbIndex(env, repo, tenant, domain);
-    const activeSchema = (await metadataRepo.listSchemas(tenant)).find(
-      (schema) => schema.domain === domain && schema.is_active === 1,
-    );
+    const activeSchema = (await metadataRepo.listSchemas(tenant)).find((schema) => schema.domain === domain && schema.is_active === 1);
     const selectedIds = new Set((body.file_ids ?? []).filter(Boolean));
-    const files = selectedIds.size > 0
-      ? (await Promise.all([...selectedIds].map((id) => metadataRepo.getFile(tenant, id)))).filter((file): file is NonNullable<typeof file> => Boolean(file))
-      : await metadataRepo.listFiles(tenant, domain, ['pending']);
+    const files =
+      selectedIds.size > 0
+        ? (await Promise.all([...selectedIds].map((id) => metadataRepo.getFile(tenant, id)))).filter((file): file is NonNullable<typeof file> => Boolean(file))
+        : await metadataRepo.listFiles(tenant, domain, ['pending']);
     const results = [];
     for (const file of files) {
       const job = await metadataRepo.upsertIngestJob({
         project: tenant,
         domain,
         fileId: file.id,
-	        schemaId: activeSchema?.id ?? null,
-	        status: 'running',
-	        stage: 'parse',
-	        workflowId: runId,
-	      });
+        schemaId: activeSchema?.id ?? null,
+        status: 'running',
+        stage: 'parse',
+        workflowId: runId,
+      });
       if (isIngestJobLeaseActive(job, Date.now(), INGEST_JOB_LEASE_MS, lockedBy)) {
         results.push({
           job_id: job.id,
@@ -4960,28 +4798,32 @@ export function createApp(options: AppOptions = {}) {
           },
         }));
         const artifactKey = parseArtifactKey(domain, file.content_hash);
-        await env.RAW_DOCS.put(artifactKey, JSON.stringify({
-          parser: parsed.parser,
-          parser_version: parsed.parser_version,
-          project: tenant,
-          domain,
-          file_id: file.id,
-          filename: file.filename,
-          content_hash: file.content_hash,
-          record_count: parsed.record_count,
-          document_count: docs.length,
-          text_length: parsed.text.length,
-          documents: docs,
-        }), {
-          httpMetadata: { contentType: 'application/json' },
-          customMetadata: {
+        await env.RAW_DOCS.put(
+          artifactKey,
+          JSON.stringify({
+            parser: parsed.parser,
+            parser_version: parsed.parser_version,
             project: tenant,
             domain,
             file_id: file.id,
+            filename: file.filename,
             content_hash: file.content_hash,
-            parser: parsed.parser,
+            record_count: parsed.record_count,
+            document_count: docs.length,
+            text_length: parsed.text.length,
+            documents: docs,
+          }),
+          {
+            httpMetadata: { contentType: 'application/json' },
+            customMetadata: {
+              project: tenant,
+              domain,
+              file_id: file.id,
+              content_hash: file.content_hash,
+              parser: parsed.parser,
+            },
           },
-        });
+        );
         const artifact = await metadataRepo.upsertParseArtifact({
           contentHash: file.content_hash,
           parser: parsed.parser,
@@ -4992,19 +4834,21 @@ export function createApp(options: AppOptions = {}) {
         await metadataRepo.updateIngestJob(job.id, { status: 'running', stage: 'index' });
         const ingested = await ingestDocumentsToIndex(env, repo, tenant, indexId, docs, body.chunking);
         const chunkPreview = chunkPreviewFromChunks(ingested.flatMap((entry) => entry.chunks));
-        await metadataRepo.insertKbChunks(ingested.flatMap((entry) =>
-          entry.chunks.map((chunk) => ({
-            id: crypto.randomUUID(),
-            project: tenant,
-            domain,
-            fileId: file.id,
-            vectorId: chunk.id,
-            pageStart: 1,
-            pageEnd: 1,
-            text: chunk.content,
-            metadata: chunk.metadata,
-          })),
-        ));
+        await metadataRepo.insertKbChunks(
+          ingested.flatMap((entry) =>
+            entry.chunks.map((chunk) => ({
+              id: crypto.randomUUID(),
+              project: tenant,
+              domain,
+              fileId: file.id,
+              vectorId: chunk.id,
+              pageStart: 1,
+              pageEnd: 1,
+              text: chunk.content,
+              metadata: chunk.metadata,
+            })),
+          ),
+        );
         let structured = { entities: 0, mentions: 0, relationships: 0, provenance_spans: 0, chunks_linked: 0 };
         if (activeSchema) {
           await metadataRepo.updateIngestJob(job.id, { status: 'running', stage: 'extract' });
@@ -5015,12 +4859,16 @@ export function createApp(options: AppOptions = {}) {
             schema: activeSchema,
             records: ingested.flatMap((entry, i) => {
               const record = recordFromDocumentMetadata(docs[i]?.metadata ?? {});
-              return record ? [{
-                documentId: entry.document_id,
-                recordIndex: i,
-                record,
-                chunks: entry.chunks.map((chunk) => ({ id: chunk.id, content: chunk.content })),
-              }] : [];
+              return record
+                ? [
+                    {
+                      documentId: entry.document_id,
+                      recordIndex: i,
+                      record,
+                      chunks: entry.chunks.map((chunk) => ({ id: chunk.id, content: chunk.content })),
+                    },
+                  ]
+                : [];
             }),
           });
         }
@@ -5054,12 +4902,12 @@ export function createApp(options: AppOptions = {}) {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         await metadataRepo.setFileStatus(tenant, file.id, 'failed', message);
-	        await metadataRepo.updateIngestJob(job.id, {
-	          status: 'failed',
-	          error: message,
-	          lockedBy: null,
-	          incrementAttempts: true,
-	        });
+        await metadataRepo.updateIngestJob(job.id, {
+          status: 'failed',
+          error: message,
+          lockedBy: null,
+          incrementAttempts: true,
+        });
         console.error('knowledgebase ingest file failed', {
           job_id: job.id,
           file_id: file.id,
@@ -5092,12 +4940,12 @@ export function createApp(options: AppOptions = {}) {
     return { project: tenant, domain, run_id: runId, index_id: indexId, files: results };
   }
 
-	  app.post('/v1/kb/ingest/run', async (c) => {
-	    const body = (await c.req.json().catch(() => ({}))) as KbIngestRunBody;
+  app.post('/v1/kb/ingest/run', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as KbIngestRunBody;
     const queueIsPrimary = body.async !== false;
-		    if (queueIsPrimary && c.env.INGEST_QUEUE) {
-			      const domain = body.domain?.trim();
-			      if (!domain) return c.json({ error: 'domain is required' }, 400);
+    if (queueIsPrimary && c.env.INGEST_QUEUE) {
+      const domain = body.domain?.trim();
+      if (!domain) return c.json({ error: 'domain is required' }, 400);
       const tenant = c.get('tenant');
       const embeddingSelection = await applyKbDomainEmbeddingSelection(c, tenant, domain, body);
       if (embeddingSelection) return embeddingSelection;
@@ -5107,13 +4955,13 @@ export function createApp(options: AppOptions = {}) {
         if (isEmbeddingReadinessError(error)) return c.json({ error: error.message }, 400);
         throw error;
       }
-			      const runId = body.run_id?.trim() || crypto.randomUUID();
-		      const message: KbIngestQueueMessage = {
-		        kind: 'kb_ingest',
-		        project: tenant,
-		        domain,
-		        run_id: runId,
-			      };
+      const runId = body.run_id?.trim() || crypto.randomUUID();
+      const message: KbIngestQueueMessage = {
+        kind: 'kb_ingest',
+        project: tenant,
+        domain,
+        run_id: runId,
+      };
       if (body.file_ids !== undefined) message.file_ids = body.file_ids;
       if (body.markdown_conversion !== undefined) message.markdown_conversion = body.markdown_conversion;
       if (body.vision_ocr_model !== undefined) message.vision_ocr_model = body.vision_ocr_model;
@@ -5137,38 +4985,41 @@ export function createApp(options: AppOptions = {}) {
           backlog_bytes: response.metadata.metrics.backlogBytes,
         };
       }
-	      const metadataRepo = makeMetadataRepository(c.env);
-	      const activeSchema = (await metadataRepo.listSchemas(tenant)).find(
-	        (schema) => schema.domain === domain && schema.is_active === 1,
-	      );
-	      const files = body.file_ids?.length
-	        ? (await Promise.all(body.file_ids.map((id) => metadataRepo.getFile(tenant, id)))).filter((file): file is NonNullable<typeof file> => Boolean(file))
-	        : await metadataRepo.listFiles(tenant, domain, ['pending']);
-	      const jobs = [];
-	      for (const file of files) {
-	        jobs.push(await metadataRepo.upsertIngestJob({
-	          project: tenant,
-	          domain,
-	          fileId: file.id,
-		          schemaId: activeSchema?.id ?? null,
-		          status: 'queued',
-		          stage: 'parse',
-		          queueMessageId: workflowInstanceId ? 'cloudflare-workflow' : 'cloudflare-queue',
-		          workflowId: runId,
-		        }));
-		      }
-		      return c.json({
-			        project: tenant,
-			        domain,
-		        run_id: runId,
-		        ingestion_mode: 'queued',
-		        orchestration: workflowInstanceId ? 'workflow' : 'queue',
-		        queued: true,
-		        jobs,
-	        ...(workflowInstanceId ? { workflow: { id: workflowInstanceId } } : {}),
-	        ...(queueMetrics ? { queue: queueMetrics } : {}),
-	      }, 202);
-	    }
+      const metadataRepo = makeMetadataRepository(c.env);
+      const activeSchema = (await metadataRepo.listSchemas(tenant)).find((schema) => schema.domain === domain && schema.is_active === 1);
+      const files = body.file_ids?.length
+        ? (await Promise.all(body.file_ids.map((id) => metadataRepo.getFile(tenant, id)))).filter((file): file is NonNullable<typeof file> => Boolean(file))
+        : await metadataRepo.listFiles(tenant, domain, ['pending']);
+      const jobs = [];
+      for (const file of files) {
+        jobs.push(
+          await metadataRepo.upsertIngestJob({
+            project: tenant,
+            domain,
+            fileId: file.id,
+            schemaId: activeSchema?.id ?? null,
+            status: 'queued',
+            stage: 'parse',
+            queueMessageId: workflowInstanceId ? 'cloudflare-workflow' : 'cloudflare-queue',
+            workflowId: runId,
+          }),
+        );
+      }
+      return c.json(
+        {
+          project: tenant,
+          domain,
+          run_id: runId,
+          ingestion_mode: 'queued',
+          orchestration: workflowInstanceId ? 'workflow' : 'queue',
+          queued: true,
+          jobs,
+          ...(workflowInstanceId ? { workflow: { id: workflowInstanceId } } : {}),
+          ...(queueMetrics ? { queue: queueMetrics } : {}),
+        },
+        202,
+      );
+    }
     if (body.async === true && !c.env.INGEST_QUEUE) return c.json({ error: 'INGEST_QUEUE is not configured' }, 500);
     const inlineDomain = body.domain?.trim();
     if (inlineDomain) {
@@ -5176,10 +5027,10 @@ export function createApp(options: AppOptions = {}) {
       if (embeddingSelection) return embeddingSelection;
     }
     try {
-	      const runBody = {
-	        ...body,
-	        run_id: body.run_id?.trim() || crypto.randomUUID(),
-	      };
+      const runBody = {
+        ...body,
+        run_id: body.run_id?.trim() || crypto.randomUUID(),
+      };
       return c.json({
         ...(await runKbIngest(c.env, c.get('tenant'), runBody, 'worker-inline')),
         ingestion_mode: 'inline',
@@ -5303,8 +5154,7 @@ export function createApp(options: AppOptions = {}) {
     const tenant = c.get('tenant');
     const metadataRepo = makeMetadataRepository(c.env);
     const domain = body.domain?.trim();
-    const schemas = (await metadataRepo.listSchemas(tenant))
-      .filter((schema) => !domain || schema.domain === domain);
+    const schemas = (await metadataRepo.listSchemas(tenant)).filter((schema) => !domain || schema.domain === domain);
     if (domain && schemas.length === 0) return c.json({ error: 'active schema not found for domain' }, 404);
     const results = [];
     for (const schema of schemas) {
@@ -5322,11 +5172,7 @@ export function createApp(options: AppOptions = {}) {
     });
   });
 
-  async function runKbAnswer(
-    c: AppContext,
-    body: KbQueryBody,
-    started: number,
-  ): Promise<{ payload: KbAnswerPayload; timing: RagTiming; cache: CacheStatus }> {
+  async function runKbAnswer(c: AppContext, body: KbQueryBody, started: number): Promise<{ payload: KbAnswerPayload; timing: RagTiming; cache: CacheStatus }> {
     const domain = body.domain?.trim();
     const question = (body.question ?? body.query)?.trim();
     if (!domain) throw new Error('domain is required');
@@ -5355,15 +5201,20 @@ export function createApp(options: AppOptions = {}) {
       const structuredStarted = performance.now();
       const topK = clampTopK(body.top_k ?? 5);
       const fieldQuery = await structuredFieldQueryResults(metadataRepo, tenant, domain, question, topK);
-      const structuredEntities = fieldQuery.entities.length > 0
-        ? fieldQuery.entities
-        : await metadataRepo.searchEntities(tenant, domain, question, topK);
+      const structuredEntities = fieldQuery.entities.length > 0 ? fieldQuery.entities : await metadataRepo.searchEntities(tenant, domain, question, topK);
       if (structuredEntities.length > 0) {
         const structuredRoute = fieldQuery.entities.length > 0 ? 'd1_structured_query' : 'd1_entities';
         const entityResults = structuredEntities.map((entity, i) =>
-          searchResultFromEntity(entity, 1 / (i + 1), structuredRoute, fieldQuery.filters.length > 0 ? {
-            structured_filters: fieldQuery.filters,
-          } : {}),
+          searchResultFromEntity(
+            entity,
+            1 / (i + 1),
+            structuredRoute,
+            fieldQuery.filters.length > 0
+              ? {
+                  structured_filters: fieldQuery.filters,
+                }
+              : {},
+          ),
         );
         const graphResults = await graphResultsForEntities(metadataRepo, tenant, domain, structuredEntities);
         const data = [...entityResults, ...graphResults].slice(0, topK + graphResults.length);
@@ -5375,11 +5226,12 @@ export function createApp(options: AppOptions = {}) {
           entity_result_count: entityResults.length,
           graph_result_count: graphResults.length,
           structured_filters: fieldQuery.filters,
-          calibration: fieldQuery.entities.length > 0
-            ? 'exact_structured_field_match'
-            : graphResults.length > 0
-              ? 'exact_structured_entity_match_with_graph_edges'
-              : 'exact_structured_entity_match',
+          calibration:
+            fieldQuery.entities.length > 0
+              ? 'exact_structured_field_match'
+              : graphResults.length > 0
+                ? 'exact_structured_entity_match_with_graph_edges'
+                : 'exact_structured_entity_match',
         };
         const answerState = await answerFromEvidence({
           env: c.env,
@@ -5428,11 +5280,19 @@ export function createApp(options: AppOptions = {}) {
           confidence: confidenceWithTiming(answerState.confidence, timing, structuredPayloadForTrace),
           latencyMs: elapsedMs(started),
         });
-	        writeTraceAnalytics(c.env, trace);
+        writeTraceAnalytics(c.env, trace);
         if (sessionId) {
           await metadataRepo.appendSessionHistory(tenant, sessionId, [
             { role: 'user', content: question, trace_id: trace.id, created_at: new Date().toISOString() },
-            { role: 'assistant', content: answerState.answer, trace_id: trace.id, citations, route: 'd1_entities', answer_mode: answerState.answerMode, created_at: new Date().toISOString() },
+            {
+              role: 'assistant',
+              content: answerState.answer,
+              trace_id: trace.id,
+              citations,
+              route: 'd1_entities',
+              answer_mode: answerState.answerMode,
+              created_at: new Date().toISOString(),
+            },
           ]);
         }
         return {
@@ -5499,13 +5359,14 @@ export function createApp(options: AppOptions = {}) {
       requestedMode: requestedAnswerMode,
       requestedModel: body.answer_model,
     });
-    const route = result.timing.retrieval === 'lexical' || result.timing.retrieval === 'semantic_lexical_fast_path'
-      ? 'd1_lexical'
-      : result.timing.retrieval === 'hybrid_rrf'
-        ? 'hybrid_rrf'
-        : result.timing.retrieval === 'corrective_hybrid'
-          ? 'corrective_hybrid'
-          : 'vectorize';
+    const route =
+      result.timing.retrieval === 'lexical' || result.timing.retrieval === 'semantic_lexical_fast_path'
+        ? 'd1_lexical'
+        : result.timing.retrieval === 'hybrid_rrf'
+          ? 'hybrid_rrf'
+          : result.timing.retrieval === 'corrective_hybrid'
+            ? 'corrective_hybrid'
+            : 'vectorize';
     result.timing.verification = 'deterministic';
     Object.assign(result.timing, answerState.timing);
     result.timing.verification_status = String(answerState.confidence.verification_status ?? 'unknown');
@@ -5537,11 +5398,19 @@ export function createApp(options: AppOptions = {}) {
       confidence: confidenceWithTiming(answerState.confidence, result.timing, payloadForTrace),
       latencyMs: elapsedMs(started),
     });
-	    writeTraceAnalytics(c.env, trace);
+    writeTraceAnalytics(c.env, trace);
     if (sessionId) {
       await metadataRepo.appendSessionHistory(tenant, sessionId, [
         { role: 'user', content: question, trace_id: trace.id, created_at: new Date().toISOString() },
-        { role: 'assistant', content: answerState.answer, trace_id: trace.id, citations, route, answer_mode: answerState.answerMode, created_at: new Date().toISOString() },
+        {
+          role: 'assistant',
+          content: answerState.answer,
+          trace_id: trace.id,
+          citations,
+          route,
+          answer_mode: answerState.answerMode,
+          created_at: new Date().toISOString(),
+        },
       ]);
     }
     const payload = {
@@ -5590,12 +5459,16 @@ export function createApp(options: AppOptions = {}) {
     if (body.query_rewrite !== undefined) queryBody.query_rewrite = body.query_rewrite;
     if (body.query_decompose !== undefined) queryBody.query_decompose = body.query_decompose;
     const result = await runTextQuery(contextWithIndex(c, index.id), query, queryBody);
-    return c.json({
-      project: tenant,
-      domain,
-      index_id: index.id,
-      ...result.payload,
-    }, 200, withTimingHeaders(result.timing, result.cache, started));
+    return c.json(
+      {
+        project: tenant,
+        domain,
+        index_id: index.id,
+        ...result.payload,
+      },
+      200,
+      withTimingHeaders(result.timing, result.cache, started),
+    );
   });
 
   app.post('/v1/kb/query', async (c) => {
@@ -5626,11 +5499,13 @@ export function createApp(options: AppOptions = {}) {
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        controller.enqueue(sseEvent('started', {
-          project: c.get('tenant'),
-          domain,
-          question,
-        }));
+        controller.enqueue(
+          sseEvent('started', {
+            project: c.get('tenant'),
+            domain,
+            question,
+          }),
+        );
         try {
           const result = await runKbAnswer(c, body, started);
           withTimingHeaders(result.timing, result.cache, started);
@@ -5639,9 +5514,11 @@ export function createApp(options: AppOptions = {}) {
           }
           controller.enqueue(sseEvent('answer', result.payload));
         } catch (error) {
-          controller.enqueue(sseEvent('error', {
-            detail: error instanceof Error ? error.message : String(error),
-          }));
+          controller.enqueue(
+            sseEvent('error', {
+              detail: error instanceof Error ? error.message : String(error),
+            }),
+          );
         } finally {
           controller.close();
         }
@@ -5805,9 +5682,8 @@ export function createApp(options: AppOptions = {}) {
       throw error;
     }
     const embeddingProfile = embeddingProfileForIndex(c.env, index, vectorizeProfile);
-    const smallProfile = embeddingProfile.vectorizeProfile === 'base'
-      ? configuredVectorizeProfiles(c.env).find((profile) => profile.key === 'small')
-      : undefined;
+    const smallProfile =
+      embeddingProfile.vectorizeProfile === 'base' ? configuredVectorizeProfiles(c.env).find((profile) => profile.key === 'small') : undefined;
 
     const out: Array<{ document_id: string; chunks_created: number }> = [];
     for (const input of documents) {
@@ -5825,9 +5701,7 @@ export function createApp(options: AppOptions = {}) {
       });
       const chunkContents = chunkText(content, body.chunking);
       const vectors = await embed(c.env, chunkContents, embeddingOptionsForProfile(embeddingProfile));
-      const smallVectors = smallProfile
-        ? await embed(c.env, chunkContents, { model: embeddingModel(c.env, 'small') })
-        : [];
+      const smallVectors = smallProfile ? await embed(c.env, chunkContents, { model: embeddingModel(c.env, 'small') }) : [];
       const chunkRows: CreateChunkInput[] = chunkContents.map((chunk, i) => ({
         id: crypto.randomUUID(),
         tenant,
@@ -5916,14 +5790,7 @@ export function createApp(options: AppOptions = {}) {
         id: chunkId,
         values: embedding,
         namespace: vectorNamespace(tenant, indexId),
-        metadata: vectorMetadata(
-          tenant,
-          indexId,
-          documentId,
-          chunkIndex,
-          content,
-          metadata,
-        ),
+        metadata: vectorMetadata(tenant, indexId, documentId, chunkIndex, content, metadata),
       });
     }
 
@@ -6040,12 +5907,7 @@ export function createApp(options: AppOptions = {}) {
     return { data };
   }
 
-  async function queryByLexical(
-    c: AppContext,
-    query: string,
-    body: QueryBody,
-    timing?: RagTiming,
-  ): Promise<QueryPayload | null> {
+  async function queryByLexical(c: AppContext, query: string, body: QueryBody, timing?: RagTiming): Promise<QueryPayload | null> {
     const tokens = tokenizeLexicalQuery(query);
     if (tokens.length === 0) return null;
     const started = performance.now();
@@ -6089,13 +5951,7 @@ export function createApp(options: AppOptions = {}) {
     };
   }
 
-  async function queryByLexicalPlan(
-    c: AppContext,
-    query: string,
-    body: QueryBody,
-    plan: QueryPlan,
-    timing?: RagTiming,
-  ): Promise<QueryPayload | null> {
+  async function queryByLexicalPlan(c: AppContext, query: string, body: QueryBody, plan: QueryPlan, timing?: RagTiming): Promise<QueryPayload | null> {
     const started = performance.now();
     const primary = await queryByLexical(c, query, body, timing);
     if (plan.variants.length === 0) return primary;
@@ -6223,9 +6079,7 @@ export function createApp(options: AppOptions = {}) {
     const body = (await c.req.json().catch(() => ({}))) as SearchEvalBody;
     const indexId = body.index_id?.trim();
     if (!indexId) return c.json({ error: 'index_id is required' }, 400);
-    const cases = (Array.isArray(body.cases) ? body.cases : [])
-      .filter((testCase) => testCase.query?.trim())
-      .slice(0, MAX_EVAL_CASES);
+    const cases = (Array.isArray(body.cases) ? body.cases : []).filter((testCase) => testCase.query?.trim()).slice(0, MAX_EVAL_CASES);
     if (cases.length === 0) return c.json({ error: 'cases array is required' }, 400);
     const queryBody: QueryBody = {};
     if (body.top_k !== undefined) queryBody.top_k = body.top_k;
@@ -6271,15 +6125,15 @@ export function createApp(options: AppOptions = {}) {
       latency: summarizeLatencies(latencies),
     };
     const metadataRepo = makeMetadataRepository(c.env);
-	    const report = await metadataRepo.insertEvalReport({
-	      project: c.get('tenant'),
-	      kind: 'search',
-	      indexId,
-	      summary,
-	      rows,
-	    });
-	    writeEvalReportAnalytics(c.env, report);
-	    return c.json({
+    const report = await metadataRepo.insertEvalReport({
+      project: c.get('tenant'),
+      kind: 'search',
+      indexId,
+      summary,
+      rows,
+    });
+    writeEvalReportAnalytics(c.env, report);
+    return c.json({
       ...summary,
       report_id: report.id,
       rows,
@@ -6290,7 +6144,7 @@ export function createApp(options: AppOptions = {}) {
     const body = (await c.req.json().catch(() => ({}))) as ParseEvalBody;
     const domain = body.domain?.trim() || null;
     const cases = (Array.isArray(body.cases) ? body.cases : [])
-      .filter((testCase) => (testCase.content_base64?.trim() || testCase.content !== undefined) && (testCase.filename?.trim()))
+      .filter((testCase) => (testCase.content_base64?.trim() || testCase.content !== undefined) && testCase.filename?.trim())
       .slice(0, MAX_EVAL_CASES);
     if (cases.length === 0) return c.json({ error: 'cases array is required' }, 400);
     const rows = [];
@@ -6306,15 +6160,8 @@ export function createApp(options: AppOptions = {}) {
       const expected = expectedTextList(testCase.expected_text);
       const requestedVisionModel = testCase.vision_ocr_model ?? body.vision_ocr_model ?? c.env.RAG_VISION_OCR_MODEL ?? '';
       const visionModels = visionOcrModelChain(requestedVisionModel);
-      const firstVisionModel = visionModels.length > 1 ? visionModels[0] ?? '' : requestedVisionModel;
-      let parsed = await parseUploadBytesWithCloudflare(
-        filename,
-        mime,
-        bytes,
-        c.env.AI,
-        markdownMode,
-        firstVisionModel,
-      );
+      const firstVisionModel = visionModels.length > 1 ? (visionModels[0] ?? '') : requestedVisionModel;
+      let parsed = await parseUploadBytesWithCloudflare(filename, mime, bytes, c.env.AI, markdownMode, firstVisionModel);
       let textMatch = parseEvalMatch(parsed.text, expected);
       let parserMatched = testCase.expected_parser ? parsed.parser === testCase.expected_parser : true;
       let lengthMatched = testCase.min_text_length === undefined || parsed.text.length >= testCase.min_text_length;
@@ -6325,28 +6172,19 @@ export function createApp(options: AppOptions = {}) {
         const retryVisionModel = visionModels.slice(1).join(',');
         triedVisionModels.push(...visionModels.slice(1));
         retryReason = 'missing_expected_text';
-        const retryParsed = await parseUploadBytesWithCloudflare(
-          filename,
-          mime,
-          bytes,
-          c.env.AI,
-          markdownMode,
-          retryVisionModel,
-        );
+        const retryParsed = await parseUploadBytesWithCloudflare(filename, mime, bytes, c.env.AI, markdownMode, retryVisionModel);
         const retryTextMatch = parseEvalMatch(retryParsed.text, expected);
         const retryParserMatched = testCase.expected_parser ? retryParsed.parser === testCase.expected_parser : true;
         const retryLengthMatched = testCase.min_text_length === undefined || retryParsed.text.length >= testCase.min_text_length;
         const retryOk = retryTextMatch.missing.length === 0 && retryParserMatched && retryLengthMatched && retryParsed.text.length > 0;
-        const retryImproved = retryTextMatch.matched.length > textMatch.matched.length
-          || retryTextMatch.missing.length < textMatch.missing.length
-          || (retryTextMatch.matched.length === textMatch.matched.length && retryParsed.text.length > parsed.text.length);
+        const retryImproved =
+          retryTextMatch.matched.length > textMatch.matched.length ||
+          retryTextMatch.missing.length < textMatch.missing.length ||
+          (retryTextMatch.matched.length === textMatch.matched.length && retryParsed.text.length > parsed.text.length);
         if (retryOk || retryImproved) {
           parsed = {
             ...retryParsed,
-            warnings: [
-              ...(parsed.warnings ?? []).map((warning) => `vision_eval_first_attempt:${warning}`),
-              ...(retryParsed.warnings ?? []),
-            ],
+            warnings: [...(parsed.warnings ?? []).map((warning) => `vision_eval_first_attempt:${warning}`), ...(retryParsed.warnings ?? [])],
           };
           textMatch = retryTextMatch;
           parserMatched = retryParserMatched;
@@ -6411,23 +6249,21 @@ export function createApp(options: AppOptions = {}) {
     const body = (await c.req.json().catch(() => ({}))) as QueryEvalBody;
     const domain = body.domain?.trim();
     if (!domain) return c.json({ error: 'domain is required' }, 400);
-    const cases = (Array.isArray(body.cases) ? body.cases : [])
-      .filter((testCase) => (testCase.question ?? testCase.query)?.trim())
-      .slice(0, MAX_EVAL_CASES);
+    const cases = (Array.isArray(body.cases) ? body.cases : []).filter((testCase) => (testCase.question ?? testCase.query)?.trim()).slice(0, MAX_EVAL_CASES);
     if (cases.length === 0) return c.json({ error: 'cases array is required' }, 400);
     const rows = [];
     const latencies = [];
     let hits = 0;
     let cited = 0;
     let aiUsed = 0;
-	    let supportedAnswers = 0;
-	    let unsupportedTokenTotal = 0;
-	    const faithfulnessScores: number[] = [];
-	    const modelJudgeScores: number[] = [];
-	    let modelJudged = 0;
-	    let modelJudgeSupported = 0;
-	    const judgeModel = body.judge_model?.trim() || DEFAULT_EVAL_JUDGE_MODEL;
-	    for (const [i, testCase] of cases.entries()) {
+    let supportedAnswers = 0;
+    let unsupportedTokenTotal = 0;
+    const faithfulnessScores: number[] = [];
+    const modelJudgeScores: number[] = [];
+    let modelJudged = 0;
+    let modelJudgeSupported = 0;
+    const judgeModel = body.judge_model?.trim() || DEFAULT_EVAL_JUDGE_MODEL;
+    for (const [i, testCase] of cases.entries()) {
       const started = performance.now();
       const question = (testCase.question ?? testCase.query ?? '').trim();
       const queryBody: KbQueryBody = {
@@ -6449,46 +6285,39 @@ export function createApp(options: AppOptions = {}) {
       const result = await runKbAnswer(c, queryBody, started);
       const elapsed = elapsedMs(started);
       latencies.push(elapsed);
-      const expectedText = (
-        testCase.expected_answer_text
-        ?? testCase.expected_citation_text
-        ?? testCase.expected_text
-        ?? ''
-      ).trim().toLowerCase();
+      const expectedText = (testCase.expected_answer_text ?? testCase.expected_citation_text ?? testCase.expected_text ?? '').trim().toLowerCase();
       const hit = queryEvalHit(result.payload, testCase);
-	      const hasCitation = result.payload.citations.length > 0 && /\[\d+\]/.test(result.payload.answer);
-	      const quality = answerSupportQuality(result.payload.answer, result.payload.citations, result.payload.data);
-	      let modelJudge: JsonRecord = {};
-	      if (body.ai_judge === true) {
-	        try {
-	          modelJudge = await judgeAnswerWithAi({
-	            env: c.env,
-	            question,
-	            expectedText,
-	            answer: result.payload.answer,
-	            citations: result.payload.citations,
-	            retrieved: result.payload.data,
-	            model: judgeModel,
-	          });
-	          modelJudged += 1;
-	          if (modelJudge.model_judge_status === 'supported') modelJudgeSupported += 1;
-	          if (typeof modelJudge.model_judge_score === 'number') modelJudgeScores.push(modelJudge.model_judge_score);
-	        } catch (error) {
-	          modelJudge = {
-	            model_judged: false,
-	            model_judge_model: judgeModel,
-	            model_judge_error: error instanceof Error ? error.message : String(error),
-	          };
-	        }
-	      }
-	      const faithfulnessScore = typeof quality.citation_coverage === 'number' ? quality.citation_coverage : null;
+      const hasCitation = result.payload.citations.length > 0 && /\[\d+\]/.test(result.payload.answer);
+      const quality = answerSupportQuality(result.payload.answer, result.payload.citations, result.payload.data);
+      let modelJudge: JsonRecord = {};
+      if (body.ai_judge === true) {
+        try {
+          modelJudge = await judgeAnswerWithAi({
+            env: c.env,
+            question,
+            expectedText,
+            answer: result.payload.answer,
+            citations: result.payload.citations,
+            retrieved: result.payload.data,
+            model: judgeModel,
+          });
+          modelJudged += 1;
+          if (modelJudge.model_judge_status === 'supported') modelJudgeSupported += 1;
+          if (typeof modelJudge.model_judge_score === 'number') modelJudgeScores.push(modelJudge.model_judge_score);
+        } catch (error) {
+          modelJudge = {
+            model_judged: false,
+            model_judge_model: judgeModel,
+            model_judge_error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }
+      const faithfulnessScore = typeof quality.citation_coverage === 'number' ? quality.citation_coverage : null;
       if (hit) hits += 1;
       if (hasCitation) cited += 1;
       if (result.payload.ai_used) aiUsed += 1;
       if (quality.status === 'supported') supportedAnswers += 1;
-      unsupportedTokenTotal += typeof quality.unsupported_answer_token_count === 'number'
-        ? quality.unsupported_answer_token_count
-        : 0;
+      unsupportedTokenTotal += typeof quality.unsupported_answer_token_count === 'number' ? quality.unsupported_answer_token_count : 0;
       if (faithfulnessScore !== null) faithfulnessScores.push(faithfulnessScore);
       rows.push({
         id: testCase.id ?? `case-${i + 1}`,
@@ -6505,12 +6334,12 @@ export function createApp(options: AppOptions = {}) {
         ai_used: result.payload.ai_used,
         result_count: result.payload.data.length,
         citation_count: result.payload.citations.length,
-	        latency_ms: elapsed,
-	        trace_id: result.payload.trace_id,
-	        ...modelJudge,
-	      });
-	    }
-	    const summary: JsonRecord = {
+        latency_ms: elapsed,
+        trace_id: result.payload.trace_id,
+        ...modelJudge,
+      });
+    }
+    const summary: JsonRecord = {
       project: c.get('tenant'),
       domain,
       n: cases.length,
@@ -6518,58 +6347,60 @@ export function createApp(options: AppOptions = {}) {
       citation_rate: cited / cases.length,
       faithfulness_rate: supportedAnswers / cases.length,
       avg_faithfulness_score: average(faithfulnessScores),
-	      avg_unsupported_answer_tokens: unsupportedTokenTotal / cases.length,
-	      ai_use_rate: aiUsed / cases.length,
-	      model_judge_enabled: body.ai_judge === true,
-	      ...(body.ai_judge === true ? {
-	        model_judge_model: judgeModel,
-	        model_judged_count: modelJudged,
-	        model_judge_support_rate: modelJudged > 0 ? modelJudgeSupported / modelJudged : 0,
-	        avg_model_judge_score: average(modelJudgeScores),
-	      } : {}),
-	      latency: summarizeLatencies(latencies),
-	    };
+      avg_unsupported_answer_tokens: unsupportedTokenTotal / cases.length,
+      ai_use_rate: aiUsed / cases.length,
+      model_judge_enabled: body.ai_judge === true,
+      ...(body.ai_judge === true
+        ? {
+            model_judge_model: judgeModel,
+            model_judged_count: modelJudged,
+            model_judge_support_rate: modelJudged > 0 ? modelJudgeSupported / modelJudged : 0,
+            avg_model_judge_score: average(modelJudgeScores),
+          }
+        : {}),
+      latency: summarizeLatencies(latencies),
+    };
     const metadataRepo = makeMetadataRepository(c.env);
-	    const report = await metadataRepo.insertEvalReport({
-	      project: c.get('tenant'),
-	      kind: 'query',
-	      domain,
-	      summary,
-	      rows,
-	    });
-	    writeEvalReportAnalytics(c.env, report);
-	    return c.json({
+    const report = await metadataRepo.insertEvalReport({
+      project: c.get('tenant'),
+      kind: 'query',
+      domain,
+      summary,
+      rows,
+    });
+    writeEvalReportAnalytics(c.env, report);
+    return c.json({
       ...summary,
       report_id: report.id,
       rows,
     });
   });
 
-	  app.get('/v1/kb/evals/reports', async (c) => {
-	    const metadataRepo = makeMetadataRepository(c.env);
-	    const kind = c.req.query('kind')?.trim() || undefined;
-	    const domain = c.req.query('domain')?.trim() || undefined;
-	    const limit = Number(c.req.query('limit') ?? 50);
-	    const reports = await metadataRepo.listEvalReports(c.get('tenant'), kind, domain, limit);
-	    return c.json({ project: c.get('tenant'), kind: kind ?? null, domain: domain ?? null, reports });
-	  });
+  app.get('/v1/kb/evals/reports', async (c) => {
+    const metadataRepo = makeMetadataRepository(c.env);
+    const kind = c.req.query('kind')?.trim() || undefined;
+    const domain = c.req.query('domain')?.trim() || undefined;
+    const limit = Number(c.req.query('limit') ?? 50);
+    const reports = await metadataRepo.listEvalReports(c.get('tenant'), kind, domain, limit);
+    return c.json({ project: c.get('tenant'), kind: kind ?? null, domain: domain ?? null, reports });
+  });
 
-	  app.get('/v1/kb/evals/summary', async (c) => {
-	    const metadataRepo = makeMetadataRepository(c.env);
-	    const kind = c.req.query('kind')?.trim() || undefined;
-	    const domain = c.req.query('domain')?.trim() || undefined;
-	    const limit = Math.min(Math.max(Number(c.req.query('limit') ?? 500), 1), 500);
-	    const reports = await metadataRepo.listEvalReports(c.get('tenant'), kind, domain, limit);
-	    return c.json({
-	      project: c.get('tenant'),
-	      kind: kind ?? null,
-	      domain: domain ?? null,
-	      report_count: reports.length,
-	      summaries: summarizeEvalReports(reports),
-	    });
-	  });
+  app.get('/v1/kb/evals/summary', async (c) => {
+    const metadataRepo = makeMetadataRepository(c.env);
+    const kind = c.req.query('kind')?.trim() || undefined;
+    const domain = c.req.query('domain')?.trim() || undefined;
+    const limit = Math.min(Math.max(Number(c.req.query('limit') ?? 500), 1), 500);
+    const reports = await metadataRepo.listEvalReports(c.get('tenant'), kind, domain, limit);
+    return c.json({
+      project: c.get('tenant'),
+      kind: kind ?? null,
+      domain: domain ?? null,
+      report_count: reports.length,
+      summaries: summarizeEvalReports(reports),
+    });
+  });
 
-	  app.get('/v1/kb/evals/reports/:id', async (c) => {
+  app.get('/v1/kb/evals/reports/:id', async (c) => {
     const metadataRepo = makeMetadataRepository(c.env);
     const report = await metadataRepo.getEvalReport(c.get('tenant'), c.req.param('id'));
     if (!report) return c.json({ error: 'eval report not found' }, 404);
@@ -6628,10 +6459,7 @@ export function createApp(options: AppOptions = {}) {
     }
   });
 
-  (app as QueueCapableApp).processIngestQueue = async (
-    batch: MessageBatch<KbIngestQueueMessage>,
-    env: Env,
-  ) => {
+  (app as QueueCapableApp).processIngestQueue = async (batch: MessageBatch<KbIngestQueueMessage>, env: Env) => {
     for (const message of batch.messages) {
       const body = message.body;
       if (!body || body.kind !== 'kb_ingest' || !body.project || !body.domain) {
@@ -6651,11 +6479,11 @@ export function createApp(options: AppOptions = {}) {
         continue;
       }
       try {
-	        const ingestBody: KbIngestRunBody = {
-	          domain: body.domain,
-	        };
-	        if (body.run_id !== undefined) ingestBody.run_id = body.run_id;
-	        if (body.file_ids !== undefined) ingestBody.file_ids = body.file_ids;
+        const ingestBody: KbIngestRunBody = {
+          domain: body.domain,
+        };
+        if (body.run_id !== undefined) ingestBody.run_id = body.run_id;
+        if (body.file_ids !== undefined) ingestBody.file_ids = body.file_ids;
         if (body.markdown_conversion !== undefined) ingestBody.markdown_conversion = body.markdown_conversion;
         if (body.vision_ocr_model !== undefined) ingestBody.vision_ocr_model = body.vision_ocr_model;
         if (body.chunking !== undefined) ingestBody.chunking = body.chunking;
@@ -6692,8 +6520,7 @@ export function createWorker(options: AppOptions = {}) {
   const app = createApp(options) as QueueCapableApp;
   return {
     fetch: app.fetch,
-    queue: (batch: MessageBatch<KbIngestQueueMessage>, env: Env): Promise<void> =>
-      app.processIngestQueue(batch, env),
+    queue: (batch: MessageBatch<KbIngestQueueMessage>, env: Env): Promise<void> => app.processIngestQueue(batch, env),
   };
 }
 
