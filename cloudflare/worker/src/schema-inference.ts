@@ -1,8 +1,8 @@
 import type { JsonRecord } from './types';
 
-export type FieldType = 'string' | 'text' | 'integer' | 'number' | 'boolean' | 'date' | 'datetime' | 'enum' | 'array';
+type FieldType = 'string' | 'text' | 'integer' | 'number' | 'boolean' | 'date' | 'datetime' | 'enum' | 'array';
 
-export interface FieldSpec {
+interface FieldSpec {
   name: string;
   type: FieldType;
   description: string;
@@ -13,7 +13,7 @@ export interface FieldSpec {
   examples: unknown[];
 }
 
-export interface EntityType {
+interface EntityType {
   name: string;
   description: string;
   fields: FieldSpec[];

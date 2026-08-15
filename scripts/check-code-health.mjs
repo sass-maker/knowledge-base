@@ -66,7 +66,7 @@ function checkUnused() {
     { exports: 0, types: 0 },
   );
   // Debt: https://github.com/sass-maker/knowledge-base/issues/33
-  const baseline = { exports: 4, types: 7 };
+  const baseline = { exports: 0, types: 0 };
   console.log(`Unused: 0 high-confidence findings; ${observed.exports} exports, ${observed.types} types.`);
   failRegressions('Unused', observed, baseline);
 }
@@ -89,7 +89,7 @@ function checkComplexity() {
   };
   // Debt: https://github.com/sass-maker/knowledge-base/issues/33
   const baseline = {
-    violations: 55,
+    violations: 53,
     maxCcn: 121,
     maxLength: 5988,
     maxParams: 9,
@@ -127,9 +127,9 @@ function checkDuplication() {
   const observed = JSON.parse(readFileSync(join(outputDirectory, 'jscpd-report.json'), 'utf8')).statistics.total;
   // Debt: https://github.com/sass-maker/knowledge-base/issues/33
   const baseline = {
-    clones: 52,
-    duplicatedLines: 559,
-    percentage: 2.5025,
+    clones: 51,
+    duplicatedLines: 551,
+    percentage: 2.4673114812824646,
   };
   console.log(
     `Duplication: ${observed.duplicatedLines}/${observed.lines} lines (${observed.percentage.toFixed(4)}%), ` +

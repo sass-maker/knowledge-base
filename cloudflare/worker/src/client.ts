@@ -40,7 +40,7 @@ export interface KnowledgebaseResult {
   metadata?: Record<string, unknown>;
 }
 
-export interface KnowledgebaseCitation {
+interface KnowledgebaseCitation {
   index: number;
   document_id: string;
   chunk_id: string;

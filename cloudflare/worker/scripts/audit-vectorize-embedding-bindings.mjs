@@ -4,16 +4,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REQUIRED_MODELS } from './audit-free-ai-embedding-contract.mjs';
+import { trailingDimension } from './lib/trailing-dimension.mjs';
 
 const DEFAULT_CONFIG_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../wrangler.jsonc');
-
-function trailingDimension(value) {
-  if (typeof value !== 'string') return null;
-  const match = value.trim().match(/(?:^|[-_])(\d{2,5})$/);
-  if (!match) return null;
-  const dimension = Number(match[1]);
-  return Number.isInteger(dimension) && dimension > 0 ? dimension : null;
-}
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));

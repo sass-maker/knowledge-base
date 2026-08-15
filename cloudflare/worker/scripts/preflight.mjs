@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { auditD1Migrations } from './audit-d1-migrations.mjs';
 import { legacyRouteParityReport } from './audit-legacy-route-parity.mjs';
 import { pythonRuntimeRetirementReport } from './audit-python-runtime-retirement.mjs';
+import { trailingDimension } from './lib/trailing-dimension.mjs';
 
 const DEFAULT_CONFIG_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../wrangler.jsonc');
 
@@ -39,14 +40,6 @@ function freeAiEmbedConfigProblems(vars = {}) {
   if (!provider) problems.push('FREE_AI_EMBED_PROVIDER is missing');
   if (!Number.isInteger(dimensions) || dimensions <= 0) problems.push('FREE_AI_EMBED_DIMENSIONS must be a positive integer');
   return problems;
-}
-
-function trailingDimension(value) {
-  if (typeof value !== 'string') return null;
-  const match = value.trim().match(/(?:^|[-_])(\d{2,5})$/);
-  if (!match) return null;
-  const dimension = Number(match[1]);
-  return Number.isInteger(dimension) && dimension > 0 ? dimension : null;
 }
 
 function vectorizeDefaultDimensionCheck(config = {}) {

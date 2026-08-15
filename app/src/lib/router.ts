@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 
-export const ROUTES = ['/', '/data', '/domains', '/history', '/query', '/ingest', '/evals', '/traces', '/settings', '/changelog'] as const;
+const ROUTES = ['/', '/data', '/domains', '/history', '/query', '/ingest', '/evals', '/traces', '/settings', '/changelog'] as const;
 
 export type AppPath = (typeof ROUTES)[number];
 
 const NAVIGATION_EVENT = 'knowledgebase:navigate';
 
-export function normalizePath(pathname: string): string {
+function normalizePath(pathname: string): string {
   if (pathname === '/') return pathname;
   return pathname.replace(/\/+$/, '') || '/';
 }

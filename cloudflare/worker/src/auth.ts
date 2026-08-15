@@ -6,7 +6,7 @@ export interface Variables {
   credentialKind: CredentialKind;
 }
 
-export type CredentialKind = 'service' | 'append' | 'dashboard' | 'proof';
+type CredentialKind = 'service' | 'append' | 'dashboard' | 'proof';
 
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 

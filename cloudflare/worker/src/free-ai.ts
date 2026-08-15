@@ -49,10 +49,6 @@ export interface FreeAiChatBody {
   response_format?: unknown;
 }
 
-export function freeAiEmbedEnabled(env: Env): boolean {
-  return env.RAG_EMBED_PROVIDER === 'free_ai';
-}
-
 export function freeAiSynthEnabled(env: Env): boolean {
   return env.RAG_SYNTH_PROVIDER === 'free_ai';
 }

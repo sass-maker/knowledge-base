@@ -2,7 +2,7 @@ import { decompressSync, unzipSync } from 'fflate';
 import { recordsFromUnknown } from './schema-inference';
 import type { JsonRecord } from './types';
 
-export interface ParsedDocument {
+interface ParsedDocument {
   external_id: string;
   content: string;
   metadata: JsonRecord;
