@@ -1,11 +1,9 @@
 import type { Hono } from 'hono';
+import { type KbQueryBody, MAX_EVAL_CASES, type ParseEvalBody, type QueryBody, type QueryEvalBody, type SearchEvalBody } from '../app-types';
+import { average, elapsedMs, summarizeEvalReports, writeEvalReportAnalytics } from '../app-utils';
 import type { Variables } from '../auth';
-import type { Env } from '../types';
-import type { AppRuntime } from '../runtime';
 import { summarizeLatencies } from '../bench-utils';
 import { parseUploadBytesWithCloudflare } from '../document-parser';
-import { MAX_EVAL_CASES, type KbQueryBody, type ParseEvalBody, type QueryBody, type QueryEvalBody, type SearchEvalBody } from '../app-types';
-import { average, elapsedMs, summarizeEvalReports, writeEvalReportAnalytics } from '../app-utils';
 import {
   answerSupportQuality,
   contextWithIndex,
@@ -18,61 +16,13 @@ import {
   queryEvalHit,
   visionOcrModelChain,
 } from '../query';
-import type { JsonRecord } from '../types';
+import type { AppRuntime } from '../runtime';
+import type { Env, JsonRecord } from '../types';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
 export function registerEvalRoutes(app: App, rt: AppRuntime): void {
-  const {
-    makeRepository,
-    makeMetadataRepository,
-    embed,
-    queryCache,
-    answerCache,
-    embeddingCache,
-    indexCache,
-    indexRecordCache,
-    kbDomainIndexCache,
-    lexicalChunkCache,
-    clearAnswerAndQueryCaches,
-    rememberIndex,
-    rememberIndexRecord,
-    rememberKbDomainIndexRecord,
-    getKbDomainIndex,
-    getIndexRecord,
-    indexExists,
-    embedOne,
-    rerankWithWorkersAi,
-    rerankQueryPayload,
-    getSharedQueryCache,
-    setSharedQueryCache,
-    clearSharedQueryCache,
-    getSharedEmbeddingCache,
-    setSharedEmbeddingCache,
-    clearKbDomainCaches,
-    deleteKbFiles,
-    relationshipsWithEntityNames,
-    persistSharedQueryCache,
-    getCachedLexicalChunks,
-    clearLexicalChunkCache,
-    primeLexicalChunkCache,
-    runTextQuery,
-    kbDomainCreateIndexBody,
-    resolveKbDomainEmbeddingSelection,
-    persistKbDomainEmbeddingSelection,
-    applyKbDomainEmbeddingSelection,
-    formEmbeddingSelection,
-    ensureKbIndex,
-    validateKbIndexReadiness,
-    validateKbSchedulingReadiness,
-    upsertChunkVectors,
-    ingestDocumentsToIndex,
-    runKbIngest,
-    runKbAnswer,
-    queryByVector,
-    queryByLexical,
-    queryByLexicalPlan,
-  } = rt;
+  const { makeMetadataRepository, runTextQuery, runKbAnswer } = rt;
 
   app.post('/v1/kb/evals/search', async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as SearchEvalBody;

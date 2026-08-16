@@ -1,21 +1,13 @@
 import type { Hono } from 'hono';
-import type { Variables } from '../auth';
-import type { Env } from '../types';
-import type { AppRuntime } from '../runtime';
-import { parseCacheOptions } from '../cache';
-import { parseUploadBytesWithCloudflare } from '../document-parser';
-import { fetchFreeAiEmbeddingCatalog, freeAiEmbeddingCatalog } from '../free-ai';
-import { parseFileRegistrationBody, safeObjectKeySegment, type FileRecord, type IngestJobRecord } from '../kb-metadata-repository';
-import { inferSchema, recordsFromUnknown, type DomainSchema } from '../schema-inference';
-import {
-  type CreateIndexBody,
-  type EdgarFilingCandidate,
-  type EmbeddingModelCatalogRow,
-  type InferSchemaBody,
-  type IngestBody,
-  type ResolvedEmbeddingProfile,
-  type SourceImportBody,
-  type UpsertDomainBody,
+import type {
+  CreateIndexBody,
+  EdgarFilingCandidate,
+  EmbeddingModelCatalogRow,
+  InferSchemaBody,
+  IngestBody,
+  ResolvedEmbeddingProfile,
+  SourceImportBody,
+  UpsertDomainBody,
 } from '../app-types';
 import {
   buildCacheKey,
@@ -30,6 +22,10 @@ import {
   sha256Hex,
   vectorizeProfileForIndex,
 } from '../app-utils';
+import type { Variables } from '../auth';
+import { parseCacheOptions } from '../cache';
+import { parseUploadBytesWithCloudflare } from '../document-parser';
+import { fetchFreeAiEmbeddingCatalog, freeAiEmbeddingCatalog } from '../free-ai';
 import {
   classifyIngestFailure,
   edgarCandidatesForCompany,
@@ -46,7 +42,10 @@ import {
   summarizeSourceSets,
   virtualInputFilename,
 } from '../ingest';
-import type { JsonRecord } from '../types';
+import { type FileRecord, type IngestJobRecord, parseFileRegistrationBody, safeObjectKeySegment } from '../kb-metadata-repository';
+import type { AppRuntime } from '../runtime';
+import { type DomainSchema, inferSchema, recordsFromUnknown } from '../schema-inference';
+import type { Env, JsonRecord } from '../types';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
@@ -54,52 +53,12 @@ export function registerCatalogRoutes(app: App, rt: AppRuntime): void {
   const {
     makeRepository,
     makeMetadataRepository,
-    embed,
-    queryCache,
-    answerCache,
-    embeddingCache,
-    indexCache,
-    indexRecordCache,
-    kbDomainIndexCache,
-    lexicalChunkCache,
-    clearAnswerAndQueryCaches,
-    rememberIndex,
     rememberIndexRecord,
-    rememberKbDomainIndexRecord,
-    getKbDomainIndex,
-    getIndexRecord,
-    indexExists,
-    embedOne,
-    rerankWithWorkersAi,
-    rerankQueryPayload,
-    getSharedQueryCache,
-    setSharedQueryCache,
-    clearSharedQueryCache,
-    getSharedEmbeddingCache,
-    setSharedEmbeddingCache,
-    clearKbDomainCaches,
     deleteKbFiles,
-    relationshipsWithEntityNames,
-    persistSharedQueryCache,
-    getCachedLexicalChunks,
-    clearLexicalChunkCache,
-    primeLexicalChunkCache,
-    runTextQuery,
-    kbDomainCreateIndexBody,
     resolveKbDomainEmbeddingSelection,
-    persistKbDomainEmbeddingSelection,
     applyKbDomainEmbeddingSelection,
     formEmbeddingSelection,
-    ensureKbIndex,
-    validateKbIndexReadiness,
     validateKbSchedulingReadiness,
-    upsertChunkVectors,
-    ingestDocumentsToIndex,
-    runKbIngest,
-    runKbAnswer,
-    queryByVector,
-    queryByLexical,
-    queryByLexicalPlan,
   } = rt;
 
   app.get('/v1/kb/operator/projects', async (c) => {

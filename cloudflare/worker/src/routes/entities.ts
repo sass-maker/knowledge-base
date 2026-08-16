@@ -1,62 +1,12 @@
 import type { Hono } from 'hono';
 import type { Variables } from '../auth';
-import type { Env } from '../types';
 import type { AppRuntime } from '../runtime';
-import type { JsonRecord } from '../types';
+import type { Env, JsonRecord } from '../types';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
 export function registerEntityRoutes(app: App, rt: AppRuntime): void {
-  const {
-    makeRepository,
-    makeMetadataRepository,
-    embed,
-    queryCache,
-    answerCache,
-    embeddingCache,
-    indexCache,
-    indexRecordCache,
-    kbDomainIndexCache,
-    lexicalChunkCache,
-    clearAnswerAndQueryCaches,
-    rememberIndex,
-    rememberIndexRecord,
-    rememberKbDomainIndexRecord,
-    getKbDomainIndex,
-    getIndexRecord,
-    indexExists,
-    embedOne,
-    rerankWithWorkersAi,
-    rerankQueryPayload,
-    getSharedQueryCache,
-    setSharedQueryCache,
-    clearSharedQueryCache,
-    getSharedEmbeddingCache,
-    setSharedEmbeddingCache,
-    clearKbDomainCaches,
-    deleteKbFiles,
-    relationshipsWithEntityNames,
-    persistSharedQueryCache,
-    getCachedLexicalChunks,
-    clearLexicalChunkCache,
-    primeLexicalChunkCache,
-    runTextQuery,
-    kbDomainCreateIndexBody,
-    resolveKbDomainEmbeddingSelection,
-    persistKbDomainEmbeddingSelection,
-    applyKbDomainEmbeddingSelection,
-    formEmbeddingSelection,
-    ensureKbIndex,
-    validateKbIndexReadiness,
-    validateKbSchedulingReadiness,
-    upsertChunkVectors,
-    ingestDocumentsToIndex,
-    runKbIngest,
-    runKbAnswer,
-    queryByVector,
-    queryByLexical,
-    queryByLexicalPlan,
-  } = rt;
+  const { makeMetadataRepository, relationshipsWithEntityNames } = rt;
 
   app.get('/v1/kb/entities', async (c) => {
     const tenant = c.get('tenant');

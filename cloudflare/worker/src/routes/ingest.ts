@@ -1,10 +1,5 @@
 import type { Hono } from 'hono';
-import type { Variables } from '../auth';
-import type { Env } from '../types';
-import type { AppRuntime } from '../runtime';
-import { parseUploadBytesWithCloudflare } from '../document-parser';
-import { inferSchema, recordsFromUnknown } from '../schema-inference';
-import { type KbIngestRunBody, type KbRecordIngestBody, type KbTextIngestBody } from '../app-types';
+import type { KbIngestRunBody, KbRecordIngestBody, KbTextIngestBody } from '../app-types';
 import {
   deterministicId,
   embeddingOptionsForProfile,
@@ -15,6 +10,8 @@ import {
   structuredRecordIndexText,
   vectorizeProfileForIndex,
 } from '../app-utils';
+import type { Variables } from '../auth';
+import { parseUploadBytesWithCloudflare } from '../document-parser';
 import {
   chunkPreviewFromChunks,
   chunkPreviewFromFileResults,
@@ -24,62 +21,46 @@ import {
   summarizeIngestRun,
   virtualInputFilename,
 } from '../ingest';
-import { safeObjectKeySegment, type RecordStructuredEntitiesResult } from '../kb-metadata-repository';
+import { type RecordStructuredEntitiesResult, safeObjectKeySegment } from '../kb-metadata-repository';
 import type { CreateChunkInput } from '../repository';
-import type { JsonRecord, KbIngestQueueMessage } from '../types';
+import type { AppRuntime } from '../runtime';
+import { inferSchema, recordsFromUnknown } from '../schema-inference';
+import type { Env, JsonRecord, KbIngestQueueMessage } from '../types';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
+
+function embeddingReadinessErrorJson(
+  error: unknown,
+  extra: {
+    idempotencyKey?: string | undefined;
+    contentHash: string;
+    replayRoute: string;
+  },
+) {
+  if (!isEmbeddingReadinessError(error)) return null;
+  return {
+    error: error.message,
+    failure_classification: classifyIngestFailure(error),
+    ingest_safety: ingestSafetyEvidence({
+      idempotencyKey: extra.idempotencyKey,
+      contentHash: extra.contentHash,
+      replayRoute: extra.replayRoute,
+      failure: error,
+    }),
+  };
+}
 
 export function registerIngestRoutes(app: App, rt: AppRuntime): void {
   const {
     makeRepository,
     makeMetadataRepository,
-    embed,
-    queryCache,
-    answerCache,
-    embeddingCache,
-    indexCache,
-    indexRecordCache,
-    kbDomainIndexCache,
-    lexicalChunkCache,
-    clearAnswerAndQueryCaches,
-    rememberIndex,
-    rememberIndexRecord,
-    rememberKbDomainIndexRecord,
-    getKbDomainIndex,
-    getIndexRecord,
-    indexExists,
-    embedOne,
-    rerankWithWorkersAi,
-    rerankQueryPayload,
-    getSharedQueryCache,
-    setSharedQueryCache,
-    clearSharedQueryCache,
-    getSharedEmbeddingCache,
-    setSharedEmbeddingCache,
     clearKbDomainCaches,
-    deleteKbFiles,
-    relationshipsWithEntityNames,
-    persistSharedQueryCache,
-    getCachedLexicalChunks,
-    clearLexicalChunkCache,
-    primeLexicalChunkCache,
-    runTextQuery,
-    kbDomainCreateIndexBody,
-    resolveKbDomainEmbeddingSelection,
-    persistKbDomainEmbeddingSelection,
     applyKbDomainEmbeddingSelection,
-    formEmbeddingSelection,
     ensureKbIndex,
     validateKbIndexReadiness,
     validateKbSchedulingReadiness,
-    upsertChunkVectors,
     ingestDocumentsToIndex,
     runKbIngest,
-    runKbAnswer,
-    queryByVector,
-    queryByLexical,
-    queryByLexicalPlan,
   } = rt;
 
   app.post('/v1/kb/ingest/record', async (c) => {
@@ -249,21 +230,12 @@ export function registerIngestRoutes(app: App, rt: AppRuntime): void {
       indexId = await ensureKbIndex(c.env, ragRepo, tenant, domain);
       ingested = await ingestDocumentsToIndex(c.env, ragRepo, tenant, indexId, docs);
     } catch (error) {
-      if (isEmbeddingReadinessError(error)) {
-        return c.json(
-          {
-            error: error.message,
-            failure_classification: classifyIngestFailure(error),
-            ingest_safety: ingestSafetyEvidence({
-              idempotencyKey: body.idempotency_key,
-              contentHash,
-              replayRoute,
-              failure: error,
-            }),
-          },
-          400,
-        );
-      }
+      const payload = embeddingReadinessErrorJson(error, {
+        idempotencyKey: body.idempotency_key,
+        contentHash,
+        replayRoute,
+      });
+      if (payload) return c.json(payload, 400);
       throw error;
     }
     const chunkPreview = chunkPreviewFromChunks(ingested.flatMap((entry) => entry.chunks));
@@ -450,21 +422,12 @@ export function registerIngestRoutes(app: App, rt: AppRuntime): void {
       try {
         ingested = await runKbIngest(c.env, tenant, ingestBody, 'direct-text');
       } catch (error) {
-        if (isEmbeddingReadinessError(error)) {
-          return c.json(
-            {
-              error: error.message,
-              failure_classification: classifyIngestFailure(error),
-              ingest_safety: ingestSafetyEvidence({
-                idempotencyKey: body.idempotency_key,
-                contentHash,
-                replayRoute,
-                failure: error,
-              }),
-            },
-            400,
-          );
-        }
+        const payload = embeddingReadinessErrorJson(error, {
+          idempotencyKey: body.idempotency_key,
+          contentHash,
+          replayRoute,
+        });
+        if (payload) return c.json(payload, 400);
         throw error;
       }
       const chunkPreview = chunkPreviewFromFileResults(ingested.files);

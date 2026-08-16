@@ -1,64 +1,14 @@
 import type { Hono } from 'hono';
+import type { KbQueryBody, KbSearchBody, KbSessionBody, QueryBody } from '../app-types';
 import type { Variables } from '../auth';
-import type { Env } from '../types';
-import type { AppRuntime } from '../runtime';
-import { type KbQueryBody, type KbSearchBody, type KbSessionBody, type QueryBody } from '../app-types';
 import { answerQualityDrilldown, clampTopK, compareTraces, contextWithIndex, sseEvent, timingStages, traceExportSummary, withTimingHeaders } from '../query';
-import type { JsonRecord } from '../types';
+import type { AppRuntime } from '../runtime';
+import type { Env, JsonRecord } from '../types';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
 export function registerSearchRoutes(app: App, rt: AppRuntime): void {
-  const {
-    makeRepository,
-    makeMetadataRepository,
-    embed,
-    queryCache,
-    answerCache,
-    embeddingCache,
-    indexCache,
-    indexRecordCache,
-    kbDomainIndexCache,
-    lexicalChunkCache,
-    clearAnswerAndQueryCaches,
-    rememberIndex,
-    rememberIndexRecord,
-    rememberKbDomainIndexRecord,
-    getKbDomainIndex,
-    getIndexRecord,
-    indexExists,
-    embedOne,
-    rerankWithWorkersAi,
-    rerankQueryPayload,
-    getSharedQueryCache,
-    setSharedQueryCache,
-    clearSharedQueryCache,
-    getSharedEmbeddingCache,
-    setSharedEmbeddingCache,
-    clearKbDomainCaches,
-    deleteKbFiles,
-    relationshipsWithEntityNames,
-    persistSharedQueryCache,
-    getCachedLexicalChunks,
-    clearLexicalChunkCache,
-    primeLexicalChunkCache,
-    runTextQuery,
-    kbDomainCreateIndexBody,
-    resolveKbDomainEmbeddingSelection,
-    persistKbDomainEmbeddingSelection,
-    applyKbDomainEmbeddingSelection,
-    formEmbeddingSelection,
-    ensureKbIndex,
-    validateKbIndexReadiness,
-    validateKbSchedulingReadiness,
-    upsertChunkVectors,
-    ingestDocumentsToIndex,
-    runKbIngest,
-    runKbAnswer,
-    queryByVector,
-    queryByLexical,
-    queryByLexicalPlan,
-  } = rt;
+  const { makeRepository, makeMetadataRepository, getKbDomainIndex, runTextQuery, runKbAnswer } = rt;
 
   app.post('/v1/kb/search', async (c) => {
     const started = performance.now();

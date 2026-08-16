@@ -1,19 +1,13 @@
 import type { Hono } from 'hono';
-import type { Variables } from '../auth';
-import type { Env } from '../types';
-import type { AppRuntime } from '../runtime';
-import { percentile, summarizeLatencies } from '../bench-utils';
-import { parseCacheOptions } from '../cache';
-import { chunkText } from '../chunk';
 import {
-  MAX_BENCHMARK_QUERIES,
-  MAX_BENCHMARK_REPEAT,
-  MAX_BENCHMARK_WARMUP,
-  MAX_DOC_SIZE,
   type BenchmarkQueryBody,
   type ConfiguredVectorizeProfile,
   type IngestBody,
   type IngestVectorsBody,
+  MAX_BENCHMARK_QUERIES,
+  MAX_BENCHMARK_REPEAT,
+  MAX_BENCHMARK_WARMUP,
+  MAX_DOC_SIZE,
   type QueryBody,
   type RagTiming,
 } from '../app-types';
@@ -34,62 +28,33 @@ import {
   vectorMetadata,
   vectorNamespace,
 } from '../app-utils';
+import type { Variables } from '../auth';
+import { percentile, summarizeLatencies } from '../bench-utils';
+import { parseCacheOptions } from '../cache';
+import { chunkText } from '../chunk';
 import { clampTopK, withTimingHeaders } from '../query';
 import type { CreateChunkInput } from '../repository';
-import type { JsonRecord, VectorizeVector } from '../types';
+import type { AppRuntime } from '../runtime';
+import type { Env, JsonRecord, VectorizeVector } from '../types';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
 export function registerIndexRoutes(app: App, rt: AppRuntime): void {
   const {
     makeRepository,
-    makeMetadataRepository,
     embed,
     queryCache,
-    answerCache,
-    embeddingCache,
     indexCache,
     indexRecordCache,
     kbDomainIndexCache,
-    lexicalChunkCache,
     clearAnswerAndQueryCaches,
-    rememberIndex,
-    rememberIndexRecord,
-    rememberKbDomainIndexRecord,
-    getKbDomainIndex,
     getIndexRecord,
-    indexExists,
-    embedOne,
-    rerankWithWorkersAi,
-    rerankQueryPayload,
-    getSharedQueryCache,
-    setSharedQueryCache,
     clearSharedQueryCache,
-    getSharedEmbeddingCache,
-    setSharedEmbeddingCache,
-    clearKbDomainCaches,
-    deleteKbFiles,
-    relationshipsWithEntityNames,
-    persistSharedQueryCache,
-    getCachedLexicalChunks,
     clearLexicalChunkCache,
     primeLexicalChunkCache,
     runTextQuery,
-    kbDomainCreateIndexBody,
-    resolveKbDomainEmbeddingSelection,
-    persistKbDomainEmbeddingSelection,
-    applyKbDomainEmbeddingSelection,
-    formEmbeddingSelection,
-    ensureKbIndex,
-    validateKbIndexReadiness,
-    validateKbSchedulingReadiness,
     upsertChunkVectors,
-    ingestDocumentsToIndex,
-    runKbIngest,
-    runKbAnswer,
     queryByVector,
-    queryByLexical,
-    queryByLexicalPlan,
   } = rt;
 
   app.delete('/v1/indexes/:id', async (c) => {
