@@ -2,9 +2,18 @@ import type { Context, Hono } from 'hono';
 import type { Variables } from './auth';
 import type { TtlCache } from './cache';
 import type { FreeAiEmbeddingModel } from './free-ai';
-import type { MetadataRepository, MetadataRepository } from './kb-metadata-repository';
-import type { Repository, Repository } from './repository';
-import type { ChunkRecord, CitationRecord, CitationRecord, Env, Env, IndexRecord, IndexRecord, JsonRecord, JsonRecord, KbIngestQueueMessage, KbIngestQueueMessage, SearchResult, SearchResult, VectorizeBinding, VectorizeBinding } from './types';
+import type { MetadataRepository } from './kb-metadata-repository';
+import type { Repository } from './repository';
+import type {
+  ChunkRecord,
+  CitationRecord,
+  Env,
+  IndexRecord,
+  JsonRecord,
+  KbIngestQueueMessage,
+  SearchResult,
+  VectorizeBinding,
+} from './types';
 
 export const MAX_DOC_SIZE = 1_000_000;
 export const MAX_TOP_K = 50;
