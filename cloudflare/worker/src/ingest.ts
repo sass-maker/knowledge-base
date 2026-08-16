@@ -274,27 +274,27 @@ export function normalizeCik(value: string | number): string {
   return String(value).replace(/\D/g, '').padStart(10, '0').slice(-10);
 }
 
-export function cikArchiveSegment(cik: string): string {
+function cikArchiveSegment(cik: string): string {
   return String(Number(cik));
 }
 
-export function asStringArray(value: unknown): string[] {
+function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item ?? '')) : [];
 }
 
-export function edgarRecentValue(recent: Record<string, unknown[]>, key: string, index: number): string {
+function edgarRecentValue(recent: Record<string, unknown[]>, key: string, index: number): string {
   const value = recent[key]?.[index];
   return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
 }
 
-export function filingWithinDays(filingDate: string, days: number): boolean {
+function filingWithinDays(filingDate: string, days: number): boolean {
   if (!Number.isFinite(days) || days <= 0) return true;
   const timestamp = Date.parse(`${filingDate}T00:00:00Z`);
   if (!Number.isFinite(timestamp)) return false;
   return timestamp >= Date.now() - days * 24 * 60 * 60 * 1000;
 }
 
-export async function fetchJson<T>(url: string, userAgent: string): Promise<T> {
+async function fetchJson<T>(url: string, userAgent: string): Promise<T> {
   const response = await fetch(url, { headers: secHeaders(userAgent) });
   if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
   return (await response.json()) as T;

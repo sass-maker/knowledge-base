@@ -37,11 +37,11 @@ export const MAX_RECORD_INDEX_TEXT_CHARS = 1800;
 export const STOP_WORDS = new Set(['a', 'an', 'and', 'are', 'for', 'from', 'how', 'the', 'this', 'that', 'what', 'when', 'where', 'which', 'with']);
 export type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 export type QueryPayload = { data: SearchResult[] };
-export type TimingValue = number | string | boolean;
+type TimingValue = number | string | boolean;
 export type RagTiming = Record<string, TimingValue>;
 export type CacheStatus = 'hit' | 'miss';
 export type SemanticModel = 'base' | 'small';
-export type VectorizeProfileKey = SemanticModel | `dim_${number}`;
+type VectorizeProfileKey = SemanticModel | `dim_${number}`;
 export type RerankModel = 'keyword' | 'workers_ai';
 export type AnswerMode = 'extractive' | 'workers_ai';
 export type QueryPlanVariantKind = 'rewrite' | 'decompose';
@@ -50,8 +50,8 @@ export type QueryPlan = { variants: QueryPlanVariant[] };
 export type FetchLikeApp = {
   fetch(request: Request, env: Env): Response | Promise<Response>;
 };
-export type WorkerBindings = { Bindings: Env; Variables: Variables };
-export type WorkerApp = Hono<WorkerBindings>;
+type WorkerBindings = { Bindings: Env; Variables: Variables };
+type WorkerApp = Hono<WorkerBindings>;
 export type QueueCapableApp = WorkerApp & {
   processIngestQueue(batch: MessageBatch<KbIngestQueueMessage>, env: Env): Promise<void>;
 };

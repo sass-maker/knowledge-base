@@ -88,11 +88,11 @@ export function fuseHybridResults(lexical: QueryPayload | null, semantic: QueryP
   };
 }
 
-export function contentTokens(text: string): Set<string> {
+function contentTokens(text: string): Set<string> {
   return new Set(text.toLowerCase().match(/[a-z0-9][a-z0-9-]{2,}/g) ?? []);
 }
 
-export function sparseTokens(text: string): string[] {
+function sparseTokens(text: string): string[] {
   return (
     text
       .toLowerCase()
@@ -101,7 +101,7 @@ export function sparseTokens(text: string): string[] {
   );
 }
 
-export function stemLexicalToken(token: string): string {
+function stemLexicalToken(token: string): string {
   if (token.length > 5 && token.endsWith('ies')) return `${token.slice(0, -3)}y`;
   if (token.length > 6 && token.endsWith('ing')) return token.slice(0, -3);
   if (token.length > 5 && token.endsWith('ed')) return token.slice(0, -2);
@@ -109,7 +109,7 @@ export function stemLexicalToken(token: string): string {
   return token;
 }
 
-export function lexicalNgrams(token: string): string[] {
+function lexicalNgrams(token: string): string[] {
   if (token.length < 6) return [];
   const grams: string[] = [];
   for (let i = 0; i <= token.length - 3; i += 1) {
@@ -119,7 +119,7 @@ export function lexicalNgrams(token: string): string[] {
   return grams;
 }
 
-export function lexicalPrefilterTokens(queryTokens: string[]): string[] {
+function lexicalPrefilterTokens(queryTokens: string[]): string[] {
   const out = new Set<string>();
   for (const token of queryTokens) {
     out.add(token);
@@ -129,7 +129,7 @@ export function lexicalPrefilterTokens(queryTokens: string[]): string[] {
   return [...out].filter((token) => token.length >= 3).slice(0, 32);
 }
 
-export function boundedEditDistance(a: string, b: string, maxDistance: number): number {
+function boundedEditDistance(a: string, b: string, maxDistance: number): number {
   if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1;
   let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i += 1) {
@@ -149,7 +149,7 @@ export function boundedEditDistance(a: string, b: string, maxDistance: number): 
   return previous[b.length] ?? maxDistance + 1;
 }
 
-export function lexicalTokenSimilarity(queryToken: string, chunkToken: string): number {
+function lexicalTokenSimilarity(queryToken: string, chunkToken: string): number {
   if (queryToken === chunkToken) return 1;
   const queryStem = stemLexicalToken(queryToken);
   const chunkStem = stemLexicalToken(chunkToken);
@@ -163,7 +163,7 @@ export function lexicalTokenSimilarity(queryToken: string, chunkToken: string): 
   return Math.max(0, 1 - distance / maxLength);
 }
 
-export function bestLexicalMatch(queryToken: string, counts: Map<string, number>): { token: string; count: number; similarity: number } | null {
+function bestLexicalMatch(queryToken: string, counts: Map<string, number>): { token: string; count: number; similarity: number } | null {
   const exact = counts.get(queryToken);
   if (exact) return { token: queryToken, count: exact, similarity: 1 };
   let best: { token: string; count: number; similarity: number } | null = null;
@@ -221,7 +221,7 @@ export function sparseLexicalScore(
     .sort((a, b) => b.score - a.score || b.overlap - a.overlap || a.chunk.chunk_index - b.chunk.chunk_index);
 }
 
-export function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 || b.size === 0) return 0;
   let intersection = 0;
   for (const token of a) {
@@ -230,13 +230,13 @@ export function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
   return intersection / (a.size + b.size - intersection);
 }
 
-export interface MmrCandidate {
+interface MmrCandidate {
   result: SearchResult;
   tokens: Set<string>;
   score: number;
 }
 
-export function selectMmrRanked(candidates: MmrCandidate[], topK: number): SearchResult[] {
+function selectMmrRanked(candidates: MmrCandidate[], topK: number): SearchResult[] {
   const selected: MmrCandidate[] = [];
   const remaining = [...candidates];
   while (remaining.length > 0 && selected.length < topK) {
@@ -334,7 +334,7 @@ export function normalizeSemanticQuery(query: string): string {
     .replace(/\s+/g, ' ');
 }
 
-export function compactQueryVariant(value: string): string {
+function compactQueryVariant(value: string): string {
   return value
     .replace(/\([^)]*\)/g, ' ')
     .replace(/\b(?:please|show|find|tell me|list|give me|what|which|where|when|who|how|does|do|did|are|is|was|were|the|a|an)\b/gi, ' ')
@@ -344,11 +344,11 @@ export function compactQueryVariant(value: string): string {
     .trim();
 }
 
-export function variantTokenCount(value: string): number {
+function variantTokenCount(value: string): number {
   return tokenizeLexicalQuery(value).length;
 }
 
-export function pushQueryVariant(variants: QueryPlanVariant[], seen: Set<string>, query: string, kind: QueryPlanVariantKind): void {
+function pushQueryVariant(variants: QueryPlanVariant[], seen: Set<string>, query: string, kind: QueryPlanVariantKind): void {
   const normalized = normalizeSemanticQuery(query);
   if (!normalized || seen.has(normalized) || variantTokenCount(normalized) === 0) return;
   variants.push({ query: normalized, kind });
@@ -466,7 +466,7 @@ export function visionOcrModelChain(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
-export function normalizeEvalText(value: string): string {
+function normalizeEvalText(value: string): string {
   return value
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .toLowerCase()
@@ -474,11 +474,11 @@ export function normalizeEvalText(value: string): string {
     .trim();
 }
 
-export function evalTextTokens(value: string): string[] {
+function evalTextTokens(value: string): string[] {
   return normalizeEvalText(value).match(/[a-z0-9]{2,}/g) ?? [];
 }
 
-export function parseEvalItemMatched(parsedText: string, expected: string): boolean {
+function parseEvalItemMatched(parsedText: string, expected: string): boolean {
   if (normalizeEvalText(parsedText).includes(normalizeEvalText(expected))) return true;
   const haystack = new Set(evalTextTokens(parsedText));
   const expectedTokens = [...new Set(evalTextTokens(expected))];
@@ -495,7 +495,7 @@ export function parseEvalMatch(parsedText: string, expected: string[]): { matche
   };
 }
 
-export function traceRoute(trace: QueryTraceRecord): string {
+function traceRoute(trace: QueryTraceRecord): string {
   const confidenceRoute = trace.confidence?.route;
   if (typeof confidenceRoute === 'string') return confidenceRoute;
   const filterRoute = trace.filters?.route;
@@ -503,22 +503,22 @@ export function traceRoute(trace: QueryTraceRecord): string {
   return 'unknown';
 }
 
-export function traceChunkIds(trace: QueryTraceRecord): string[] {
+function traceChunkIds(trace: QueryTraceRecord): string[] {
   return trace.retrieved.map((result) => result.chunk_id).filter(Boolean);
 }
 
-export function overlapCount(left: string[], right: string[]): number {
+function overlapCount(left: string[], right: string[]): number {
   const rightSet = new Set(right);
   return left.filter((value) => rightSet.has(value)).length;
 }
 
-export function qualityTokens(text: string | null | undefined): string[] {
+function qualityTokens(text: string | null | undefined): string[] {
   const tokens = (text ?? '').toLowerCase().match(/[a-z0-9][a-z0-9-]{2,}/g);
   if (!tokens) return [];
   return Array.from(new Set(tokens.filter((token) => !STOP_WORDS.has(token))));
 }
 
-export function roundedRatio(numerator: number, denominator: number): number | null {
+function roundedRatio(numerator: number, denominator: number): number | null {
   if (denominator <= 0) return null;
   return Math.round((numerator / denominator) * 1000) / 1000;
 }
@@ -572,7 +572,7 @@ export function answerSupportQuality(answer: string | null | undefined, citation
   };
 }
 
-export function confidenceWithVerification(confidence: JsonRecord, quality: JsonRecord): JsonRecord {
+function confidenceWithVerification(confidence: JsonRecord, quality: JsonRecord): JsonRecord {
   const coverage = typeof quality.citation_coverage === 'number' ? quality.citation_coverage : null;
   const status = typeof quality.status === 'string' ? quality.status : 'unknown';
   const currentLevel = typeof confidence.level === 'string' ? confidence.level : 'low';
@@ -608,7 +608,7 @@ export function answerQualityDrilldown(trace: QueryTraceRecord): JsonRecord {
   };
 }
 
-export function aiTextResponse(response: unknown): string {
+function aiTextResponse(response: unknown): string {
   if (typeof response === 'string') return response;
   if (!response || typeof response !== 'object') return '';
   const record = response as JsonRecord;
@@ -627,7 +627,7 @@ export function defaultEmbed(env: Env, texts: string[], options: EmbeddingCallOp
 
 // Chat/synthesis provider seam: free-ai gateway or Workers AI. Both return a
 // response shape aiTextResponse() understands.
-export async function runAiChat(
+async function runAiChat(
   env: Env,
   model: string,
   body: {
@@ -643,7 +643,7 @@ export async function runAiChat(
   return env.AI.run(model, body as unknown as JsonRecord);
 }
 
-export function parseJudgeJson(text: string): JsonRecord | null {
+function parseJudgeJson(text: string): JsonRecord | null {
   try {
     const parsed = JSON.parse(text) as unknown;
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as JsonRecord) : null;
@@ -659,7 +659,7 @@ export function parseJudgeJson(text: string): JsonRecord | null {
   }
 }
 
-export function boundedEvidenceText(citations: CitationRecord[], retrieved: SearchResult[]): string {
+function boundedEvidenceText(citations: CitationRecord[], retrieved: SearchResult[]): string {
   const citationText = citations
     .slice(0, 5)
     .map((citation) => `[${citation.index}] ${citation.excerpt}`)
@@ -671,7 +671,7 @@ export function boundedEvidenceText(citations: CitationRecord[], retrieved: Sear
   return `${citationText}\n${retrievedText}`.trim().slice(0, 6000);
 }
 
-export function parseAnswerText(text: string): string {
+function parseAnswerText(text: string): string {
   const trimmed = text.trim();
   if (!trimmed.startsWith('{')) return trimmed;
   const parsed = parseJudgeJson(trimmed);
@@ -679,7 +679,7 @@ export function parseAnswerText(text: string): string {
   return typeof answer === 'string' ? answer.trim() : trimmed;
 }
 
-export async function synthesizeAnswerWithAi(input: {
+async function synthesizeAnswerWithAi(input: {
   env: Env;
   question: string;
   citations: CitationRecord[];
@@ -895,22 +895,22 @@ export function compareTraces(baseline: QueryTraceRecord, candidate: QueryTraceR
   };
 }
 
-export function oneLineExcerpt(text: string, maxLength = 420): string {
+function oneLineExcerpt(text: string, maxLength = 420): string {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (normalized.length <= maxLength) return normalized;
   return `${normalized.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
-export function numberMetadata(value: unknown, fallback: number): number {
+function numberMetadata(value: unknown, fallback: number): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? Math.max(1, Math.trunc(parsed)) : fallback;
 }
 
-export function stringMetadata(value: unknown): string | null {
+function stringMetadata(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
-export function sentenceSpans(text: string): string[] {
+function sentenceSpans(text: string): string[] {
   const normalized = text.replace(/\s+/g, ' ').trim();
   if (!normalized) return [];
   return normalized
@@ -919,7 +919,7 @@ export function sentenceSpans(text: string): string[] {
     .filter(Boolean);
 }
 
-export function bestEvidenceSpan(
+function bestEvidenceSpan(
   text: string,
   question: string | undefined,
   maxLength = 420,
@@ -1027,18 +1027,18 @@ export function searchResultFromEntity(entity: EntityRecord, score: number, rout
   };
 }
 
-export function normalizeStructuredFieldName(value: string): string {
+function normalizeStructuredFieldName(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
-export function entityFieldValue(entity: EntityRecord, normalizedField: string): unknown {
+function entityFieldValue(entity: EntityRecord, normalizedField: string): unknown {
   for (const [field, value] of Object.entries(entity.fields)) {
     if (normalizeStructuredFieldName(field) === normalizedField) return value;
   }
   return undefined;
 }
 
-export function fieldMatches(value: unknown, expected: string): boolean {
+function fieldMatches(value: unknown, expected: string): boolean {
   const normalizedExpected = expected.trim().toLowerCase();
   if (!normalizedExpected) return false;
   if (value === null || value === undefined) return false;
@@ -1047,7 +1047,7 @@ export function fieldMatches(value: unknown, expected: string): boolean {
   return actual === normalizedExpected || actual.includes(normalizedExpected);
 }
 
-export function parseStructuredFieldFilters(question: string): Array<{ field: string; normalized_field: string; value: string }> {
+function parseStructuredFieldFilters(question: string): Array<{ field: string; normalized_field: string; value: string }> {
   const filters: Array<{ field: string; normalized_field: string; value: string }> = [];
   const pattern =
     /\b([a-zA-Z_][a-zA-Z0-9_ -]{1,40})\s*(?::|=|\bis\b|\bequals\b)\s*["']?([^"',?;\n]+?)["']?(?=\s+(?:and|or)\s+[a-zA-Z_][a-zA-Z0-9_ -]{1,40}\s*(?::|=|\bis\b|\bequals\b)|[?;,\n]|$)/gi;
@@ -1081,7 +1081,7 @@ export async function structuredFieldQueryResults(
   };
 }
 
-export function searchResultFromRelationship(relationship: EntityRelationshipRecord, entitiesById: Map<string, EntityRecord>, score: number): SearchResult {
+function searchResultFromRelationship(relationship: EntityRelationshipRecord, entitiesById: Map<string, EntityRecord>, score: number): SearchResult {
   const source = entitiesById.get(relationship.src_id);
   const target = entitiesById.get(relationship.dst_id);
   const sourceLabel = source?.display_name ?? source?.identity_key ?? relationship.src_id;

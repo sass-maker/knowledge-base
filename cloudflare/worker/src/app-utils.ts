@@ -25,18 +25,18 @@ export function jsonRecord(value: unknown): JsonRecord {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
-export function stringField(record: JsonRecord, key: string): string | null {
+function stringField(record: JsonRecord, key: string): string | null {
   const value = record[key];
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-export function listField(record: JsonRecord, key: string): string[] {
+function listField(record: JsonRecord, key: string): string[] {
   const value = record[key];
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim());
 }
 
-export function clampIndexText(value: string): string {
+function clampIndexText(value: string): string {
   if (value.length <= MAX_RECORD_INDEX_TEXT_CHARS) return value;
   const clipped = value
     .slice(0, MAX_RECORD_INDEX_TEXT_CHARS)
@@ -153,7 +153,7 @@ export function configuredVectorizeProfiles(env: Env): ConfiguredVectorizeProfil
   return profiles;
 }
 
-export function vectorizeProfileForSemanticModel(env: Env, model: SemanticModel): ConfiguredVectorizeProfile {
+function vectorizeProfileForSemanticModel(env: Env, model: SemanticModel): ConfiguredVectorizeProfile {
   const profile = configuredVectorizeProfiles(env).find((item) => item.key === model);
   if (!profile) throw new Error(`${model} embedding profile is not configured`);
   return profile;
@@ -163,7 +163,7 @@ export function vectorizeProfileForDimensions(env: Env, dimensions: number): Con
   return configuredVectorizeProfiles(env).find((item) => item.dimensions === dimensions) ?? null;
 }
 
-export function explicitSemanticModelFromBody(body: QueryBody): SemanticModel | null {
+function explicitSemanticModelFromBody(body: QueryBody): SemanticModel | null {
   if (body.semantic_model === 'small') return 'small';
   if (body.semantic_model === 'base') return 'base';
   return null;
@@ -337,16 +337,9 @@ export function vectorMetadata(tenant: string, indexId: string, documentId: stri
   };
 }
 
-export const VECTOR_METADATA_SAFE_BYTES = 9_500;
+const VECTOR_METADATA_SAFE_BYTES = 9_500;
 
-export function buildVectorMetadata(
-  tenant: string,
-  indexId: string,
-  documentId: string,
-  chunkIndex: number,
-  content: string,
-  metadata: JsonRecord,
-): JsonRecord {
+function buildVectorMetadata(tenant: string, indexId: string, documentId: string, chunkIndex: number, content: string, metadata: JsonRecord): JsonRecord {
   return {
     tenant,
     index_id: indexId,
@@ -357,11 +350,11 @@ export function buildVectorMetadata(
   };
 }
 
-export function jsonByteLength(value: unknown): number {
+function jsonByteLength(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
-export function compactChunkMetadataForVectorize(metadata: JsonRecord): JsonRecord {
+function compactChunkMetadataForVectorize(metadata: JsonRecord): JsonRecord {
   const compact = { ...metadata };
   if (compact.record && typeof compact.record === 'object' && !Array.isArray(compact.record)) {
     compact.record = compactPaperRecordForVectorize(compact.record as JsonRecord);
@@ -369,7 +362,7 @@ export function compactChunkMetadataForVectorize(metadata: JsonRecord): JsonReco
   return compact;
 }
 
-export function compactPaperRecordForVectorize(record: JsonRecord): JsonRecord {
+function compactPaperRecordForVectorize(record: JsonRecord): JsonRecord {
   const keep = [
     'record_kind',
     'collection',
@@ -403,7 +396,7 @@ export function compactPaperRecordForVectorize(record: JsonRecord): JsonRecord {
   return compact;
 }
 
-export function compactVectorMetadataValue(value: unknown, key: string): unknown {
+function compactVectorMetadataValue(value: unknown, key: string): unknown {
   if (Array.isArray(value)) return value.slice(0, key === 'author_names' ? 12 : 8);
   if (typeof value === 'string' && value.length > 1_000) return `${value.slice(0, 997)}...`;
   return value;
@@ -434,7 +427,7 @@ export function elapsedMs(started: number): number {
   return Math.round((performance.now() - started) * 100) / 100;
 }
 
-export function hex(bytes: ArrayBuffer): string {
+function hex(bytes: ArrayBuffer): string {
   return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
@@ -449,12 +442,12 @@ export async function deterministicId(prefix: string, value: string): Promise<st
   return `${prefix}_${(await sha256Hex(buffer)).slice(0, 32)}`;
 }
 
-export function numberFromRecord(record: JsonRecord, key: string): number | null {
+function numberFromRecord(record: JsonRecord, key: string): number | null {
   const value = record[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-export function latencyP95(summary: JsonRecord): number | null {
+function latencyP95(summary: JsonRecord): number | null {
   const latency = jsonRecord(summary.latency);
   const value = latency.p95_ms;
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -547,7 +540,7 @@ export function summarizeEvalReports(reports: Array<{ kind: string; domain: stri
     .sort((a, b) => String(a.kind).localeCompare(String(b.kind)) || String(a.domain ?? '').localeCompare(String(b.domain ?? '')));
 }
 
-export function deployFingerprint(env: Env): string {
+function deployFingerprint(env: Env): string {
   return env.RAG_DEPLOY_FINGERPRINT?.trim() || WORKER_DEPLOY_FINGERPRINT;
 }
 
@@ -614,7 +607,7 @@ export function readyzPayload(health: WorkerHealthPayload): JsonRecord {
   };
 }
 
-export function prometheusLabel(value: string): string {
+function prometheusLabel(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
 }
 
@@ -679,7 +672,7 @@ export async function forwardLegacyRoute(app: FetchLikeApp, c: AppContext, targe
   return app.fetch(new Request(sourceUrl.toString(), init), c.env);
 }
 
-export async function deleteVectorsFromProfile(profile: ConfiguredVectorizeProfile, ids: string[]): Promise<void> {
+async function deleteVectorsFromProfile(profile: ConfiguredVectorizeProfile, ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   for (let start = 0; start < ids.length; start += 1000) {
     await profile.binding.deleteByIds(ids.slice(start, start + 1000));
