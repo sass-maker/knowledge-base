@@ -1,10 +1,28 @@
 #!/usr/bin/env node
 
+import { readdirSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const DEFAULT_INDEX_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../src/index.ts');
+const DEFAULT_SRC_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../src');
+const DEFAULT_INDEX_PATH = resolve(DEFAULT_SRC_DIR, 'index.ts');
+
+function collectTypeScriptSources(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...collectTypeScriptSources(path));
+    else if (entry.isFile() && entry.name.endsWith('.ts')) out.push(path);
+  }
+  return out.sort();
+}
+
+function readWorkerSource(srcDir = DEFAULT_SRC_DIR) {
+  return collectTypeScriptSources(srcDir)
+    .map((path) => readFileSync(path, 'utf8'))
+    .join('\n');
+}
 
 export const LEGACY_ROUTE_REQUIREMENTS = Object.freeze([
   { method: 'GET', legacy: '/healthz', target: '/healthz', evidence: "app.get('/healthz'" },
@@ -84,7 +102,9 @@ function targetEvidence(target) {
 
 export async function legacyRouteParityReport(options = {}) {
   const indexPath = options.indexPath ?? DEFAULT_INDEX_PATH;
-  const source = typeof options.sourceText === 'string' ? options.sourceText : await readFile(indexPath, 'utf8');
+  const providedSource = typeof options.sourceText === 'string';
+  const source = providedSource ? options.sourceText : readWorkerSource(options.srcDir ?? DEFAULT_SRC_DIR);
+  const compositionSource = providedSource ? options.sourceText : await readFile(indexPath, 'utf8');
   const missing = [];
   for (const requirement of LEGACY_ROUTE_REQUIREMENTS) {
     const hasMapping = source.includes(requirement.evidence) || source.includes(requirement.legacy) || source.includes(requirement.target);
@@ -97,8 +117,8 @@ export async function legacyRouteParityReport(options = {}) {
       });
     }
   }
-  const aliasMiddleware = source.indexOf("app.all('*'");
-  const v1Auth = source.indexOf("app.use('/v1/*'");
+  const aliasMiddleware = compositionSource.indexOf("app.all('*'");
+  const v1Auth = compositionSource.indexOf("app.use('/v1/*'");
   const hasAliasForwarder = source.includes('legacyRouteTarget') && source.includes('forwardLegacyRoute');
   const middlewareOk = hasAliasForwarder && aliasMiddleware >= 0 && v1Auth >= 0 && aliasMiddleware < v1Auth;
   if (!middlewareOk) {
