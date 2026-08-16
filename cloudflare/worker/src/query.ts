@@ -26,18 +26,8 @@ import {
 } from './app-types';
 import { analyticsNumber, analyticsString, elapsedMs, jsonRecord, writeAnalyticsPoint } from './app-utils';
 import { embedTexts } from './embeddings';
-import {
-  freeAiChatRaw,
-  freeAiEmbed,
-  freeAiSynthEnabled,
-  freeAiSynthModel,
-} from './free-ai';
-import type {
-  EntityRecord,
-  EntityRelationshipRecord,
-  MetadataRepository,
-  QueryTraceRecord,
-} from './kb-metadata-repository';
+import { freeAiChatRaw, freeAiEmbed, freeAiSynthEnabled, freeAiSynthModel } from './free-ai';
+import type { EntityRecord, EntityRelationshipRecord, MetadataRepository, QueryTraceRecord } from './kb-metadata-repository';
 import type { ChunkRecord, CitationRecord, Env, JsonRecord, SearchResult } from './types';
 
 export function clampTopK(value: unknown): number {
@@ -1118,7 +1108,13 @@ export function searchResultFromRelationship(relationship: EntityRelationshipRec
   };
 }
 
-export async function graphResultsForEntities(repo: MetadataRepository, tenant: string, domain: string, entities: EntityRecord[], limit = 8): Promise<SearchResult[]> {
+export async function graphResultsForEntities(
+  repo: MetadataRepository,
+  tenant: string,
+  domain: string,
+  entities: EntityRecord[],
+  limit = 8,
+): Promise<SearchResult[]> {
   const relationships: EntityRelationshipRecord[] = [];
   for (const entity of entities.slice(0, 5)) {
     relationships.push(...(await repo.listRelationships(tenant, domain, undefined, entity.id, limit)));

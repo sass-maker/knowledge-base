@@ -1,12 +1,6 @@
 import { parseCacheOptions, stableStringify } from './cache';
 import { embedTexts } from './embeddings';
-import {
-  fetchFreeAiEmbeddingCatalog,
-  findFreeAiEmbeddingModel,
-  freeAiEmbed,
-  freeAiEmbeddingDimensions,
-  freeAiEmbeddingModel,
-} from './free-ai';
+import { fetchFreeAiEmbeddingCatalog, findFreeAiEmbeddingModel, freeAiEmbed, freeAiEmbeddingDimensions, freeAiEmbeddingModel } from './free-ai';
 import {
   DEFAULT_BASE_EMBEDDING_DIMENSIONS,
   DEFAULT_BASE_EMBEDDING_MODEL,
@@ -345,7 +339,14 @@ export function vectorMetadata(tenant: string, indexId: string, documentId: stri
 
 export const VECTOR_METADATA_SAFE_BYTES = 9_500;
 
-export function buildVectorMetadata(tenant: string, indexId: string, documentId: string, chunkIndex: number, content: string, metadata: JsonRecord): JsonRecord {
+export function buildVectorMetadata(
+  tenant: string,
+  indexId: string,
+  documentId: string,
+  chunkIndex: number,
+  content: string,
+  metadata: JsonRecord,
+): JsonRecord {
   return {
     tenant,
     index_id: indexId,
