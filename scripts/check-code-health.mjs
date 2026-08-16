@@ -127,9 +127,9 @@ function checkDuplication() {
   const observed = JSON.parse(readFileSync(join(outputDirectory, 'jscpd-report.json'), 'utf8')).statistics.total;
   // Debt: https://github.com/sass-maker/knowledge-base/issues/33
   const baseline = {
-    clones: 51,
-    duplicatedLines: 551,
-    percentage: 2.4673114812824646,
+    clones: 50,
+    duplicatedLines: 537,
+    percentage: 2.355056573984738,
   };
   console.log(
     `Duplication: ${observed.duplicatedLines}/${observed.lines} lines (${observed.percentage.toFixed(4)}%), ` +
