@@ -10,6 +10,7 @@
 		"app": {
 			"entry": [
 				"eslint.config.js",
+				"functions/_middleware.ts",
 				"functions/api/**/*.ts",
 				"src/main.tsx",
 				"vite.config.ts",

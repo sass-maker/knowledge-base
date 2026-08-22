@@ -11,8 +11,7 @@ const OPENAPI_SPEC = {
   info: {
     title: 'Private Agent Search public API',
     version: '1.0.0',
-    description:
-      'Cited search + grounded answers over private, specialized document collections (RAG). The public web API exposes read-only agent surfaces.',
+    description: 'Cited search + grounded answers over private, specialized document collections (RAG). The public web API exposes read-only agent surfaces.',
     contact: { name: 'Private Agent Search', url: ORIGIN },
   },
   servers: [{ url: ORIGIN }],
@@ -28,16 +27,37 @@ const OPENAPI_SPEC = {
       },
     },
     '/llms.txt': {
-      get: { operationId: 'getLlmsTxt', tags: ['agent-surfaces'], summary: 'llms.txt index', responses: { '200': { description: 'Markdown index', content: { 'text/plain': {} } } } },
+      get: {
+        operationId: 'getLlmsTxt',
+        tags: ['agent-surfaces'],
+        summary: 'llms.txt index',
+        responses: { '200': { description: 'Markdown index', content: { 'text/plain': {} } } },
+      },
     },
     '/llms-full.txt': {
-      get: { operationId: 'getLlmsFullTxt', tags: ['agent-surfaces'], summary: 'Full agent brief', responses: { '200': { description: 'Markdown brief', content: { 'text/plain': {} } } } },
+      get: {
+        operationId: 'getLlmsFullTxt',
+        tags: ['agent-surfaces'],
+        summary: 'Full agent brief',
+        responses: { '200': { description: 'Markdown brief', content: { 'text/plain': {} } } },
+      },
     },
     '/sitemap.xml': {
-      get: { operationId: 'getSitemap', tags: ['agent-surfaces'], summary: 'Sitemap', responses: { '200': { description: 'XML sitemap', content: { 'application/xml': {} } } } },
+      get: {
+        operationId: 'getSitemap',
+        tags: ['agent-surfaces'],
+        summary: 'Sitemap',
+        responses: { '200': { description: 'XML sitemap', content: { 'application/xml': {} } } },
+      },
     },
     '/openapi.json': {
-      get: { operationId: 'getOpenApiSpec', tags: ['agent-surfaces'], summary: 'OpenAPI specification', description: 'This document.', responses: { '200': { description: 'OpenAPI 3.1 spec', content: { 'application/json': {} } } } },
+      get: {
+        operationId: 'getOpenApiSpec',
+        tags: ['agent-surfaces'],
+        summary: 'OpenAPI specification',
+        description: 'This document.',
+        responses: { '200': { description: 'OpenAPI 3.1 spec', content: { 'application/json': {} } } },
+      },
     },
   },
 };
@@ -50,17 +70,14 @@ function wantsMarkdown(request: Request): boolean {
 }
 
 function jsonError(status: number, code: string, message: string, path: string): Response {
-  return new Response(
-    JSON.stringify({ error: { code, message, path } }),
-    {
-      status,
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
-        'cache-control': 'no-store',
-        'access-control-allow-origin': '*',
-      },
+  return new Response(JSON.stringify({ error: { code, message, path } }), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+      'access-control-allow-origin': '*',
     },
-  );
+  });
 }
 
 function markdown404(pathname: string): Response {
@@ -86,10 +103,7 @@ function markdown404(pathname: string): Response {
   });
 }
 
-export async function onRequest(context: {
-  request: Request;
-  next: () => Promise<Response>;
-}): Promise<Response> {
+export async function onRequest(context: { request: Request; next: () => Promise<Response> }): Promise<Response> {
   const { request, next } = context;
   if (request.method !== 'GET' && request.method !== 'HEAD') return next();
 
@@ -116,12 +130,7 @@ export async function onRequest(context: {
   const response = await next();
 
   // Add Vary: Accept to HTML responses that have markdown alternates.
-  if (
-    response.status === 200 &&
-    (response.headers.get('content-type') || '').includes('text/html') &&
-    !path.includes('.') &&
-    !path.startsWith('/api/')
-  ) {
+  if (response.status === 200 && (response.headers.get('content-type') || '').includes('text/html') && !path.includes('.') && !path.startsWith('/api/')) {
     const headers = new Headers(response.headers);
     const existingVary = headers.get('vary');
     headers.set('vary', existingVary ? `${existingVary}, Accept, Accept-Encoding` : 'Accept, Accept-Encoding');
