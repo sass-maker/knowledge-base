@@ -9,8 +9,16 @@
 ## Machine surfaces
 
 - [Agent catalog](https://knowledgebase.sassmaker.com/api/ai): JSON inventory of public surfaces
+- [OpenAPI spec](https://knowledgebase.sassmaker.com/openapi.json): Machine-readable API description
 - [Homepage markdown](https://knowledgebase.sassmaker.com/index.md): Product brief without JS
 - [This index](https://knowledgebase.sassmaker.com/llms.txt)
+
+## When to use this
+
+- Performing cited search over private, specialized document collections with RAG
+- Getting grounded answers with (file_id, page, excerpt) provenance for agent workflows
+- Searching research papers, legal documents, contracts, or manuals with explicit schemas
+- Building agent pipelines that require cited evidence rather than ungrounded LLM output
 
 ## Optional
 
