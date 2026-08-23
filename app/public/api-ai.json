@@ -6,6 +6,7 @@
   "llmsFull": "https://knowledgebase.sassmaker.com/llms-full.txt",
   "sitemap": "https://knowledgebase.sassmaker.com/sitemap.xml",
   "robots": "https://knowledgebase.sassmaker.com/robots.txt",
+  "openapi": "https://knowledgebase.sassmaker.com/openapi.json",
   "markdown": {
     "suffix": ".md",
     "negotiation": true
