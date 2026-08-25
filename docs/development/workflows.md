@@ -104,8 +104,8 @@ not single-repo CI. Run `pnpm run predeploy` locally before shipping. See
 `domains/**`: `eval:parse:legacy:dry-run`, `preflight --json`,
 `gaps:full-port --json`. It is a dry-run gate; it does not spend AI calls.
 
-`.github/workflows/docs.yml` validates this docs tree (link check + Blume
-build). See [`maintenance.md`](../maintenance.md).
+`.github/workflows/docs.yml` validates this docs tree with the link checker.
+See [`maintenance.md`](../maintenance.md).
 
 ## Branching
 

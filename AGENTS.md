@@ -54,7 +54,6 @@ pnpm deploy              # wrangler deploy — ASK before touching prod
 # Docs (from repo root)
 pnpm install --frozen-lockfile
 pnpm run docs:check      # markdown link + frontmatter validation
-pnpm run docs:build      # Blume build (presentation layer only)
 ```
 
 Root `Makefile` wraps common Worker gates (`make worker-check`,
@@ -93,7 +92,7 @@ Root `Makefile` wraps common Worker gates (`make worker-check`,
 
 ## Documentation-maintenance rules
 
-1. Markdown in `docs/` is the source of truth. Blume only renders it.
+1. Markdown in `docs/` is the source of truth. Keep canonical content there.
 2. One fact, one home. If a fact lives in code, link to the code.
 3. `docs/knowledge/archive/` holds snapshots — do not rewrite their bodies;
    update the current doc that supersedes them.

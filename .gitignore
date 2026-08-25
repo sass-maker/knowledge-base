@@ -38,11 +38,8 @@ eval_results/
 .wrangler/
 *.tsbuildinfo
 
-# Blume docs build output (presentation layer only; markdown in docs/ is source of truth)
 dist/
-.blume/
 
 # Local agent logs / scratch (never commit agent session artifacts)
 .agent-logs/
 *.agent.log
-

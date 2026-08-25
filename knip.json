@@ -2,9 +2,9 @@
 	"$schema": "https://unpkg.com/knip@latest/schema.json",
 	"workspaces": {
 		".": {
-			"entry": ["blume.config.ts", "scripts/**/*.mjs"],
-			"project": ["blume.config.ts", "scripts/**/*.mjs"],
-			"ignoreDependencies": ["@biomejs/biome", "astro", "jscpd", "sharp"],
+			"entry": ["scripts/**/*.mjs"],
+			"project": ["scripts/**/*.mjs"],
+			"ignoreDependencies": ["@biomejs/biome", "jscpd", "sharp"],
 			"ignoreBinaries": ["build", "check", "typecheck"]
 		},
 		"app": {

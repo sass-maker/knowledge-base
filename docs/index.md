@@ -5,8 +5,7 @@ description: Private shared cited RAG for SaaS Maker projects. Product, architec
 
 # SaaS Maker Knowledgebase docs
 
-> Source of truth is the Markdown in this `docs/` tree (plus the code).
-> Blume renders it; it does not own it. See
+> Source of truth is the Markdown in this `docs/` tree (plus the code). See
 > [`docs/maintenance.md`](maintenance.md) for how to edit this knowledge system.
 
 **Knowledgebase** is SaaS Maker's private shared `RAG_SERVICE`: an independently
@@ -76,7 +75,7 @@ retains `(file, page, excerpt)` provenance for agents.
 
 ### Meta
 
-- [`maintenance.md`](maintenance.md) — how to edit this docs system, validation, and Blume build
+- [`maintenance.md`](maintenance.md) — how to edit this docs system and validate it
 
 ## Conventions
 

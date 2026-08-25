@@ -1,11 +1,11 @@
 ---
 title: Maintaining this docs system
-description: How to edit the knowledgebase docs tree, validate links, and build with Blume. Markdown is the source of truth; Blume is only the presentation layer.
+description: How to edit the knowledgebase docs tree and validate links. Markdown is the source of truth.
 ---
 
 # Maintaining this docs system
 
-> Rules: Markdown in `docs/` is the source of truth. Blume only renders it.
+> Rules: Markdown in `docs/` is the source of truth.
 > Code and executable config (`wrangler.jsonc`, `package.json`, migrations)
 > remain authoritative for implementation details and schedules.
 
@@ -59,28 +59,15 @@ See [`index.md`](index.md) for the full map. Canonical homes:
 # From repo root — check internal markdown links + frontmatter
 node scripts/docs-check-links.mjs
 
-# Build the docs site with Blume (presentation layer only)
-pnpm install --frozen-lockfile   # installs blume + link checker deps
+pnpm install --frozen-lockfile   # installs the link-checker dependencies
 pnpm run docs:check              # link check
-pnpm run docs:build              # blume build → dist/
-pnpm run docs:preview            # blume preview
 ```
 
-CI (`.github/workflows/docs.yml`) runs `docs:check` and `docs:build` on PRs
-touching `docs/`, `STATUS.md`, `AGENTS.md`, `blume.config.ts`, or
-`scripts/docs-check-links.mjs`.
+CI (`.github/workflows/docs.yml`) runs `docs:check` on PRs touching `docs/`,
+`STATUS.md`, `AGENTS.md`, `package.json`, or `scripts/docs-check-links.mjs`.
 
-## Blume
-
-`blume.config.ts` at the repo root points Blume at `docs/` as the content
-root. Blume generates a static site into `dist/` (gitignored). The committed
-Markdown is the source of truth; Blume is only the presentation and search
-layer. Do not add Blume-specific frontmatter that the source-of-truth docs
-depend on to make sense — plain Markdown must read correctly on its own.
-
-`docs/knowledge/archive/` is included in the Blume build so historical
-snapshots are reachable, but each archive page carries a banner that points to
-its current successor.
+`docs/knowledge/archive/` preserves historical snapshots. Keep archive bodies
+stable and update the current document that supersedes them.
 
 ## When the deploy fingerprint changes
 

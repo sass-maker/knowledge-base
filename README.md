@@ -81,7 +81,7 @@ have:
 - [`docs/knowledge/archive/highsignal-integration-cancelled-2026-07-25.md`](docs/knowledge/archive/highsignal-integration-cancelled-2026-07-25.md) — cancelled High Signal integration proposal.
 
 **Maintaining the docs themselves**
-- [`docs/maintenance.md`](docs/maintenance.md) — how to edit this knowledge system, validate links, and build with Blume.
+- [`docs/maintenance.md`](docs/maintenance.md) — how to edit this knowledge system and validate links.
 
 ## Architecture
 
