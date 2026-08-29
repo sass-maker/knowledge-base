@@ -1,0 +1,85 @@
+{
+  "$schema": "fleet.landing-audit.scorecard.v1",
+  "project": "knowledge-base",
+  "priority": "P2",
+  "candidate": "http://127.0.0.1:4321/",
+  "productionChanged": false,
+  "checkedAt": "2026-08-28",
+  "purpose": {
+    "score": 98,
+    "minimum": 85,
+    "p0": 0,
+    "p1": 0,
+    "note": "The first view states that this is Fleet's private retrieval layer, identifies products and agents as the audience, explains exact-term and semantic search, promises file-page-excerpt evidence, and explicitly rejects the misleading public document-chat interpretation. The actions match the maintained internal lifecycle: read the contract or brief rather than sign up."
+  },
+  "design": {
+    "score": 95,
+    "minimum": 85,
+    "p0": 0,
+    "p1": 0,
+    "note": "The preserved evidence-console system is sharp and appropriate: near-black infrastructure surfaces, white hierarchy, restrained teal action and provenance states, monospace evidence labels, an inspectable answer receipt, precise rules, and responsive density without generic feature cards."
+  },
+  "seo": {
+    "score": 99,
+    "passed": 17,
+    "failed": 0,
+    "warnings": 1,
+    "linkGraph": {
+      "sitemapPages": 1,
+      "crawledPages": 1,
+      "internalErrors": 0,
+      "internalRedirects": 0,
+      "orphanCandidates": 0,
+      "externalLinksDiscovered": 4,
+      "externalLinksChecked": 0
+    },
+    "note": "All critical landing checks pass and the complete public graph has no internal error, redirect, or orphan candidate. The expected local-only warning is caused by preserving the production canonical and sitemap origin. A purpose-correct 1200 by 630 social image replaces the stale generic hero, and an explicit project favicon removes repeated browser 404s."
+  },
+  "geo": {
+    "score": 100,
+    "productionTier": "S",
+    "productionScore": 100,
+    "note": "The public origin passes llms.txt, /api/ai, homepage Markdown, robots policy, sitemap, JSON-LD, route Markdown, and catalog-integrity gates. The candidate also enforces HTML and Markdown 404 boundaries and rejects credential-shaped output in its local agent-surface check."
+  },
+  "performance": {
+    "score": 100,
+    "successfulCoverageRuns": 20,
+    "weightedLcpMs": 462,
+    "weightedCls": 0,
+    "weightedTbtMs": 0,
+    "profiles": {
+      "mobileSlowScore": 100,
+      "mobileSlowLcpMs": 1247,
+      "mobileMidScore": 100,
+      "mobileMidLcpMs": 633,
+      "mobileFastScore": 100,
+      "mobileFastLcpMs": 318,
+      "desktopScore": 100,
+      "desktopLcpMs": 170
+    },
+    "note": "All twenty production-style Cloudflare Pages Lighthouse runs score 100. Weighted LCP is 462 milliseconds; every profile reports zero CLS, zero TBT, and no actionable Lighthouse opportunity."
+  },
+  "verification": {
+    "landingCheck": "Astro typecheck, static build, and agent-surface verification pass with zero diagnostics.",
+    "seoAudit": "17 passed, 0 failed, 1 expected local-canonical warning.",
+    "agentIndex": "Production S-tier, 100 percent.",
+    "contentIntegrity": "PRODUCT.md, PROJECT_STATUS.md, AGENTS.md, the canonical Site Health purpose contract, current consumer list, runtime boundary, and protected-dashboard state agree with the public explanation.",
+    "footer": {
+      "askAi": "pass",
+      "projectStrip": "pass",
+      "note": "The Ask AI loader now preserves the separately mounted fleet project strip. Both render in the local candidate."
+    },
+    "responsiveScreenshots": [
+      ".fleet/evidence/landing-audit/after-390.png",
+      ".fleet/evidence/landing-audit/after-768.png",
+      ".fleet/evidence/landing-audit/after-1440.png"
+    ],
+    "socialImage": ".fleet/evidence/landing-audit/og-1200x630.png"
+  },
+  "limitations": [
+    "No deployment, commit, push, Worker change, migration, corpus operation, account action, credential action, DNS change, or production configuration change was performed.",
+    "The Access-protected operator workspace and private retrieval routes were not exercised; the public landing correctly directs qualified users to those existing protected surfaces without trying to bypass them.",
+    "The four discovered external links were inventoried but not expanded into a broad Ahrefs-style crawl; the entire public internal graph was crawled.",
+    "The first Wrangler preview was stopped immediately after it automatically detected the repository's existing local .env. No value was inspected, printed, changed, or used; all subsequent preview and performance work ran from /tmp with only Pages metadata bindings."
+  ]
+}
