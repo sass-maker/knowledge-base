@@ -15,8 +15,8 @@ export const publicSurfaces: PublicSurface[] = [
     path: '/',
     markdownPath: '/index.md',
     kind: 'product',
-    title: 'Knowledgebase — Private Agent Search',
-    description: 'Private search for teams and agents, with cited answers over the material an operator chooses to index.',
+    title: 'Knowledge Base — Private cited retrieval for Fleet agents',
+    description: 'A maintained retrieval layer that gives approved Fleet products and agents cited answers from private, specialized corpora.',
   },
 ];
 
@@ -35,32 +35,50 @@ export function publicSurfaceCatalog() {
   }));
 }
 
-export const homeMarkdown = `# Knowledgebase — Private Agent Search
+export const homeMarkdown = `---
+title: "Knowledge Base — Private cited retrieval for Fleet agents"
+description: "A maintained retrieval layer that gives approved Fleet products and agents cited answers from private, specialized corpora."
+canonical: "${SITE_ORIGIN}/"
+last_updated: "2026-08-27"
+---
+
+# Knowledge Base — Private cited retrieval for Fleet agents
 
 > Canonical page: ${SITE_ORIGIN}/
 
-Knowledgebase gives operators and their agents cited answers over material the
-operator chooses to index. It is built for private retrieval: the public site
-explains the product, while indexed material and operator controls stay behind
-the authenticated application boundary.
+Knowledge Base is the shared retrieval layer behind approved Fleet products and
+agents. It searches private, specialized corpora by exact terms or meaning,
+ranks the evidence, and returns answers tied to a file, page, and excerpt.
+
+Current consumers include Karte, Research Papers, and Starboard. This is
+maintained internal infrastructure, not a public document-chat product or a
+self-serve RAG service.
 
 ## What it does
 
-- Accepts common document and structured-data formats.
-- Supports exact retrieval and semantic retrieval.
-- Returns answers with source citations so results can be checked.
-- Keeps operator workspaces and indexed material out of the public website.
+- Limits each consumer to its approved project and domain.
+- Supports lexical, semantic, and hybrid retrieval over controlled sources.
+- Returns ranked citations, provenance, confidence, and trace data.
+- Keeps operator workspaces, indexed material, and retrieval access private.
+
+## Operating rule
+
+Knowledge Base already serves real Fleet consumers. Change it for a concrete
+consumer need, a retrieval regression, or a new corpus—not to expand the
+infrastructure for its own sake.
 
 ## Product boundaries
 
 This public landing contains product documentation only. It does not expose
 indexed documents, search history, operator settings, private dashboard routes,
-or the retrieval service.
+or retrieval access. There is no public signup, checkout, or permanent pricing
+promise.
 
-The operator application is separately authenticated at
-https://search.sassmaker.com.
+The operator workspace is separately protected at https://search.sassmaker.com.
 
 ## Project
 
 Source and roadmap: https://github.com/sass-maker/knowledge-base
+
+Agent contract: https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md
 `;

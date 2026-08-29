@@ -1,0 +1,23 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Knowledge Base",
+    "identifier": "https://knowledgebase.sassmaker.com",
+    "documentationUrl": "https://knowledgebase.sassmaker.com/index.md"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:knowledgebase.sassmaker.com:catalog:public-product",
+      "displayName": "Knowledge Base public product catalog",
+      "type": "application/json",
+      "url": "https://knowledgebase.sassmaker.com/api/ai",
+      "description": "Find the public product explanation and its Markdown counterpart. Private corpora, operator state, and retrieval access are excluded.",
+      "tags": [
+        "private-retrieval",
+        "citations",
+        "fleet-infrastructure",
+        "markdown"
+      ]
+    }
+  ]
+}

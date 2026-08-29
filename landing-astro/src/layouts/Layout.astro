@@ -7,14 +7,14 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
-const socialImage = 'https://raw.githubusercontent.com/sass-maker/knowledge-base/main/.fleet/evidence/public-landing/after-1440.png';
+const socialImage = 'https://raw.githubusercontent.com/sass-maker/knowledge-base/main/.fleet/evidence/landing-audit/og-1200x630.png';
 const structuredData = {
   '@context': 'https://schema.org',
   '@graph': [
     {
       '@type': 'WebSite',
       '@id': `${SITE_ORIGIN}/#website`,
-      name: 'Knowledgebase',
+      name: 'Knowledge Base',
       url: SITE_ORIGIN,
       description,
     },
@@ -30,10 +30,12 @@ const structuredData = {
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="canonical" href={`${SITE_ORIGIN}/`} />
     <link rel="alternate" type="text/markdown" href={`${SITE_ORIGIN}/index.md`} />
+    <link rel="ai-catalog" type="application/json" href={`${SITE_ORIGIN}/.well-known/ai-catalog.json`} />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Knowledgebase" />
+    <meta property="og:site_name" content="Knowledge Base" />
     <meta property="og:url" content={`${SITE_ORIGIN}/`} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -47,7 +49,7 @@ const structuredData = {
 <script is:inline type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Person","@id":"https://sarthakagrawal.dev/#person","name":"Sarthak Agrawal","jobTitle":"AI Infrastructure & Product Engineer","url":"https://sarthakagrawal.dev","image":"https://avatars.githubusercontent.com/u/43884471?v=4","sameAs":["https://sarthakagrawal.dev","https://www.linkedin.com/in/sarthakagrawal927","https://github.com/sarthakagrawal927","https://x.com/sarthakcodes","https://huggingface.co/sarthakagrawal927"],"knowsAbout":["AI infrastructure","Local-first software","Post-training language models","AI code review","Cloudflare Workers","TypeScript","Rust"],"affiliation":{"@type":"Organization","@id":"https://sassmaker.com/#app","name":"SaaS Maker","url":"https://sassmaker.com"}},{"@type":"WebSite","@id":"https://knowledgebase.sassmaker.com/#app","name":"Knowledge Base","url":"https://knowledgebase.sassmaker.com","description":"Cited search + grounded answers over private, specialized document collections (RAG).","publisher":{"@id":"https://sarthakagrawal.dev/#person"},"sameAs":["https://github.com/sass-maker/knowledge-base"]}]}</script>
 <!-- fleet-jsonld:end -->
     <script is:inline>
-      !function(t,e){var o,n,a,r,i;function s(e){(o=t._phq=t._phq||[]).push([].slice.call(e))}o=t.posthog=function(e,n){s([e,n])},o.__loaded||(a=e.createElement("script"),a.type="text/javascript",a.async=!0,a.crossOrigin="anonymous",a.src="https://us.i.posthog.com/array.js",r=e.getElementsByTagName("script")[0],r.parentNode.insertBefore(a,r),o.__loaded=!0),t.posthog.init("phc_qgiAarw4Co4pw9fz3Fxj4UJaHmqzFetqs4JrXhGc35Nd",{api_host:"https://us.i.posthog.com",person_profiles:"always",capture_pageview:!1,autocapture:!1,loaded:function(){t.posthog.capture("page_view",{project_id:"knowledge-base"})}})}(window,document);
+      !function(t,e){var o,a,r;function s(e){(o=t._phq=t._phq||[]).push([].slice.call(e))}o=t.posthog=function(e,n){s([e,n])},o.__loaded||(a=e.createElement("script"),a.type="text/javascript",a.async=!0,a.crossOrigin="anonymous",a.src="https://us.i.posthog.com/array.js",r=e.getElementsByTagName("script")[0],r.parentNode.insertBefore(a,r),o.__loaded=!0),t.posthog.init("phc_qgiAarw4Co4pw9fz3Fxj4UJaHmqzFetqs4JrXhGc35Nd",{api_host:"https://us.i.posthog.com",person_profiles:"always",capture_pageview:!1,autocapture:!1,loaded:function(){t.posthog.capture("page_view",{project_id:"knowledge-base"})}})}(window,document);
     </script>
 </head>
   <body>
@@ -62,6 +64,7 @@ const structuredData = {
       is:inline
       src="https://sassmaker.com/ai-chat-footer.js"
       data-name="Knowledge Base"
+      data-compose="false"
       defer
     ></script>
   </body>
@@ -124,7 +127,7 @@ const structuredData = {
     font: 800 0.72rem/1 ui-monospace, monospace;
   }
 
-  nav {
+  .nav nav {
     display: flex;
     align-items: center;
     gap: 1.75rem;
@@ -132,7 +135,7 @@ const structuredData = {
     font-size: 0.9rem;
   }
 
-  nav a {
+  .nav nav a {
     display: inline-flex;
     align-items: center;
     min-height: 2.75rem;
@@ -226,6 +229,14 @@ const structuredData = {
     line-height: 1.65;
   }
 
+  .access-note {
+    max-width: 41rem;
+    margin: 1.3rem 0 0;
+    color: #7f8783;
+    font-size: 0.86rem;
+    line-height: 1.6;
+  }
+
   .actions {
     display: flex;
     flex-wrap: wrap;
@@ -263,7 +274,8 @@ const structuredData = {
   }
 
   .evidence,
-  .process {
+  .process,
+  .proof {
     margin-top: clamp(6rem, 12vw, 10rem);
   }
 
@@ -372,6 +384,42 @@ const structuredData = {
     line-height: 1.65;
   }
 
+  .proof-ledger {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 2.5rem 0 0;
+    border-top: 1px solid #343936;
+    border-left: 1px solid #343936;
+  }
+
+  .proof-ledger div {
+    min-height: 8.5rem;
+    padding: 1.4rem;
+    border-right: 1px solid #343936;
+    border-bottom: 1px solid #343936;
+  }
+
+  .proof-ledger dt {
+    margin-bottom: 1.4rem;
+    color: #7f8783;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .proof-ledger dd {
+    margin: 0;
+    color: #dce2df;
+    font-size: clamp(1.05rem, 2vw, 1.35rem);
+    line-height: 1.45;
+  }
+
+  .proof-ledger code {
+    color: #8ddfd4;
+    font: 0.9em/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
   .boundary {
     display: grid;
     grid-template-columns: 13rem 1fr;
@@ -416,19 +464,61 @@ const structuredData = {
     letter-spacing: -0.035em;
   }
 
-  footer {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 2rem 0 3rem;
+  .operator-link {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    margin-top: 1rem;
+    color: #8f9693;
+    font-size: 0.86rem;
+    text-underline-offset: 0.25rem;
+  }
+
+  .product-footer {
+    display: grid;
+    grid-template-columns: 1.1fr 1.45fr 0.8fr;
+    gap: clamp(1.5rem, 5vw, 4rem);
+    padding: 2.5rem 0 3.5rem;
+    border-top: 1px solid #343936;
     color: #7f8582;
     font-size: 0.9rem;
   }
 
-  footer a {
+  .product-footer > div {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .product-footer strong {
+    color: #dce2df;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .footer-label {
+    color: #79cfc4;
+    font: 700 0.72rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .product-footer p {
+    margin: 0;
+    line-height: 1.65;
+  }
+
+  .product-footer nav {
+    display: grid;
+    justify-items: start;
+    gap: 0.15rem;
+    font-size: 0.86rem;
+  }
+
+  .product-footer a {
     display: inline-flex;
     min-height: 2.75rem;
     align-items: center;
+    text-underline-offset: 0.25rem;
   }
 
   @media (max-width: 760px) {
@@ -436,7 +526,7 @@ const structuredData = {
       width: min(100% - 2rem, 70rem);
     }
 
-    nav > a:not(.nav-action) {
+    .nav nav > a:not(.nav-action) {
       display: none;
     }
 
@@ -455,6 +545,7 @@ const structuredData = {
 
     .citations,
     .process ol,
+    .proof-ledger,
     .boundary {
       grid-template-columns: 1fr;
     }
@@ -473,8 +564,9 @@ const structuredData = {
       border-left: 0;
     }
 
-    footer {
-      flex-direction: column;
+    .product-footer {
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
     }
   }
 

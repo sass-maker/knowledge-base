@@ -8,45 +8,49 @@ const home = publicSurfaces[0];
 <!--
 THESIS: Private search earns trust by keeping the evidence visibly attached; refuse the generic feature-card landing.
 OWN-WORLD: Near-black field, paper-white type, one saturated teal action color, compact evidence-console details.
-STORY: Understand the private/public split, see how cited retrieval behaves, then enter the authenticated app.
-FIRST VIEWPORT: Wordmark and quiet source link above a large two-line promise, boundary copy, and one primary action.
+STORY: Understand the fleet role, see how cited retrieval behaves, inspect operating proof, then read the integration contract.
+FIRST VIEWPORT: Wordmark and quiet source link above a large two-line promise, exact audience and boundary copy, and one primary action.
 FORM: Preserve the recovered evidence-console landing structure; no direction seed because the incumbent live page is authoritative.
 -->
 <Layout title={home.title} description={home.description}>
   <header class="shell nav">
     <a class="brand" href="/">
       <span aria-hidden="true">KB</span>
-      Knowledgebase
+      Knowledge Base
     </a>
     <nav aria-label="Primary">
       <a href="#evidence">Evidence</a>
-      <a href="#how">How it works</a>
-      <a class="nav-action" href="https://search.sassmaker.com">Sign in to private app</a>
+      <a href="#proof">Proof</a>
+      <a class="nav-action" href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md">Read the integration contract</a>
     </nav>
   </header>
 
   <main class="shell">
     <section class="hero" aria-labelledby="hero-title">
-      <p class="signal"><span></span> Private agent search · cited by default</p>
-      <h1 id="hero-title">Any structure in.<br />Cited answers out.</h1>
+      <p class="signal"><span></span> Fleet retrieval layer · cited by default</p>
+      <h1 id="hero-title">Private sources in.<br />Cited answers out.</h1>
       <p class="lede">
-        Bring the material your team chooses. Knowledgebase retrieves by exact
-        terms or meaning, then gives people and agents an answer they can trace
-        back to source evidence.
+        Knowledge Base gives Fleet products and agents grounded answers from approved,
+        specialized corpora. It searches by exact terms or meaning, ranks the evidence,
+        and keeps every useful answer tied to a file, page, and excerpt.
       </p>
 
       <div class="actions">
-        <a class="button" href="https://search.sassmaker.com">
-          Sign in to the private app <span aria-hidden="true">→</span>
+        <a class="button" href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md">
+          Read the integration contract <span aria-hidden="true">→</span>
         </a>
         <a class="text-link" href="/index.md">Read the public product brief</a>
       </div>
+      <p class="access-note">
+        Internal infrastructure, not a public document-chat product. The operator workspace
+        is Access-protected, and retrieval is limited to approved Fleet consumers.
+      </p>
     </section>
 
     <section id="evidence" class="evidence" aria-labelledby="evidence-title">
       <div class="section-heading">
         <p>Illustrative interface</p>
-        <h2 id="evidence-title">An answer stays attached to its proof.</h2>
+        <h2 id="evidence-title">The answer stays attached to its proof.</h2>
       </div>
 
       <div class="evidence-console">
@@ -82,43 +86,80 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
     <section id="how" class="process" aria-labelledby="process-title">
       <div class="section-heading">
         <p>How it works</p>
-        <h2 id="process-title">Private material in. Inspectable retrieval out.</h2>
+        <h2 id="process-title">One question, three inspectable stages.</h2>
       </div>
       <ol>
         <li>
-          <strong>Index deliberately</strong>
-          <span>Choose the documents and structured material that belong in a workspace.</span>
+          <strong>Scope the corpus</strong>
+          <span>A tenant credential limits the query to one approved project and domain.</span>
         </li>
         <li>
-          <strong>Retrieve precisely</strong>
-          <span>Search by exact terms or by meaning according to the question.</span>
+          <strong>Search and rank</strong>
+          <span>Lexical and semantic retrieval find the most relevant source passages.</span>
         </li>
         <li>
-          <strong>Verify the answer</strong>
-          <span>Keep the file, page, and source excerpt with the result.</span>
+          <strong>Return the trail</strong>
+          <span>The answer arrives with ranked citations, provenance, confidence, and trace data.</span>
         </li>
       </ol>
     </section>
 
+    <section id="proof" class="proof" aria-labelledby="proof-title">
+      <div class="section-heading">
+        <p>Operating proof</p>
+        <h2 id="proof-title">It already serves Fleet products. That is the point.</h2>
+      </div>
+      <dl class="proof-ledger">
+        <div>
+          <dt>Current consumers</dt>
+          <dd>Karte · Research Papers · Starboard</dd>
+        </div>
+        <div>
+          <dt>Evidence invariant</dt>
+          <dd><code>file_id · page · excerpt</code></dd>
+        </div>
+        <div>
+          <dt>Active runtime</dt>
+          <dd>One Cloudflare Worker</dd>
+        </div>
+        <div>
+          <dt>Maintenance rule</dt>
+          <dd>Change it for a consumer need or retrieval failure.</dd>
+        </div>
+      </dl>
+    </section>
+
     <aside class="boundary">
-      <strong>The public boundary is intentionally small.</strong>
-      This landing never publishes indexed material, search history, operator
-      settings, authenticated application routes, or retrieval services.
+      <strong>The public boundary stays small.</strong>
+      This site explains the system. It does not publish indexed material,
+      search history, operator settings, authenticated routes, or retrieval access.
     </aside>
 
     <section class="final-cta" aria-labelledby="final-cta-title">
       <div>
-        <p>Access-protected workspace</p>
-        <h2 id="final-cta-title">Ready to search private material with evidence attached?</h2>
+        <p>For a concrete Fleet need</p>
+        <h2 id="final-cta-title">Start with the cited query contract, not a generic chat box.</h2>
+        <a class="operator-link" href="https://search.sassmaker.com">Open the operator workspace · Fleet Access required</a>
       </div>
-      <a class="button" href="https://search.sassmaker.com">
-        Sign in to the private app <span aria-hidden="true">→</span>
+      <a class="button" href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-integration-examples.md">
+        Review integration examples <span aria-hidden="true">→</span>
       </a>
     </section>
   </main>
 
-  <footer class="shell">
-    <span>Knowledgebase is maintained by SaaS Maker.</span>
-    <a href="https://github.com/sass-maker/knowledge-base">Source and roadmap</a>
+  <footer class="shell product-footer">
+    <div>
+      <span class="footer-label">Knowledge Base</span>
+      <strong>Private, cited retrieval for Fleet products and agents.</strong>
+    </div>
+    <p>
+      Maintained internal infrastructure. There is no public signup, checkout,
+      or permanent pricing promise.
+    </p>
+    <nav aria-label="Product links">
+      <a href="/index.md">Public brief</a>
+      <a href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md">Agent contract</a>
+      <a href="https://github.com/sass-maker/knowledge-base">Source and roadmap</a>
+    </nav>
   </footer>
 </Layout>

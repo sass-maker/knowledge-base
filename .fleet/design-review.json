@@ -2,7 +2,8 @@
   "$schema": "fleet.design-review.v1",
   "version": 1,
   "project": "knowledge-base",
-  "target": "public Knowledgebase landing recovery",
+  "target": "Knowledge Base public landing and private-retrieval boundary",
+  "surfaceMode": "persuade",
   "mode": "preserve",
   "register": "product",
   "context": {
@@ -12,35 +13,59 @@
   "direction": {
     "references": [],
     "probes": [],
-    "selected": "existing-design",
-    "approval": "not-required",
-    "before": ".fleet/evidence/public-landing/before-1440.png"
+    "selected": "existing-evidence-console",
+    "approval": "delegated",
+    "before": ".fleet/evidence/public-landing/before-1440.png",
+    "library": {
+      "strategy": "upstream-first",
+      "primary": "existing-project-system",
+      "sources": [],
+      "runtime": "none",
+      "customReplacement": {
+        "used": false,
+        "authorization": "not-required",
+        "reason": ""
+      }
+    },
+    "contract": {
+      "purpose": "Explain the private cited-retrieval service to Fleet consumers without exposing indexed material, credentials, operator routes, or a false public SaaS offer.",
+      "purposeSource": "site-health purposeContract for knowledge-base plus repository PRODUCT.md, PROJECT_STATUS.md, DESIGN.md, and AGENTS.md",
+      "canonicalPurpose": "Knowledge Base supplies named Fleet products and agents with private, grounded answers from controlled corpora by scoping, searching, ranking, and returning inspectable file, page, and excerpt citations.",
+      "purposeAlignment": "match",
+      "driftNote": "",
+      "audience": "Named internal products, operators, and agents with a concrete need for cited retrieval over approved corpora.",
+      "job": "Understand the service boundary, inspect how the evidence trail behaves, confirm operating consumers and invariants, then read the integration contract for a real Fleet need.",
+      "thesis": "Keep the recovered evidence-console landing: a near-black infrastructure surface with one teal action, compact system details, and an inspectable answer receipt rather than marketing cards.",
+      "system": "Use the project-native black field, paper-white hierarchy, restrained teal action and provenance accents, compact sans and monospace evidence labels, one-pixel rules, and 44px controls. No component runtime is justified for this small static surface.",
+      "signature": "The promise Private sources in. Cited answers out. resolves immediately into a query, answer, and expandable file-page-excerpt citation receipt.",
+      "risk": "The public landing intentionally offers no live query box or signup, which reduces conventional conversion mechanics but preserves the service's private boundary and directs qualified consumers to the actual contract."
+    }
   },
   "evidence": {
     "screenshots": [
       {
         "width": 390,
-        "path": ".fleet/evidence/public-landing/after-390.png"
+        "path": ".fleet/evidence/landing-audit/after-390.png"
       },
       {
         "width": 768,
-        "path": ".fleet/evidence/public-landing/after-768.png"
+        "path": ".fleet/evidence/landing-audit/after-768.png"
       },
       {
         "width": 1440,
-        "path": ".fleet/evidence/public-landing/after-1440.png"
+        "path": ".fleet/evidence/landing-audit/after-1440.png"
       }
     ],
     "projectCheck": {
-      "command": "cd landing-astro && pnpm run check",
+      "command": "pnpm -C landing-astro run check",
       "status": "pass"
     },
     "critique": {
-      "score": 36,
+      "score": 38,
       "maximum": 40
     },
     "audit": {
-      "score": 19,
+      "score": 20,
       "maximum": 20
     },
     "unresolved": {
@@ -49,18 +74,52 @@
     },
     "detector": {
       "posture": "advisory",
-      "findings": []
+      "findings": [
+        "No P0/P1 issue remains across purpose, private/public boundary, hierarchy, responsive composition, evidence semantics, SEO, GEO, performance, or the shared Ask AI and project-strip footer.",
+        "PSI Swarm exposed repeated browser requests for a missing favicon during the first local profile. A project-owned KB SVG favicon and explicit icon link now remove that avoidable 404 without adding a dependency.",
+        "macOS headless Chrome enforces a 500 CSS-pixel minimum layout width. The 390 artifact is the verified compact layout rendered at that minimum with device scaling and normalized to 390 pixels; the same max-760 CSS rules are exercised, and ten independent mobile Lighthouse runs report zero CLS and TBT."
+      ]
     },
-    "browserReview": {
-      "tool": "Playwright local static preview",
-      "viewports": [390, 768, 1440],
-      "horizontalOverflow": false,
-      "consoleErrors": 0,
-      "note": "Preserve-mode review verified the public/private boundary, inspectable illustrative citations, keyboard focus, responsive composition, and final access CTA. The Fleet agent auditor separately passed 10/10 checks at S-tier."
+    "comprehension": {
+      "status": "pass",
+      "reviewer": "fresh-visitor browser review A1",
+      "answers": {
+        "product": "A private search and answer service for specialized Fleet corpora that keeps answers tied to source citations.",
+        "audience": "Fleet products, operators, and agents approved to use a project-scoped retrieval service.",
+        "value": "Consumers get grounded answers they can trace to exact source evidence instead of unsupported model prose.",
+        "mechanism": "A tenant credential scopes the corpus; lexical and semantic retrieval rank passages; the response returns file, page, excerpt, confidence, and trace data.",
+        "proof": "The page shows the exact evidence receipt shape, names current consumers Karte, Research Papers, and Starboard, and states the one-Worker runtime and maintenance rule.",
+        "nextAction": "Read the cited query contract or integration examples for a concrete Fleet need; the protected operator workspace is clearly labelled as Access-required."
+      },
+      "purposeScore": {
+        "product": 25,
+        "audience": 15,
+        "value": 15,
+        "mechanism": 15,
+        "proof": 14,
+        "nextAction": 14,
+        "total": 98
+      },
+      "mismatches": []
+    },
+    "performance": {
+      "report": ".fleet/evidence/landing-audit/performance.html",
+      "validRuns": 20,
+      "attemptedRuns": 20,
+      "slowMobileP75LcpMs": 1247,
+      "mobileMidP75LcpMs": 633,
+      "weightedLcpMs": 462,
+      "cls": 0,
+      "tbtMs": 0
+    },
+    "visualQuality": {
+      "priority": "P2",
+      "score": 95,
+      "minimum": 85
     }
   },
   "ownerFeedback": {
     "decision": "delegated",
-    "note": "Owner explicitly approved all issue work in this session and delegated completion within the standing Fleet constraints."
+    "note": "The owner asked for the portfolio landing audit to continue without routine feedback and for effort to follow SaaSMaker priority. This pass preserves the working RAG service and changes only its separate public explanation and evidence. No release was authorized."
   }
 }
