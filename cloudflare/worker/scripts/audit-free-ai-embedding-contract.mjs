@@ -92,6 +92,9 @@ export function auditFreeAiEmbeddingContract({ freeAiRepo = DEFAULT_FREE_AI_REPO
   }
 
   const sourcePath = resolve(repo, 'src/index.ts');
+  const candidateSourcePath = existsSync(resolve(repo, 'src/routes/embedding-generation.ts'))
+    ? resolve(repo, 'src/routes/embedding-generation.ts')
+    : sourcePath;
   let source = '';
   if (!existsSync(sourcePath)) {
     checks.push(
@@ -102,13 +105,14 @@ export function auditFreeAiEmbeddingContract({ freeAiRepo = DEFAULT_FREE_AI_REPO
     );
   } else {
     source = readText(sourcePath);
-    const missingModels = REQUIRED_MODELS.filter((model) => !requiredModelPattern(model).test(source)).map((model) => model.id);
-    const missingAliases = REQUIRED_MODELS.filter((model) => model.aliases && !requiredAliasesPresent(source, model.aliases)).flatMap(
+    const candidateSource = readText(candidateSourcePath);
+    const missingModels = REQUIRED_MODELS.filter((model) => !requiredModelPattern(model).test(candidateSource)).map((model) => model.id);
+    const missingAliases = REQUIRED_MODELS.filter((model) => model.aliases && !requiredAliasesPresent(candidateSource, model.aliases)).flatMap(
       (model) => model.aliases ?? [],
     );
     checks.push(
       check('source_embedding_candidates', missingModels.length === 0 && missingAliases.length === 0, {
-        file: 'src/index.ts',
+        file: relative(repo, candidateSourcePath),
         required_count: REQUIRED_MODELS.length,
         missing_models: missingModels,
         missing_aliases: missingAliases,
