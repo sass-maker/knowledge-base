@@ -279,9 +279,7 @@ export async function freeAiChatRaw(env: Env, model: string, body: FreeAiChatBod
   });
   const result = await generateText({
     model: provider.chatModel(model),
-    messages: body.messages as Array<
-      { role: 'system' | 'user' | 'assistant'; content: string }
-    >,
+    messages: body.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
     ...(typeof body.max_tokens === 'number' ? { maxOutputTokens: body.max_tokens } : {}),
     ...(typeof body.temperature === 'number' ? { temperature: body.temperature } : {}),
     maxRetries: 0,
