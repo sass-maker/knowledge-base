@@ -100,25 +100,43 @@ export function configuredVectorizeProfiles(env: Env): ConfiguredVectorizeProfil
     profiles.push(profile);
   };
 
+  const bindingForDimensions = (dimensions: number): Pick<ConfiguredVectorizeProfile, 'binding' | 'bindingName'> | null => {
+    if (dimensions === 1536) return { binding: env.VECTORIZE, bindingName: 'VECTORIZE' };
+    if (dimensions === 1024 && env.VECTORIZE_1024) return { binding: env.VECTORIZE_1024, bindingName: 'VECTORIZE_1024' };
+    if (dimensions === 768 && env.VECTORIZE_768) return { binding: env.VECTORIZE_768, bindingName: 'VECTORIZE_768' };
+    if (dimensions === 384 && env.VECTORIZE_384) return { binding: env.VECTORIZE_384, bindingName: 'VECTORIZE_384' };
+    return null;
+  };
+
+  const baseDimensions = embeddingDimensions(env, 'base');
+  const baseBinding = bindingForDimensions(baseDimensions) ?? { binding: env.VECTORIZE, bindingName: 'VECTORIZE' };
   add({
     key: 'base',
     semanticModel: 'base',
-    dimensions: embeddingDimensions(env, 'base'),
-    binding: env.VECTORIZE,
-    bindingName: 'VECTORIZE',
+    dimensions: baseDimensions,
+    ...baseBinding,
     model: embeddingModel(env, 'base'),
   });
 
+  const smallDimensions = embeddingDimensions(env, 'small');
   if (env.VECTORIZE_SMALL) {
     add({
       key: 'small',
       semanticModel: 'small',
-      dimensions: embeddingDimensions(env, 'small'),
+      dimensions: smallDimensions,
       binding: env.VECTORIZE_SMALL,
       bindingName: 'VECTORIZE_SMALL',
       model: embeddingModel(env, 'small'),
     });
   }
+
+  add({
+    key: 'dim_1536',
+    semanticModel: 'base',
+    dimensions: 1536,
+    binding: env.VECTORIZE,
+    bindingName: 'VECTORIZE',
+  });
 
   if (env.VECTORIZE_1024) {
     add({

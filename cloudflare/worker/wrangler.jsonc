@@ -81,12 +81,7 @@
 		"RAG_CACHE_MAX_ENTRIES": "1000",
 		"RAG_SHARED_QUERY_CACHE_ENABLED": "true",
 		"RAG_SHARED_EMBEDDING_CACHE_ENABLED": "true",
-		"RAG_EMBED_PROVIDER": "free_ai",
-		"RAG_SYNTH_PROVIDER": "free_ai",
-		"FREE_AI_BASE_URL": "https://generativelanguage.googleapis.com/v1beta/openai",
-		"FREE_AI_EMBED_MODEL": "gemini-embedding-001",
-		"FREE_AI_EMBED_PROVIDER": "gemini",
-		"FREE_AI_EMBED_DIMENSIONS": "1536",
-		"FREE_AI_SYNTH_MODEL": "gemini-2.5-flash"
+		"RAG_EMBED_PROVIDER": "workers_ai",
+		"RAG_SYNTH_PROVIDER": "workers_ai"
 	}
 }
