@@ -18,19 +18,14 @@ export interface Env {
   RAG_SERVICE_PROOF_KEYS?: string;
   EMBEDDING_MODEL?: string;
   EMBEDDING_MODEL_SMALL?: string;
-  RAG_AI_GATEWAY_ID?: string;
-  RAG_AI_GATEWAY_CACHE_TTL_SECONDS?: string;
   RAG_ANSWER_MODEL?: string;
-  // free-ai gateway: route inference off Cloudflare Workers AI when set.
+  // Route inference to an explicitly configured direct provider when set.
   RAG_EMBED_PROVIDER?: string;
   RAG_SYNTH_PROVIDER?: string;
-  // Service binding to the free-ai-gateway Worker. Required because same-zone
-  // worker-to-worker calls over the public *.workers.dev hostname are blocked
-  // (Cloudflare error 1042); the binding routes by service name instead.
-  FREE_AI?: Fetcher;
+  // Optional injected HTTP transport used by local tests. Production uses fetch.
+  AI_HTTP?: Fetcher;
   FREE_AI_API_KEY?: string;
   FREE_AI_BASE_URL?: string;
-  FREE_AI_PROJECT_ID?: string;
   FREE_AI_EMBED_MODEL?: string;
   FREE_AI_EMBED_PROVIDER?: string;
   FREE_AI_EMBED_DIMENSIONS?: string;

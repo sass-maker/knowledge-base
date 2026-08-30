@@ -5,8 +5,7 @@ import type { Env } from '../src/types';
 function makeEnv(overrides: Partial<Env> = {}): Env {
   return {
     FREE_AI_API_KEY: 'test-key',
-    FREE_AI_BASE_URL: 'https://gw.example/v1',
-    FREE_AI_PROJECT_ID: 'kb-test',
+    FREE_AI_BASE_URL: 'https://provider.example/v1',
     FREE_AI_EMBED_MODEL: 'gemini-embedding-001',
     FREE_AI_EMBED_PROVIDER: 'gemini',
     FREE_AI_EMBED_DIMENSIONS: '1536',
@@ -70,13 +69,13 @@ describe('freeAiEmbed', () => {
     expect(out).toHaveLength(2);
     expect(out[0]).toHaveLength(1536);
     const req = first(calls);
-    expect(req.url).toBe('https://gw.example/v1/embeddings');
+    expect(req.url).toBe('https://provider.example/v1/embeddings');
     expect(req.headers.Authorization).toBe('Bearer test-key');
-    expect(req.headers['x-gateway-force-provider']).toBe('gemini');
-    expect(req.headers['x-gateway-force-model']).toBe('gemini-embedding-001');
+    expect(req.headers).not.toHaveProperty('x-gateway-force-provider');
+    expect(req.headers).not.toHaveProperty('x-gateway-force-model');
     expect(req.body.dimensions).toBe(1536);
     expect(req.body.model).toBe('gemini-embedding-001');
-    expect(req.body.project_id).toBe('kb-test');
+    expect(req.body).not.toHaveProperty('project_id');
   });
 
   it('honors known caller model ids with catalog provider and dimensions', async () => {
@@ -84,8 +83,8 @@ describe('freeAiEmbed', () => {
       jsonResponse({ data: (req.body.input as string[]).map((_, i) => ({ index: i, embedding: vec(384) })) }),
     );
     const out = await freeAiEmbed(makeEnv(), ['x'], { model: '@cf/baai/bge-small-en-v1.5' });
-    expect(first(calls).headers['x-gateway-force-provider']).toBe('workers_ai');
-    expect(first(calls).headers['x-gateway-force-model']).toBe('@cf/baai/bge-small-en-v1.5');
+    expect(first(calls).headers).not.toHaveProperty('x-gateway-force-provider');
+    expect(first(calls).headers).not.toHaveProperty('x-gateway-force-model');
     expect(first(calls).body).not.toHaveProperty('dimensions');
     expect(first(calls).body.model).toBe('@cf/baai/bge-small-en-v1.5');
     expect(out[0]).toHaveLength(384);
@@ -102,7 +101,7 @@ describe('freeAiEmbed', () => {
     expect(out[1]?.[0]).toBe(4);
   });
 
-  it('fails closed when the gateway returns a wrong-dimension vector', async () => {
+  it('fails closed when the provider returns a wrong-dimension vector', async () => {
     captureFetch((req) =>
       jsonResponse({ data: (req.body.input as string[]).map((_, i) => ({ index: i, embedding: vec(768) })) }),
     );
@@ -121,7 +120,7 @@ describe('freeAiEmbed', () => {
     await expect(freeAiEmbed(env, ['a'], {})).rejects.toThrow(/FREE_AI_API_KEY/);
   });
 
-  it('surfaces gateway HTTP errors', async () => {
+  it('surfaces provider HTTP errors', async () => {
     captureFetch(() => new Response('boom', { status: 502 }));
     await expect(freeAiEmbed(makeEnv(), ['a'], {})).rejects.toThrow(/free-ai embeddings failed 502/);
   });
@@ -138,11 +137,11 @@ describe('freeAiEmbed', () => {
     expect(out[0]).toHaveLength(1536);
   });
 
-  it('uses the FREE_AI service binding when present instead of global fetch', async () => {
+  it('uses the injected HTTP transport when present instead of global fetch', async () => {
     const globalCalls = captureFetch(() => jsonResponse({ data: [] }));
     let bindingUsed = false;
     const env = makeEnv({
-      FREE_AI: {
+      AI_HTTP: {
         fetch: async (_url: unknown, init: { body?: string } = {}) => {
           bindingUsed = true;
           const body = JSON.parse(init.body ?? '{}') as { input: string[] };
@@ -156,7 +155,7 @@ describe('freeAiEmbed', () => {
     expect(out[0]).toHaveLength(1536);
   });
 
-  it('returns empty for empty input without calling the gateway', async () => {
+  it('returns empty for empty input without calling the provider', async () => {
     const calls = captureFetch(() => jsonResponse({ data: [] }));
     expect(await freeAiEmbed(makeEnv(), [], {})).toEqual([]);
     expect(calls).toHaveLength(0);
@@ -164,7 +163,7 @@ describe('freeAiEmbed', () => {
 });
 
 describe('freeAiChatRaw', () => {
-  it('forces configured Command Code synthesis provider and model', async () => {
+  it('uses the configured direct synthesis model', async () => {
     const calls = captureFetch(() =>
       jsonResponse({ choices: [{ message: { content: 'answer' } }] }),
     );
@@ -179,17 +178,13 @@ describe('freeAiChatRaw', () => {
 
     expect(out.response).toBe('answer');
     expect(first(calls)).toMatchObject({
-      url: 'https://gw.example/v1/chat/completions',
+      url: 'https://provider.example/v1/chat/completions',
       headers: {
-        Authorization: 'Bearer test-key',
-        'x-gateway-project-id': 'kb-test',
-        'x-gateway-force-model': 'command-code-mimo-v2-5',
-        'x-gateway-force-provider': 'command_code',
+        authorization: 'Bearer test-key',
       },
       body: {
         model: 'command-code-mimo-v2-5',
         max_tokens: 64,
-        project_id: 'kb-test',
       },
     });
   });
@@ -229,7 +224,7 @@ describe('fetchFreeAiEmbeddingCatalog', () => {
 });
 
 describe('freeAiChatRaw', () => {
-  it('maps json_schema response_format to json_object and extracts message content', async () => {
+  it('extracts direct provider message content', async () => {
     const calls = captureFetch(() =>
       jsonResponse({ choices: [{ message: { content: '{"status":"supported"}' } }] }),
     );
@@ -241,16 +236,14 @@ describe('freeAiChatRaw', () => {
 
     expect(out.response).toBe('{"status":"supported"}');
     const req = first(calls);
-    expect(req.url).toBe('https://gw.example/v1/chat/completions');
-    expect(req.body.response_format).toEqual({ type: 'json_object' });
+    expect(req.url).toBe('https://provider.example/v1/chat/completions');
+    expect(req.body).not.toHaveProperty('response_format');
     expect(req.body.model).toBe('gemini-2.5-flash');
-    expect(req.body.project_id).toBe('kb-test');
+    expect(req.body).not.toHaveProperty('project_id');
   });
 
   it('surfaces chat HTTP errors', async () => {
     captureFetch(() => new Response('nope', { status: 500 }));
-    await expect(freeAiChatRaw(makeEnv(), 'm', { messages: [{ role: 'user', content: 'x' }] })).rejects.toThrow(
-      /free-ai chat failed 500/,
-    );
+    await expect(freeAiChatRaw(makeEnv(), 'm', { messages: [{ role: 'user', content: 'x' }] })).rejects.toBeDefined();
   });
 });

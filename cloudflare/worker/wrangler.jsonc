@@ -13,12 +13,6 @@
 	"ai": {
 		"binding": "AI"
 	},
-	"services": [
-		{
-			"binding": "FREE_AI",
-			"service": "free-ai-gateway"
-		}
-	],
 	"vectorize": [
 		{
 			"binding": "VECTORIZE",
@@ -82,7 +76,6 @@
 	"vars": {
 		"EMBEDDING_MODEL": "@cf/baai/bge-base-en-v1.5",
 		"EMBEDDING_MODEL_SMALL": "@cf/baai/bge-small-en-v1.5",
-		"RAG_AI_GATEWAY_CACHE_TTL_SECONDS": "3600",
 		"RAG_CACHE_ENABLED": "true",
 		"RAG_CACHE_TTL_SECONDS": "300",
 		"RAG_CACHE_MAX_ENTRIES": "1000",
@@ -90,8 +83,7 @@
 		"RAG_SHARED_EMBEDDING_CACHE_ENABLED": "true",
 		"RAG_EMBED_PROVIDER": "free_ai",
 		"RAG_SYNTH_PROVIDER": "free_ai",
-		"FREE_AI_BASE_URL": "https://ai-gateway.sassmaker.com/v1",
-		"FREE_AI_PROJECT_ID": "knowledgebase",
+		"FREE_AI_BASE_URL": "https://generativelanguage.googleapis.com/v1beta/openai",
 		"FREE_AI_EMBED_MODEL": "gemini-embedding-001",
 		"FREE_AI_EMBED_PROVIDER": "gemini",
 		"FREE_AI_EMBED_DIMENSIONS": "1536",

@@ -5,8 +5,6 @@ import type { Env } from '../src/types';
 function makeEnv(calls: string[][], models: string[] = [], options: unknown[] = []): Env {
   return {
     EMBEDDING_MODEL: '@cf/test-embedding',
-    RAG_AI_GATEWAY_ID: 'test-gateway',
-    RAG_AI_GATEWAY_CACHE_TTL_SECONDS: '120',
     AI: {
       run: async (model: string, input: { text: string[] }, opts?: unknown) => {
         models.push(model);
@@ -40,13 +38,13 @@ describe('embedTexts', () => {
     expect(vectors.at(-1)).toEqual([8]);
   });
 
-  it('passes explicit model and AI Gateway cache options to Workers AI', async () => {
+  it('passes the explicit model directly to Workers AI', async () => {
     const calls: string[][] = [];
     const models: string[] = [];
     const options: unknown[] = [];
     await embedTexts(makeEnv(calls, models, options), ['alpha'], { model: '@cf/test-small' });
 
     expect(models).toEqual(['@cf/test-small']);
-    expect(options).toEqual([{ gateway: { id: 'test-gateway', skipCache: false, cacheTtl: 120 } }]);
+    expect(options).toEqual([undefined]);
   });
 });

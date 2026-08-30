@@ -56,6 +56,8 @@
     "check": "pnpm run typecheck && pnpm test"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "2.0.41",
+    "ai": "6.0.168",
     "fflate": "^0.8.3",
     "hono": "4.12.34"
   },

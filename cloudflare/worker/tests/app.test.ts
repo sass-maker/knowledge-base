@@ -1217,6 +1217,7 @@ function makeEnv(vectorize: FakeVectorize, db: D1Database = {
 } as unknown as D1Database, vectorizeSmall?: FakeVectorize, rawDocs?: R2Bucket, ingestQueue?: Queue<KbIngestQueueMessage>, ingestWorkflow?: Workflow<KbIngestQueueMessage>, analytics?: AnalyticsEngineDataset): Env {
   return {
     RAG_SERVICE_KEYS: JSON.stringify({ 'key-a': 'tenant-a', 'key-b': 'tenant-b' }),
+    FREE_AI_BASE_URL: 'https://provider.example/v1',
     EMBEDDING_MODEL: '@cf/baai/bge-base-en-v1.5',
     EMBEDDING_MODEL_SMALL: '@cf/baai/bge-small-en-v1.5',
     VECTORIZE: vectorize,
@@ -1264,7 +1265,7 @@ function configureStaleFreeAiDefault(env: Env): void {
   env.FREE_AI_EMBED_PROVIDER = 'gemini';
   env.FREE_AI_EMBED_DIMENSIONS = '1536';
   env.FREE_AI_API_KEY = 'test-free-ai-key';
-  env.FREE_AI = {
+  env.AI_HTTP = {
     fetch: async (url: string | Request) => {
       const href = typeof url === 'string' ? url : url.url;
       if (href.endsWith('/v1/models')) {
@@ -1444,7 +1445,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1509,7 +1510,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1562,7 +1563,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1606,10 +1607,6 @@ describe('knowledgebase RAG Worker app', () => {
       embedding_provider: 'gemini',
     });
     expect(embeddingCalls[0]).toMatchObject({
-      headers: {
-        'x-gateway-force-model': 'gemini-embedding-001',
-        'x-gateway-force-provider': 'gemini',
-      },
       body: {
         model: 'gemini-embedding-001',
         dimensions: 1536,
@@ -1639,7 +1636,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1709,10 +1706,6 @@ describe('knowledgebase RAG Worker app', () => {
       embedding_provider: 'gemini',
     });
     expect(embeddingCalls[0]).toMatchObject({
-      headers: {
-        'x-gateway-force-model': 'gemini-embedding-001',
-        'x-gateway-force-provider': 'gemini',
-      },
       body: {
         model: 'gemini-embedding-001',
         dimensions: 1536,
@@ -1740,7 +1733,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1830,7 +1823,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1894,7 +1887,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1955,10 +1948,6 @@ describe('knowledgebase RAG Worker app', () => {
     });
     expect(ingested.status).toBe(201);
     expect(embeddingCalls[0]).toMatchObject({
-      headers: {
-        'x-gateway-force-model': 'gemini-embedding-001',
-        'x-gateway-force-provider': 'gemini',
-      },
       body: {
         model: 'gemini-embedding-001',
         dimensions: 1536,
@@ -1976,7 +1965,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -2017,7 +2006,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -2096,7 +2085,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -2165,10 +2154,6 @@ describe('knowledgebase RAG Worker app', () => {
     expect(ingested.status).toBe(201);
     expect(queried.status).toBe(200);
     expect(embeddingCalls[0]).toMatchObject({
-      headers: {
-        'x-gateway-force-model': 'voyage-3.5-lite',
-        'x-gateway-force-provider': 'voyage_ai',
-      },
       body: {
         model: 'voyage-3.5-lite',
       },
@@ -2193,7 +2178,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.FREE_AI = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -2262,10 +2247,6 @@ describe('knowledgebase RAG Worker app', () => {
     expect(ingested.status).toBe(201);
     expect(queried.status).toBe(200);
     expect(embeddingCalls[0]).toMatchObject({
-      headers: {
-        'x-gateway-force-model': '@cf/baai/bge-small-en-v1.5',
-        'x-gateway-force-provider': 'workers_ai',
-      },
       body: {
         model: '@cf/baai/bge-small-en-v1.5',
       },

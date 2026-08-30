@@ -1,18 +1,16 @@
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { generateText } from 'ai';
+
 import type { Env } from './types';
 
-// OpenAI-compatible client for the fleet free-ai gateway
-// (https://github.com/.../free-ai). Routes embeddings and chat through free
-// upstream providers (Gemini/Groq/Voyage) instead of Cloudflare Workers AI.
-
-const DEFAULT_BASE_URL = 'https://ai-gateway.sassmaker.com/v1';
-// gemini-embedding-001 is Matryoshka-trained; the gateway forwards `dimensions`
+// OpenAI-compatible client for an explicitly configured free-provider endpoint.
+// gemini-embedding-001 is Matryoshka-trained; the endpoint forwards `dimensions`
 // to its output_dimensionality, so we request 1536 (fits Vectorize's 1536-dim
 // ceiling) and validate the response length. Gemini's free tier sustains bursts
 // where voyage's ~3 rpm does not.
 const DEFAULT_EMBED_MODEL = 'gemini-embedding-001';
 const DEFAULT_EMBED_PROVIDER = 'gemini';
 const DEFAULT_SYNTH_MODEL = 'gemini-2.5-flash';
-const DEFAULT_PROJECT_ID = 'knowledgebase';
 const DEFAULT_DIMENSIONS = 1536;
 const EMBED_BATCH_SIZE = 100;
 type SemanticProfile = 'base' | 'small';
@@ -58,15 +56,9 @@ export function freeAiSynthModel(env: Env): string {
 }
 
 function baseUrl(env: Env): string {
-  return (env.FREE_AI_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '');
-}
-
-function projectId(env: Env): string {
-  return env.FREE_AI_PROJECT_ID?.trim() || DEFAULT_PROJECT_ID;
-}
-
-function freeAiSynthProvider(env: Env): string | undefined {
-  return env.FREE_AI_SYNTH_PROVIDER?.trim() || undefined;
+  const configured = env.FREE_AI_BASE_URL?.trim();
+  if (!configured) throw new Error('FREE_AI_BASE_URL is not configured');
+  return configured.replace(/\/+$/, '');
 }
 
 function catalogModel(model: string): FreeAiEmbeddingModel | null {
@@ -131,10 +123,8 @@ function optionalAuthHeaders(env: Env): Record<string, string> {
   return key ? { Authorization: `Bearer ${key}`, Accept: 'application/json' } : { Accept: 'application/json' };
 }
 
-// Use the service binding when available (required for same-zone worker calls),
-// otherwise fall back to a plain fetch (local dev / tests).
-function gatewayFetch(env: Env, url: string, init: RequestInit): Promise<Response> {
-  return env.FREE_AI ? env.FREE_AI.fetch(url, init) : fetch(url, init);
+function directFetch(env: Env, url: string, init: RequestInit): Promise<Response> {
+  return env.AI_HTTP?.fetch(url, init) ?? fetch(url, init);
 }
 
 function parseFreeAiModelRows(payload: unknown): FreeAiEmbeddingModel[] {
@@ -170,7 +160,7 @@ function parseFreeAiModelRows(payload: unknown): FreeAiEmbeddingModel[] {
 }
 
 export async function fetchFreeAiEmbeddingCatalog(env: Env): Promise<FreeAiEmbeddingModel[]> {
-  const res = await gatewayFetch(env, `${baseUrl(env)}/models`, {
+  const res = await directFetch(env, `${baseUrl(env)}/models`, {
     method: 'GET',
     headers: optionalAuthHeaders(env),
   });
@@ -196,13 +186,13 @@ export function findFreeAiEmbeddingModel(catalog: FreeAiEmbeddingModel[], model:
 const RETRY_STATUSES = new Set([429, 503]);
 const MAX_RETRIES = 2;
 
-async function gatewayFetchRetry(env: Env, url: string, init: RequestInit): Promise<Response> {
-  let res = await gatewayFetch(env, url, init);
+async function directFetchRetry(env: Env, url: string, init: RequestInit): Promise<Response> {
+  let res = await directFetch(env, url, init);
   for (let attempt = 0; attempt < MAX_RETRIES && RETRY_STATUSES.has(res.status); attempt += 1) {
     const retryAfter = Number(res.headers.get('retry-after'));
     const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 4000) : 400 * 2 ** attempt;
     await new Promise((resolve) => setTimeout(resolve, backoffMs));
-    res = await gatewayFetch(env, url, init);
+    res = await directFetch(env, url, init);
   }
   return res;
 }
@@ -220,10 +210,8 @@ function extractVector(row: unknown): number[] | null {
   return null;
 }
 
-// Drop-in replacement for embedTexts (same signature) that calls the free-ai
-// gateway. The provider/model are pinned via force headers so the gateway cannot
-// silently fall back to a different-dimension embedding model and corrupt the
-// index; the response dimension is validated and fails closed.
+// Drop-in replacement for embedTexts. The model is explicit and the response
+// dimension is validated so a provider cannot silently corrupt the index.
 export async function freeAiEmbed(
   env: Env,
   texts: string[],
@@ -232,31 +220,25 @@ export async function freeAiEmbed(
   if (texts.length === 0) return [];
   const profile: SemanticProfile = options.model === configuredModel(env, 'small') ? 'small' : 'base';
   const model = options.model?.trim() || configuredModel(env, profile);
-  const provider = options.provider?.trim() || configuredProvider(env, profile, model);
   const dimensions =
     options.dimensions && Number.isFinite(options.dimensions) && options.dimensions > 0
       ? Math.trunc(options.dimensions)
       : configuredDimensions(env, profile, model);
   const url = `${baseUrl(env)}/embeddings`;
-  const pid = projectId(env);
   const vectors: number[][] = [];
 
   for (let start = 0; start < texts.length; start += EMBED_BATCH_SIZE) {
     const batch = texts.slice(start, start + EMBED_BATCH_SIZE);
-    const res = await gatewayFetchRetry(env, url, {
+    const res = await directFetchRetry(env, url, {
       method: 'POST',
       headers: {
         ...authHeaders(env),
-        'x-gateway-force-provider': provider,
-        'x-gateway-force-model': model,
-        'x-gateway-project-id': pid,
       },
       body: JSON.stringify({
         model,
         input: batch,
         ...(supportsDimensionOverride(model) ? { dimensions } : {}),
         encoding_format: 'float',
-        project_id: pid,
       }),
     });
     if (!res.ok) {
@@ -268,7 +250,7 @@ export async function freeAiEmbed(
     if (rows.length !== batch.length) {
       throw new Error(`free-ai embeddings count mismatch: got ${rows.length} for ${batch.length} inputs`);
     }
-    // Preserve input order when the gateway returns OpenAI-style index fields.
+    // Preserve input order when the provider returns OpenAI-style index fields.
     const ordered = rows
       .map((row, i) => ({ row, index: typeof (row as { index?: number }).index === 'number' ? (row as { index: number }).index : i }))
       .sort((a, b) => a.index - b.index)
@@ -284,46 +266,25 @@ export async function freeAiEmbed(
   return vectors;
 }
 
-// Workers AI exposes json_schema response_format; the OpenAI-compatible gateway
-// expects json_object. Map it so the judge path keeps JSON-mode behavior.
-function mapResponseFormat(responseFormat: unknown): unknown {
-  if (!responseFormat || typeof responseFormat !== 'object') return undefined;
-  const type = (responseFormat as { type?: string }).type;
-  if (type === 'json_schema') return { type: 'json_object' };
-  return responseFormat;
-}
-
 // Returns a Workers-AI-shaped { response } object so existing aiTextResponse()
 // parsing works unchanged for both providers.
 export async function freeAiChatRaw(env: Env, model: string, body: FreeAiChatBody): Promise<{ response: string }> {
-  const url = `${baseUrl(env)}/chat/completions`;
-  const pid = projectId(env);
-  const responseFormat = mapResponseFormat(body.response_format);
-  const provider = freeAiSynthProvider(env);
-  const res = await gatewayFetchRetry(env, url, {
-    method: 'POST',
-    headers: {
-      ...authHeaders(env),
-      'x-gateway-project-id': pid,
-      'x-gateway-force-model': model,
-      ...(provider ? { 'x-gateway-force-provider': provider } : {}),
-    },
-    body: JSON.stringify({
-      model,
-      messages: body.messages,
-      ...(typeof body.max_tokens === 'number' ? { max_tokens: body.max_tokens } : {}),
-      ...(typeof body.temperature === 'number' ? { temperature: body.temperature } : {}),
-      ...(responseFormat ? { response_format: responseFormat } : {}),
-      project_id: pid,
-    }),
+  const key = env.FREE_AI_API_KEY?.trim();
+  if (!key) throw new Error('FREE_AI_API_KEY is not configured');
+  const provider = createOpenAICompatible({
+    name: 'knowledgebase-direct',
+    baseURL: baseUrl(env),
+    apiKey: key,
+    ...(env.AI_HTTP ? { fetch: env.AI_HTTP.fetch.bind(env.AI_HTTP) as typeof fetch } : {}),
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`free-ai chat failed ${res.status}: ${detail.slice(0, 200)}`);
-  }
-  const payload = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = payload.choices?.[0]?.message?.content ?? '';
-  return { response: content };
+  const result = await generateText({
+    model: provider.chatModel(model),
+    messages: body.messages as Array<
+      { role: 'system' | 'user' | 'assistant'; content: string }
+    >,
+    ...(typeof body.max_tokens === 'number' ? { maxOutputTokens: body.max_tokens } : {}),
+    ...(typeof body.temperature === 'number' ? { temperature: body.temperature } : {}),
+    maxRetries: 0,
+  });
+  return { response: result.text };
 }
