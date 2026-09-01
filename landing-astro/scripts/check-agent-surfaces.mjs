@@ -64,7 +64,7 @@ for (const forbiddenPattern of forbiddenPatterns) {
   }
 }
 
-if (!sitemap.includes('<lastmod>2026-08-27</lastmod>')) {
+if (!sitemap.includes('<lastmod>2026-08-31</lastmod>')) {
   throw new Error('sitemap must include a current lastmod value');
 }
 

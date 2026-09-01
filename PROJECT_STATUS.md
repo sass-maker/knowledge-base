@@ -5,7 +5,7 @@
 > Update this file when durable current or shipped product truth changes. Do
 > not let deploy-version snapshots accumulate here — put those in the archive.
 
-Last updated: 2026-07-31
+Last updated: 2026-08-31
 
 ## Why / What
 
@@ -22,6 +22,10 @@ the non-negotiable product invariant.
 
 ## Timeline
 
+- **2026-08-31** — Added source-ready product-owned Microsoft Clarity tracking
+  to the public landing and disclosed both public analytics services in its
+  HTML and Markdown product brief. The Access-protected operator workspace is
+  deliberately outside this landing layout. No deployment ran.
 - **2026-07-31** — Recovered an independently buildable public landing source
   under `landing-astro/`, separate from the Access-protected dashboard and RAG
   Worker. One typed public-route registry now drives the HTML landing,

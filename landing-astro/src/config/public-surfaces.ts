@@ -39,7 +39,7 @@ export const homeMarkdown = `---
 title: "Knowledge Base — Private cited retrieval for Fleet agents"
 description: "A maintained retrieval layer that gives approved Fleet products and agents cited answers from private, specialized corpora."
 canonical: "${SITE_ORIGIN}/"
-last_updated: "2026-08-27"
+last_updated: "2026-08-31"
 ---
 
 # Knowledge Base — Private cited retrieval for Fleet agents
@@ -75,6 +75,12 @@ or retrieval access. There is no public signup, checkout, or permanent pricing
 promise.
 
 The operator workspace is separately protected at https://search.sassmaker.com.
+
+## Website analytics
+
+The public landing uses PostHog for a page-view event and Microsoft Clarity for
+session replay and heatmaps. The Access-protected operator workspace is a
+separate surface and does not load the public landing layout.
 
 ## Project
 
