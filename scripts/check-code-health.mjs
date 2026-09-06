@@ -207,7 +207,7 @@ function checkDependencies() {
     workerCritical: 0,
     workerHigh: 5,
     landingCritical: 0,
-    landingHigh: 3,
+    landingHigh: 2,
   };
   console.log(
     `Dependencies: 0 critical; high advisories root ${observed.rootHigh}, app ${observed.appHigh}, ` +
