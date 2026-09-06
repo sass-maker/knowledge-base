@@ -79,8 +79,9 @@ The operator workspace is separately protected at https://search.sassmaker.com.
 ## Website analytics
 
 The public landing uses PostHog for a page-view event and Microsoft Clarity for
-session replay and heatmaps. The Access-protected operator workspace is a
-separate surface and does not load the public landing layout.
+session replay and heatmaps. The Access-protected operator workspace also loads
+Clarity, but its entire application root is explicitly masked before collection
+so private corpus content is not uploaded.
 
 ## Project
 

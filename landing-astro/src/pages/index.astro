@@ -157,9 +157,10 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
       or permanent pricing promise.
     </p>
     <p>
-      This public landing uses PostHog for a page-view event and Microsoft
+      The public landing uses PostHog for a page-view event and Microsoft
       Clarity for session replay and heatmaps. The Access-protected operator
-      workspace is a separate surface and does not load this landing layout.
+      workspace also loads Clarity, but its entire application root is
+      explicitly masked before collection so private corpus content is not uploaded.
     </p>
     <nav aria-label="Product links">
       <a href="/index.md">Public brief</a>
