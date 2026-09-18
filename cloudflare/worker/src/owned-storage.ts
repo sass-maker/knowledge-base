@@ -53,6 +53,95 @@ export async function storeFileBytes(
 
 export class UnsettledFileWrite extends Error {}
 
+// Explicit legacy → owned copy/backfill (issue #48 task 32). Adopts the legacy
+// file into the ledger (storage_version 1), claims a 'copy' operation, reads
+// the shared object, verifies bytes against the recorded hash, writes the
+// owned key, rebuilds parse provenance, then publishes as generation 2. The
+// shared legacy object is deliberately retained — zero-reference garbage
+// collection is a separate review. An uncertain write leaves the operation
+// running and returns 'pending', truthfully.
+export async function backfillLegacyFile(
+  env: Env,
+  metadata: MetadataRepository,
+  project: string,
+  fileId: string,
+): Promise<'complete' | 'pending' | 'conflict' | null> {
+  if (!env.RAW_DOCS) throw new Error('RAW_DOCS is required');
+  const ledger = new D1FileOwnership(env.DB);
+  const file = await metadata.getFile(project, fileId);
+  if (!file) return null;
+  let lifecycle = await ledger.get(project, fileId);
+  if (lifecycle) {
+    if (lifecycle.storage_version === 2 && lifecycle.state === 'active') return 'complete';
+    if (lifecycle.state === 'deleting' || lifecycle.state === 'deleted' || lifecycle.state === 'uploading') return 'conflict';
+  } else {
+    lifecycle = await ledger.adoptLegacy(project, file);
+    if (!lifecycle) return 'conflict';
+  }
+  const operationId = crypto.randomUUID();
+  const operation = await ledger.claim(project, fileId, operationId, 'copy');
+  if (!operation) return 'pending';
+  try {
+    const legacyObject = await env.RAW_DOCS.get(file.object_key);
+    if (!legacyObject) {
+      await ledger.cancelPrepared(project, operationId);
+      return 'conflict';
+    }
+    const bytes = await legacyObject.arrayBuffer();
+    if ((await sha256Hex(bytes)) !== file.content_hash || bytes.byteLength !== file.bytes) {
+      await ledger.cancelPrepared(project, operationId);
+      return 'conflict';
+    }
+    const rawArtifactId = crypto.randomUUID();
+    const ownedKey = ownedRawKey(project, fileId, file.content_hash);
+    if (!(await ledger.recordIntent(operation, { artifact_id: rawArtifactId, kind: 'raw', resource_id: ownedKey, provider: 'r2' }))) {
+      await ledger.settle(operation, false);
+      return 'conflict';
+    }
+    if (!(await ledger.startWrite(operation, rawArtifactId))) return 'conflict';
+    try {
+      await env.RAW_DOCS.put(ownedKey, bytes, { httpMetadata: { contentType: file.mime ?? 'application/octet-stream' } });
+    } catch {
+      throw new UnsettledFileWrite('Owned raw copy settlement is unknown.');
+    }
+    await ledger.recordWrite(project, operationId, rawArtifactId, 'confirmed');
+
+    // Rebuild parse provenance when a shared artifact exists for this content.
+    const legacyParse = await metadata.getParseArtifact(file.content_hash);
+    if (legacyParse) {
+      const parseObject = await env.RAW_DOCS.get(legacyParse.object_key);
+      if (parseObject) {
+        const parseContent = await parseObject.text();
+        const parseArtifactId = crypto.randomUUID();
+        const parseKey = ownedParseKey(operation);
+        if (!(await ledger.recordIntent(operation, { artifact_id: parseArtifactId, kind: 'parse', resource_id: parseKey, provider: 'r2' }))) {
+          await ledger.settle(operation, false);
+          return 'conflict';
+        }
+        if (!(await ledger.startWrite(operation, parseArtifactId))) return 'conflict';
+        try {
+          await env.RAW_DOCS.put(parseKey, parseContent, { httpMetadata: { contentType: 'application/json' } });
+        } catch {
+          throw new UnsettledFileWrite('Owned parse copy settlement is unknown.');
+        }
+        await ledger.recordWrite(project, operationId, parseArtifactId, 'confirmed');
+        await env.DB.prepare(`INSERT INTO kb_file_parse_artifacts(project,file_id,generation,artifact_id,content_hash,parser,parser_version,page_count)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+          .bind(project, fileId, operation.generation, parseArtifactId, file.content_hash, legacyParse.parser, legacyParse.parser_version, legacyParse.page_count)
+          .run();
+      }
+    }
+    if (!(await ledger.publish(operation, [
+      env.DB.prepare('UPDATE kb_file_lifecycle SET storage_version = 2 WHERE project = ? AND file_id = ? AND generation = ? AND active_operation_id = ?')
+        .bind(project, fileId, operation.generation, operationId),
+    ]))) return 'conflict';
+    return 'complete';
+  } catch (error) {
+    if (error instanceof UnsettledFileWrite) return 'pending';
+    throw error;
+  }
+}
+
 export async function registerOwnedObject(env: Env, metadata: MetadataRepository, enabled: boolean, input: RegisterFileInput): Promise<FileRecord> {
   if (!enabled) return await metadata.registerFile(input);
   const owned = await env.DB.prepare(`SELECT 1 AS found FROM kb_file_artifacts a JOIN kb_file_lifecycle l

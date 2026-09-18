@@ -88,6 +88,65 @@ export class D1FileOwnership {
       .first<FileLifecycle>();
   }
 
+  // Adopt a legacy (storage_version 1) file into the ledger so a 'copy'
+  // operation can fence it. The shared legacy object key is never rewritten —
+  // adoption only makes the file visible to the ownership protocol.
+  async adoptLegacy(
+    project: string,
+    file: { id: string; domain: string; content_hash: string; object_key: string },
+  ): Promise<FileLifecycle | null> {
+    const legacy = file.object_key.startsWith('raw/v2/') ? null : file;
+    if (!legacy) return null;
+    await this.db
+      .prepare(`INSERT INTO kb_file_lifecycle
+      (project, file_id, domain, content_hash, storage_version, state, generation)
+      VALUES (?, ?, ?, ?, 1, 'active', 1)
+      ON CONFLICT(project, file_id) DO NOTHING`)
+      .bind(project, legacy.id, legacy.domain, legacy.content_hash)
+      .run();
+    return await this.get(project, legacy.id);
+  }
+
+  // Read-only reconciliation for running operations (issue #48 task 33).
+  // Classification is structural, never time-based: an operation is
+  // 'settleable' only when every recorded artifact is still prepared+intent —
+  // cancelPrepared can settle it without touching external writes. Anything
+  // else is 'pending' and stays truthfully 202 until an operator establishes
+  // settlement evidence; elapsed time alone is never that evidence.
+  async reconcileOperations(project: string, fileId: string): Promise<
+    Array<{
+      operation: FileOperation;
+      artifacts: FileArtifact[];
+      classification: 'settleable' | 'pending';
+    }>
+  > {
+    const operations = await this.db
+      .prepare(`SELECT * FROM kb_file_operations
+      WHERE project = ? AND file_id = ? AND state = 'running' ORDER BY created_at`)
+      .bind(project, fileId)
+      .all<FileOperation>();
+    const result: Array<{
+      operation: FileOperation;
+      artifacts: FileArtifact[];
+      classification: 'settleable' | 'pending';
+    }> = [];
+    for (const operation of operations.results) {
+      const artifacts = await this.db
+        .prepare('SELECT * FROM kb_file_artifacts WHERE project = ? AND operation_id = ?')
+        .bind(project, operation.operation_id)
+        .all<FileArtifact>();
+      const settleable = artifacts.results.every(
+        (artifact) => artifact.dispatch_state === 'prepared' && artifact.write_state === 'intent',
+      );
+      result.push({
+        operation,
+        artifacts: artifacts.results,
+        classification: settleable ? 'settleable' : 'pending',
+      });
+    }
+    return result;
+  }
+
   async claim(project: string, fileId: string, operationId: string, kind: 'ingest' | 'reprocess' | 'copy'): Promise<FileOperation | null> {
     const results = await this.db.batch([
       this.db
