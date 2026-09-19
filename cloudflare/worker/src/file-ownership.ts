@@ -91,10 +91,7 @@ export class D1FileOwnership {
   // Adopt a legacy (storage_version 1) file into the ledger so a 'copy'
   // operation can fence it. The shared legacy object key is never rewritten —
   // adoption only makes the file visible to the ownership protocol.
-  async adoptLegacy(
-    project: string,
-    file: { id: string; domain: string; content_hash: string; object_key: string },
-  ): Promise<FileLifecycle | null> {
+  async adoptLegacy(project: string, file: { id: string; domain: string; content_hash: string; object_key: string }): Promise<FileLifecycle | null> {
     const legacy = file.object_key.startsWith('raw/v2/') ? null : file;
     if (!legacy) return null;
     await this.db
@@ -113,7 +110,10 @@ export class D1FileOwnership {
   // cancelPrepared can settle it without touching external writes. Anything
   // else is 'pending' and stays truthfully 202 until an operator establishes
   // settlement evidence; elapsed time alone is never that evidence.
-  async reconcileOperations(project: string, fileId: string): Promise<
+  async reconcileOperations(
+    project: string,
+    fileId: string,
+  ): Promise<
     Array<{
       operation: FileOperation;
       artifacts: FileArtifact[];
@@ -135,9 +135,7 @@ export class D1FileOwnership {
         .prepare('SELECT * FROM kb_file_artifacts WHERE project = ? AND operation_id = ?')
         .bind(project, operation.operation_id)
         .all<FileArtifact>();
-      const settleable = artifacts.results.every(
-        (artifact) => artifact.dispatch_state === 'prepared' && artifact.write_state === 'intent',
-      );
+      const settleable = artifacts.results.every((artifact) => artifact.dispatch_state === 'prepared' && artifact.write_state === 'intent');
       result.push({
         operation,
         artifacts: artifacts.results,

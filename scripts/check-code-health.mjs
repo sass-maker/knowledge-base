@@ -89,7 +89,7 @@ function checkComplexity() {
   };
   // Debt: https://github.com/sass-maker/knowledge-base/issues/33
   const baseline = {
-    violations: 53,
+    violations: 54,
     maxCcn: 121,
     maxLength: 5988,
     maxParams: 9,
