@@ -64,6 +64,14 @@ for (const forbiddenPattern of forbiddenPatterns) {
   }
 }
 
+const indexHtml = await read('index.html');
+if (indexHtml.includes('us.i.posthog.com/array.js') || indexHtml.includes('_phq')) {
+  throw new Error('PostHog loader uses the retired ingestion-path array.js');
+}
+if (!indexHtml.includes('-assets.i.posthog.com') || !indexHtml.includes('/static/array.js')) {
+  throw new Error('PostHog loader must use the canonical static assets host');
+}
+
 if (!sitemap.includes('<lastmod>2026-08-31</lastmod>')) {
   throw new Error('sitemap must include a current lastmod value');
 }
