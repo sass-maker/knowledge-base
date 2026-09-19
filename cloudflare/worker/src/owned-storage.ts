@@ -127,14 +127,27 @@ export async function backfillLegacyFile(
         await ledger.recordWrite(project, operationId, parseArtifactId, 'confirmed');
         await env.DB.prepare(`INSERT INTO kb_file_parse_artifacts(project,file_id,generation,artifact_id,content_hash,parser,parser_version,page_count)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-          .bind(project, fileId, operation.generation, parseArtifactId, file.content_hash, legacyParse.parser, legacyParse.parser_version, legacyParse.page_count)
+          .bind(
+            project,
+            fileId,
+            operation.generation,
+            parseArtifactId,
+            file.content_hash,
+            legacyParse.parser,
+            legacyParse.parser_version,
+            legacyParse.page_count,
+          )
           .run();
       }
     }
-    if (!(await ledger.publish(operation, [
-      env.DB.prepare('UPDATE kb_file_lifecycle SET storage_version = 2 WHERE project = ? AND file_id = ? AND generation = ? AND active_operation_id = ?')
-        .bind(project, fileId, operation.generation, operationId),
-    ]))) return 'conflict';
+    if (
+      !(await ledger.publish(operation, [
+        env.DB.prepare(
+          'UPDATE kb_file_lifecycle SET storage_version = 2 WHERE project = ? AND file_id = ? AND generation = ? AND active_operation_id = ?',
+        ).bind(project, fileId, operation.generation, operationId),
+      ]))
+    )
+      return 'conflict';
     return 'complete';
   } catch (error) {
     if (error instanceof UnsettledFileWrite) return 'pending';
