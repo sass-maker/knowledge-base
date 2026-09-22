@@ -16,6 +16,8 @@ export interface Env {
   RAG_SERVICE_KEYS_APPEND?: string;
   RAG_SERVICE_DASHBOARD_KEYS?: string;
   RAG_SERVICE_PROOF_KEYS?: string;
+  APP_HEALTH_INGEST_KEY?: string;
+  APP_HEALTH_ENVIRONMENT?: string;
   EMBEDDING_MODEL?: string;
   EMBEDDING_MODEL_SMALL?: string;
   RAG_ANSWER_MODEL?: string;
