@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { knowledgeBaseAppHealthMiddleware } from './app-health';
 import { requireServiceKey, type Variables } from './auth';
 import { type AppOptions, type KbIngestRunBody, type QueueCapableApp } from './app-types';
 import { forwardLegacyRoute, legacyRouteTarget } from './app-utils';
@@ -19,13 +20,17 @@ export function createApp(options: AppOptions = {}) {
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
   const rt = createRuntime(options);
 
-  registerSystemRoutes(app, rt);
-
   app.all('*', async (c, next) => {
     const target = legacyRouteTarget(new URL(c.req.url).pathname);
     if (!target) return next();
     return forwardLegacyRoute(app, c, target);
   });
+
+  // Keep this after the legacy wildcard so Hono's last matched route remains
+  // the concrete canonical route template recorded by the official adapter.
+  app.use('*', knowledgeBaseAppHealthMiddleware(options.makeAppHealthClient));
+
+  registerSystemRoutes(app, rt);
 
   app.use('/v1/*', requireServiceKey);
 

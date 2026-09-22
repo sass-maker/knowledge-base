@@ -1,4 +1,5 @@
 import type { Context, Hono } from 'hono';
+import type { AppHealthClientFactory } from './app-health';
 import type { Variables } from './auth';
 import type { TtlCache } from './cache';
 import type { FreeAiEmbeddingModel } from './free-ai';
@@ -53,6 +54,8 @@ export type QueueCapableApp = WorkerApp & {
 };
 
 export interface AppOptions {
+  /** Optional test seam; production creates a request-scoped client from runtime bindings. */
+  makeAppHealthClient?: AppHealthClientFactory;
   /** Internal qualification gate. Production defaults to legacy until every writer is covered. */
   ownedFileProtocol?: boolean;
   makeRepository?: (env: Env) => Repository;
