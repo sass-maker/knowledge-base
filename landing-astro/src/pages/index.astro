@@ -21,7 +21,7 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
     <nav aria-label="Primary">
       <a href="#evidence">Evidence</a>
       <a href="#proof">Proof</a>
-      <a class="nav-action" href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md">Read the integration contract</a>
+      <a class="nav-action" data-app-health-event="integration.contract.opened" href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md">Read the integration contract</a>
     </nav>
   </header>
 
@@ -36,7 +36,7 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
       </p>
 
       <div class="actions">
-        <a class="button" href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md">
+        <a class="button" data-app-health-event="integration.contract.opened" href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md">
           Read the integration contract <span aria-hidden="true">→</span>
         </a>
         <a class="text-link" href="/index.md">Read the public product brief</a>
@@ -139,22 +139,30 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
       <div>
         <p>For a concrete Fleet need</p>
         <h2 id="final-cta-title">Start with the cited query contract, not a generic chat box.</h2>
-        <a class="operator-link" href="https://search.sassmaker.com">Open the operator workspace · Fleet Access required</a>
+        <a class="operator-link" data-app-health-event="operator.workspace.opened" href="https://search.sassmaker.com">Open the operator workspace · Fleet Access required</a>
       </div>
-      <a class="button" href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-integration-examples.md">
+      <a class="button" data-app-health-event="integration.examples.opened" href="https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-integration-examples.md">
         Review integration examples <span aria-hidden="true">→</span>
       </a>
     </section>
   </main>
 
   <footer class="shell product-footer">
+    <saas-maker-newsletter-capture
+      product-name="Knowledge Base"
+      catalog-id="knowledge-base"
+      source="footer"
+      allow-kind-selection
+      privacy-url="https://sassmaker.com/privacy"
+    ></saas-maker-newsletter-capture>
     <div>
       <span class="footer-label">Knowledge Base</span>
       <strong>Private, cited retrieval for Fleet products and agents.</strong>
     </div>
     <p>
-      Maintained internal infrastructure. There is no public signup, checkout,
-      or permanent pricing promise.
+      Maintained internal infrastructure with no public service signup or
+      checkout. You can opt in to occasional newsletter notes or early-access
+      availability updates.
     </p>
     <p>
       The public landing uses PostHog for a page-view event and Microsoft
@@ -180,4 +188,14 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
       </a>
     </nav>
   </footer>
+
+  <script is:inline>
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const link = target.closest('[data-app-health-event]');
+      const eventName = link?.getAttribute('data-app-health-event');
+      if (eventName) window.appHealth?.track(eventName);
+    });
+  </script>
 </Layout>
