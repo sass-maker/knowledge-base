@@ -195,7 +195,37 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
       if (!(target instanceof Element)) return;
       const link = target.closest('[data-app-health-event]');
       const eventName = link?.getAttribute('data-app-health-event');
-      if (eventName) window.appHealth?.track(eventName);
-    });
+      if (!eventName || !(link instanceof HTMLAnchorElement)) return;
+      const tracker = window.appHealth;
+      tracker?.track(eventName);
+
+      // Keep the click event in the App Health batch before same-tab navigation.
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        link.target === '_blank' ||
+        link.hasAttribute('download') ||
+        !tracker
+      )
+        return;
+      event.preventDefault();
+      const destination = link.href;
+      let timer;
+      void Promise.race([
+        tracker.flush(),
+        new Promise((resolve) => {
+          timer = window.setTimeout(resolve, 1200);
+        }),
+      ])
+        .catch(() => undefined)
+        .finally(() => {
+          window.clearTimeout(timer);
+          window.location.assign(destination);
+        });
+    }, true);
   </script>
 </Layout>
