@@ -32,6 +32,7 @@ import type { Variables } from '../auth';
 import { percentile, summarizeLatencies } from '../bench-utils';
 import { parseCacheOptions } from '../cache';
 import { chunkText } from '../chunk';
+import { denyVectorizeStorageGrowth } from '../shared-ai-budget';
 import { clampTopK, withTimingHeaders } from '../query';
 import type { CreateChunkInput } from '../repository';
 import type { AppRuntime } from '../runtime';
@@ -87,6 +88,7 @@ export function registerIndexRoutes(app: App, rt: AppRuntime): void {
     if (!Array.isArray(documents) || documents.length === 0) {
       return c.json({ error: 'documents array is required' }, 400);
     }
+    denyVectorizeStorageGrowth();
     const repo = makeRepository(c.env);
     const index = await getIndexRecord(c.env, repo, tenant, indexId);
     if (!index) return c.json({ error: 'Index not found' }, 404);
@@ -216,6 +218,7 @@ export function registerIndexRoutes(app: App, rt: AppRuntime): void {
       });
     }
 
+    denyVectorizeStorageGrowth();
     for (const [documentId, doc] of docsToCreate) {
       await repo.createDocument({
         id: documentId,

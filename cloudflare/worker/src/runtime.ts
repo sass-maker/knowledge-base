@@ -1,6 +1,7 @@
 import { buildParseArtifact } from './parse-artifact';
 import { parseCacheOptions, TtlCache } from './cache';
 import { chunkText } from './chunk';
+import { denyVectorizeStorageGrowth, reserveModelCall, reserveVectorizeDimensions } from './shared-ai-budget';
 import { D1Repository } from './d1-repository';
 import { storeFileBytes, registerOwnedObject, persistParseArtifact, deleteOwnedFile, UnsettledFileWrite } from './owned-storage';
 import { D1FileOwnership, type FileOperation } from './file-ownership';
@@ -294,13 +295,15 @@ export function createRuntime(options: AppOptions = {}) {
     const candidates = payload.data.slice(0, Math.min(MAX_TOP_K, Math.max(topK, payload.data.length)));
     try {
       const runAi = env.AI.run as unknown as (model: string, input: Record<string, unknown>) => Promise<unknown>;
-      const response = await runAi(DEFAULT_RERANKER_MODEL, {
+      const input = {
         query,
         top_k: Math.min(topK, candidates.length),
         contexts: candidates.map((result) => ({
           text: result.chunk_content.slice(0, MAX_RERANK_CONTEXT_CHARS),
         })),
-      });
+      };
+      await reserveModelCall(env, DEFAULT_RERANKER_MODEL, input);
+      const response = await runAi(DEFAULT_RERANKER_MODEL, input);
       const rows = rerankResponseRows(response);
       const scored = rows
         .filter((row) => row.id >= 0 && row.id < candidates.length)
@@ -860,6 +863,7 @@ export function createRuntime(options: AppOptions = {}) {
       metadata: vectorMetadata(tenant, indexId, chunk.documentId, chunk.chunkIndex, chunk.content, chunk.metadata),
     }));
     if (rows.length === 0) return;
+    denyVectorizeStorageGrowth();
     const ledger = operation ? new D1FileOwnership(env.DB) : undefined;
     const intents: Array<{ artifactId: string; rowId: string }> = [];
     if (operation && ledger) {
@@ -897,6 +901,7 @@ export function createRuntime(options: AppOptions = {}) {
     chunking?: KbIngestRunBody['chunking'],
     operation?: FileOperation,
   ): Promise<{ document_id: string; chunks: CreateChunkInput[] }[]> {
+    if (documents.length > 0) denyVectorizeStorageGrowth();
     const out: { document_id: string; chunks: CreateChunkInput[] }[] = [];
     const index = await getIndexRecord(env, repo, tenant, indexId);
     if (!index) throw new Error('Index not found');
@@ -1475,6 +1480,7 @@ export function createRuntime(options: AppOptions = {}) {
     const binding = vectorizeProfile.binding;
     const filter = userVectorFilter(body.filter);
     const vectorizeStarted = performance.now();
+    await reserveVectorizeDimensions(c.env, vectorizeProfile.dimensions * (vectorizeProfile.key === 'base' ? 2 : 1));
     let query = await binding.query(vector, {
       topK,
       ...(filter ? { filter } : {}),

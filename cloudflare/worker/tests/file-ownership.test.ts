@@ -7,6 +7,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../src/shared-ai-budget', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/shared-ai-budget')>();
+  return { ...actual, denyVectorizeStorageGrowth: vi.fn() };
+});
 import { D1FileOwnership, ownedParseKey, ownedRawKey, type FileOperation } from '../src/file-ownership';
 import { createApp } from '../src/index';
 import type { QueueCapableApp } from '../src/app-types';
@@ -112,6 +116,14 @@ function handlerFixture() {
   const vectors = new Map<string, VectorizeVector>();
   const env = {
     DB: db,
+    NEURON_BUDGET: {
+      idFromName: (name: string) => name,
+      get: () => ({ fetch: async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
+        if (body.neurons) return Response.json({ allowed: true, used: body.neurons, remaining: 9_500 - body.neurons, retryAfter: 0, dayKey: new Date().toISOString().slice(0, 10) });
+        return Response.json({ allowed: true, used: body.dimensions, remaining: 45_000_000 - (body.dimensions ?? 0), retryAfter: 0, monthKey: new Date().toISOString().slice(0, 7), baselineVerified: true });
+      } }),
+    } as unknown as DurableObjectNamespace,
     RAG_SERVICE_KEYS: JSON.stringify({ 'key-a': 'tenant-a', 'key-b': 'tenant-b' }),
     EMBEDDING_MODEL: '@cf/baai/bge-base-en-v1.5',
     RAW_DOCS: {
@@ -347,6 +359,14 @@ describe('inactive owned-file protocol with real migrated SQLite', () => {
     ]);
     const env = {
       DB: db,
+      NEURON_BUDGET: {
+        idFromName: (name: string) => name,
+        get: () => ({ fetch: async (_url: string, init: RequestInit) => {
+          const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
+          if (body.neurons) return Response.json({ allowed: true, used: body.neurons, remaining: 9_500 - body.neurons, retryAfter: 0, dayKey: new Date().toISOString().slice(0, 10) });
+          return Response.json({ allowed: true, used: body.dimensions, remaining: 45_000_000 - (body.dimensions ?? 0), retryAfter: 0, monthKey: new Date().toISOString().slice(0, 7), baselineVerified: true });
+        } }),
+      } as unknown as DurableObjectNamespace,
       RAG_SERVICE_KEYS: JSON.stringify({ 'key-a': 'tenant-a' }),
       EMBEDDING_MODEL: '@cf/baai/bge-base-en-v1.5',
       VECTORIZE: {
