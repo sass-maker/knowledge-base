@@ -1042,6 +1042,7 @@ export function createRuntime(options: AppOptions = {}) {
             env.AI,
             body.markdown_conversion ?? env.RAG_MARKDOWN_CONVERSION ?? 'auto',
             body.vision_ocr_model ?? env.RAG_VISION_OCR_MODEL ?? '',
+            env.FREE_AI,
           ),
           INGEST_PARSE_TIMEOUT_MS,
           file.filename,

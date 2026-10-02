@@ -1,11 +1,24 @@
 import { compressSync, strToU8, zipSync } from 'fflate';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseUploadBytes, parseUploadBytesWithCloudflare } from '../src/document-parser';
+import type { Env } from '../src/types';
 
 function bytes(text: string): ArrayBuffer {
   return new TextEncoder().encode(text).buffer as ArrayBuffer;
+}
+
+function fakeGateway(ai: Ai): NonNullable<Env['FREE_AI']> {
+  const runner = ai as Ai & { run?: (model: string, input: unknown) => Promise<unknown> };
+  return {
+    run: async (projectId, model, input) => {
+      expect(projectId).toBe('knowledge-base');
+      if (!runner.run) throw new Error('test gateway runner is unavailable');
+      return runner.run(model, input);
+    },
+    fetch: async () => new Response(),
+  };
 }
 
 function ascii85Encode(input: Uint8Array): string {
@@ -322,6 +335,7 @@ describe('document-parser', () => {
       ai,
       'auto',
       '@cf/meta/llama-3.2-11b-vision-instruct',
+      fakeGateway(ai),
     );
 
     expect(parsed.parser).toBe('workers-ai-vision-markdown-ocr-v1');
@@ -362,6 +376,7 @@ describe('document-parser', () => {
       ai,
       'off',
       '@cf/meta/llama-3.2-11b-vision-instruct',
+      fakeGateway(ai),
     );
 
     expect(parsed.parser).toBe('workers-ai-vision-ocr-v1');
@@ -372,6 +387,66 @@ describe('document-parser', () => {
       image_index: 1,
       parser_source: 'workers-ai-vision-ocr',
     });
+  });
+
+  it('fails closed to local extraction when the Free AI gateway binding is absent', async () => {
+    const directAiRun = vi.fn(async () => ({ response: 'must not call Workers AI directly' }));
+    const ai = { run: directAiRun } as unknown as Ai;
+
+    const parsed = await parseUploadBytesWithCloudflare(
+      'receipt.jpg',
+      'image/jpeg',
+      bytes('local receipt text'),
+      ai,
+      'off',
+      '@cf/meta/llama-3.2-11b-vision-instruct',
+    );
+
+    expect(directAiRun).not.toHaveBeenCalled();
+    expect(parsed.text).toBe('local receipt text');
+    expect(parsed.warnings).toEqual(expect.arrayContaining([expect.stringContaining('gateway binding is unavailable')]));
+  });
+
+  it('denies unpriced vision models through the gateway without direct Workers AI fallback', async () => {
+    const directAiRun = vi.fn(async () => ({ response: 'must not call Workers AI directly' }));
+    const ai = { run: directAiRun } as unknown as Ai;
+    const gatewayRun = vi.fn(async (_projectId: string, _model: string, _input: unknown) => {
+      throw new Error('neuron_budget_model_unpriced');
+    });
+    const freeAi: NonNullable<Env['FREE_AI']> = {
+      run: gatewayRun,
+      fetch: async () => new Response(),
+    };
+
+    const parsed = await parseUploadBytesWithCloudflare(
+      'receipt.jpg',
+      'image/jpeg',
+      bytes('local receipt text'),
+      ai,
+      'off',
+      '@cf/meta/llama-3.2-11b-vision-instruct',
+      freeAi,
+    );
+
+    expect(gatewayRun).toHaveBeenCalledWith(
+      'knowledge-base',
+      '@cf/meta/llama-3.2-11b-vision-instruct',
+      expect.objectContaining({ image: expect.any(Array), max_tokens: 1800 }),
+    );
+    expect(directAiRun).not.toHaveBeenCalled();
+    expect(parsed.text).toBe('local receipt text');
+    expect(parsed.warnings).toEqual(expect.arrayContaining([expect.stringContaining('neuron_budget_model_unpriced')]));
+  });
+
+  it('keeps ordinary text extraction independent of the gateway binding', async () => {
+    const directAiRun = vi.fn(async () => ({ response: 'unused' }));
+    const ai = { run: directAiRun } as unknown as Ai;
+
+    const parsed = await parseUploadBytesWithCloudflare('notes.txt', 'text/plain', bytes('Ordinary local text.'), ai);
+
+    expect(parsed.parser).toBe('worker-text-structured-v1');
+    expect(parsed.text).toBe('Ordinary local text.');
+    expect(directAiRun).not.toHaveBeenCalled();
   });
 
   it('keeps digital PDFs on the local parser in auto mode', async () => {
@@ -443,6 +518,7 @@ describe('document-parser', () => {
       ai,
       'auto',
       '@cf/meta/llama-3.2-11b-vision-instruct',
+      fakeGateway(ai),
     );
 
     expect(parsed.parser).toBe('workers-ai-vision-markdown-ocr-v1');
@@ -494,6 +570,7 @@ describe('document-parser', () => {
       ai,
       'auto',
       '@cf/meta/llama-3.2-11b-vision-instruct',
+      fakeGateway(ai),
     );
 
     expect(inputModes).toEqual(['prompt-image', 'image-url-message']);
@@ -544,6 +621,7 @@ describe('document-parser', () => {
       ai,
       'auto',
       '@cf/meta/llama-3.2-11b-vision-instruct',
+      fakeGateway(ai),
     );
 
     expect(visionCalled).toBe(true);
@@ -575,6 +653,7 @@ describe('document-parser', () => {
       ai,
       'auto',
       '@cf/meta/llama-4-scout-17b-16e-instruct',
+      fakeGateway(ai),
     );
 
     expect(parsed.parser).toBe('workers-ai-vision-markdown-ocr-v1');
@@ -621,6 +700,7 @@ describe('document-parser', () => {
       ai,
       'auto',
       '@cf/meta/llama-3.2-11b-vision-instruct,@cf/meta/llama-4-scout-17b-16e-instruct',
+      fakeGateway(ai),
     );
 
     expect(calls).toEqual([
@@ -674,6 +754,7 @@ describe('document-parser', () => {
       ai,
       'auto',
       '@cf/meta/llama-3.2-11b-vision-instruct',
+      fakeGateway(ai),
     );
 
     expect(parsed.parser).toBe('workers-ai-vision-markdown-ocr-v1');
@@ -706,6 +787,7 @@ describe('document-parser', () => {
       ai,
       'auto',
       '@cf/meta/llama-3.2-11b-vision-instruct',
+      fakeGateway(ai),
     );
 
     expect(parsed.parser).toBe('workers-ai-vision-markdown-ocr-v1');
@@ -740,6 +822,7 @@ describe('document-parser', () => {
       ai,
       'auto',
       '@cf/meta/llama-3.2-11b-vision-instruct',
+      fakeGateway(ai),
     );
 
     expect(visionInputs).toHaveLength(1);

@@ -1,6 +1,6 @@
 import { decompressSync, unzipSync } from 'fflate';
 import { recordsFromUnknown } from './schema-inference';
-import type { JsonRecord } from './types';
+import type { Env, JsonRecord } from './types';
 
 interface ParsedDocument {
   external_id: string;
@@ -762,15 +762,16 @@ async function convertImagesWithVision(
   filename: string,
   mime: string | null | undefined,
   images: VisionImage[],
-  ai: Ai,
+  freeAi: Env['FREE_AI'],
   model: string,
   source: 'page' | 'image',
 ): Promise<ParsedUpload | null> {
   const models = parseVisionOcrModels(model);
   if (models.length === 0) return null;
-  const runner = ai as unknown as { run?: (model: string, input: unknown) => Promise<unknown> };
-  if (typeof runner.run !== 'function') return null;
   if (images.length === 0) return null;
+  if (!freeAi || typeof freeAi.run !== 'function') {
+    throw new Error('Free AI gateway binding is unavailable for vision OCR');
+  }
   const documents: ParsedDocument[] = [];
   const warnings: string[] = [];
   for (const [i, image] of images.entries()) {
@@ -778,7 +779,7 @@ async function convertImagesWithVision(
     for (const trimmedModel of models) {
       for (const variant of visionOcrInputVariants(trimmedModel, image, i + 1, images.length)) {
         try {
-          const result = await runner.run(trimmedModel, variant.input);
+          const result = await freeAi.run('knowledge-base', trimmedModel, variant.input);
           const content = normalizeText(textFromAiResult(result));
           if (!content) {
             warnings.push(`vision_model_empty:${trimmedModel}:${variant.mode}`.slice(0, 220));
@@ -828,22 +829,22 @@ async function convertPdfImagesWithVision(
   filename: string,
   mime: string | null | undefined,
   bytes: ArrayBuffer,
-  ai: Ai,
+  freeAi: Env['FREE_AI'],
   model: string,
 ): Promise<ParsedUpload | null> {
-  return convertImagesWithVision(filename, mime, selectPdfVisionImages(pdfImages(bytes)), ai, model, 'page');
+  return convertImagesWithVision(filename, mime, selectPdfVisionImages(pdfImages(bytes)), freeAi, model, 'page');
 }
 
 async function convertUploadImageWithVision(
   filename: string,
   mime: string | null | undefined,
   bytes: ArrayBuffer,
-  ai: Ai,
+  freeAi: Env['FREE_AI'],
   model: string,
 ): Promise<ParsedUpload | null> {
   const image = uploadVisionImage(filename, mime, bytes);
   if (!image) return null;
-  return convertImagesWithVision(filename, mime, [image], ai, model, 'image');
+  return convertImagesWithVision(filename, mime, [image], freeAi, model, 'image');
 }
 
 async function convertWithMarkdown(filename: string, mime: string | null | undefined, bytes: ArrayBuffer, ai: Ai): Promise<ParsedUpload | null> {
@@ -1007,6 +1008,7 @@ export async function parseUploadBytesWithCloudflare(
   ai: Ai | null | undefined,
   markdownConversionMode = 'auto',
   visionOcrModel = '',
+  freeAi?: Env['FREE_AI'],
 ): Promise<ParsedUpload> {
   const local = parseUploadBytes(filename, mime, bytes);
   if (!ai) return local;
@@ -1020,8 +1022,8 @@ export async function parseUploadBytesWithCloudflare(
   if (hasVisionModel && (pdfNeedsVisionOcr || imageNeedsVisionOcr)) {
     try {
       visionConverted = pdfNeedsVisionOcr
-        ? await convertPdfImagesWithVision(filename, mime, bytes, ai, visionOcrModel)
-        : await convertUploadImageWithVision(filename, mime, bytes, ai, visionOcrModel);
+        ? await convertPdfImagesWithVision(filename, mime, bytes, freeAi, visionOcrModel)
+        : await convertUploadImageWithVision(filename, mime, bytes, freeAi, visionOcrModel);
     } catch (error) {
       warnings.push(`vision_ocr_failed:${error instanceof Error ? error.message : String(error)}`.slice(0, 220));
     }

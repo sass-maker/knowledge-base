@@ -110,7 +110,7 @@ export function registerEvalRoutes(app: App, rt: AppRuntime): void {
       const requestedVisionModel = testCase.vision_ocr_model ?? body.vision_ocr_model ?? c.env.RAG_VISION_OCR_MODEL ?? '';
       const visionModels = visionOcrModelChain(requestedVisionModel);
       const firstVisionModel = visionModels.length > 1 ? (visionModels[0] ?? '') : requestedVisionModel;
-      let parsed = await parseUploadBytesWithCloudflare(filename, mime, bytes, c.env.AI, markdownMode, firstVisionModel);
+      let parsed = await parseUploadBytesWithCloudflare(filename, mime, bytes, c.env.AI, markdownMode, firstVisionModel, c.env.FREE_AI);
       let textMatch = parseEvalMatch(parsed.text, expected);
       let parserMatched = testCase.expected_parser ? parsed.parser === testCase.expected_parser : true;
       let lengthMatched = testCase.min_text_length === undefined || parsed.text.length >= testCase.min_text_length;
@@ -121,7 +121,7 @@ export function registerEvalRoutes(app: App, rt: AppRuntime): void {
         const retryVisionModel = visionModels.slice(1).join(',');
         triedVisionModels.push(...visionModels.slice(1));
         retryReason = 'missing_expected_text';
-        const retryParsed = await parseUploadBytesWithCloudflare(filename, mime, bytes, c.env.AI, markdownMode, retryVisionModel);
+        const retryParsed = await parseUploadBytesWithCloudflare(filename, mime, bytes, c.env.AI, markdownMode, retryVisionModel, c.env.FREE_AI);
         const retryTextMatch = parseEvalMatch(retryParsed.text, expected);
         const retryParserMatched = testCase.expected_parser ? retryParsed.parser === testCase.expected_parser : true;
         const retryLengthMatched = testCase.min_text_length === undefined || retryParsed.text.length >= testCase.min_text_length;
