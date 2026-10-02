@@ -7,7 +7,6 @@ import type { Env } from './types';
 // where voyage's ~3 rpm does not.
 const DEFAULT_EMBED_MODEL = 'gemini-embedding-001';
 const DEFAULT_EMBED_PROVIDER = 'gemini';
-const DEFAULT_SYNTH_MODEL = 'gemini-2.5-flash';
 const DEFAULT_DIMENSIONS = 1536;
 const EMBED_BATCH_SIZE = 100;
 type SemanticProfile = 'base' | 'small';
@@ -42,14 +41,6 @@ export interface FreeAiChatBody {
   max_tokens?: number;
   temperature?: number;
   response_format?: unknown;
-}
-
-export function freeAiSynthEnabled(env: Env): boolean {
-  return env.RAG_SYNTH_PROVIDER === 'free_ai';
-}
-
-export function freeAiSynthModel(env: Env): string {
-  return env.FREE_AI_SYNTH_MODEL?.trim() || DEFAULT_SYNTH_MODEL;
 }
 
 function baseUrl(env: Env): string {
