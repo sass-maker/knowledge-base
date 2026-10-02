@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchFreeAiEmbeddingCatalog, freeAiChatRaw, freeAiEmbed } from '../src/free-ai';
+import { fetchFreeAiEmbeddingCatalog, freeAiChatRaw, freeAiEmbed, freeAiNativeEmbed } from '../src/free-ai';
 import type { Env } from '../src/types';
 
 function makeEnv(overrides: Partial<Env> = {}): Env {
@@ -38,7 +38,7 @@ function captureFetch(handler: (req: CapturedRequest) => Response): CapturedRequ
     vi.fn(async (url: unknown, init: { headers?: Record<string, string>; body?: string } = {}) => {
       const req: CapturedRequest = {
         url: String(url),
-        headers: init.headers ?? {},
+        headers: init.headers instanceof Headers ? Object.fromEntries(init.headers.entries()) : (init.headers ?? {}),
         body: JSON.parse(init.body ?? '{}') as Record<string, unknown>,
       };
       captured.push(req);
@@ -61,9 +61,7 @@ afterEach(() => {
 
 describe('freeAiEmbed', () => {
   it('uses configured provider/model + 1536 dims when no caller model is supplied', async () => {
-    const calls = captureFetch((req) =>
-      jsonResponse({ data: (req.body.input as string[]).map((_, i) => ({ index: i, embedding: vec(1536) })) }),
-    );
+    const calls = captureFetch((req) => jsonResponse({ data: (req.body.input as string[]).map((_, i) => ({ index: i, embedding: vec(1536) })) }));
     const out = await freeAiEmbed(makeEnv(), ['alpha', 'beta']);
 
     expect(out).toHaveLength(2);
@@ -75,19 +73,54 @@ describe('freeAiEmbed', () => {
     expect(req.headers).not.toHaveProperty('x-gateway-force-model');
     expect(req.body.dimensions).toBe(1536);
     expect(req.body.model).toBe('gemini-embedding-001');
-    expect(req.body).not.toHaveProperty('project_id');
+    expect(req.body.project_id).toBe('knowledge-base');
   });
 
   it('honors known caller model ids with catalog provider and dimensions', async () => {
-    const calls = captureFetch((req) =>
-      jsonResponse({ data: (req.body.input as string[]).map((_, i) => ({ index: i, embedding: vec(384) })) }),
-    );
+    const calls = captureFetch((req) => jsonResponse({ data: (req.body.input as string[]).map((_, i) => ({ index: i, embedding: vec(384) })) }));
     const out = await freeAiEmbed(makeEnv(), ['x'], { model: '@cf/baai/bge-small-en-v1.5' });
     expect(first(calls).headers).not.toHaveProperty('x-gateway-force-provider');
     expect(first(calls).headers).not.toHaveProperty('x-gateway-force-model');
     expect(first(calls).body).not.toHaveProperty('dimensions');
     expect(first(calls).body.model).toBe('@cf/baai/bge-small-en-v1.5');
     expect(out[0]).toHaveLength(384);
+  });
+
+  it('routes native BGE through the private binding, preserving batches and receiver', async () => {
+    const calls: Array<{ project: string; model: string; input: unknown; receiver: unknown }> = [];
+    const binding = {
+      run(this: unknown, project: string, model: string, input: unknown) {
+        calls.push({ project, model, input, receiver: this });
+        const rows = (input as { text: string[] }).text.map((text) =>
+          Object.assign(
+            Array.from({ length: 768 }, () => 0),
+            { 0: text.length },
+          ),
+        );
+        return Promise.resolve({ data: rows });
+      },
+      fetch: vi.fn(),
+    };
+    const texts = Array.from({ length: 205 }, (_, index) => `t${index}`);
+    const out = await freeAiNativeEmbed(makeEnv({ FREE_AI: binding }), '@cf/baai/bge-base-en-v1.5', texts);
+    expect(calls.map((call) => (call.input as { text: string[] }).text.length)).toEqual([100, 100, 5]);
+    expect(calls.every((call) => call.project === 'knowledge-base' && call.model === '@cf/baai/bge-base-en-v1.5')).toBe(true);
+    expect(calls.every((call) => (call.input as { pooling?: string }).pooling === 'cls')).toBe(true);
+    expect(calls.every((call) => call.receiver === binding)).toBe(true);
+    expect(out.map((row) => [row[0], row.length])).toEqual(texts.map((text) => [text.length, 768]));
+  });
+
+  it('fails closed without the gateway binding and never calls direct Workers AI', async () => {
+    const aiRun = vi.fn();
+    const env = makeEnv({ AI: { run: aiRun } as unknown as Ai });
+    delete env.FREE_AI;
+    await expect(freeAiNativeEmbed(env, '@cf/baai/bge-base-en-v1.5', ['query'])).rejects.toThrow(/gateway binding is unavailable/);
+    expect(aiRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects a gateway vector whose coordinates do not match the existing 768d index', async () => {
+    const env = makeEnv({ FREE_AI: { run: vi.fn().mockResolvedValue({ data: [[1, 2, 3]] }), fetch: vi.fn() } });
+    await expect(freeAiNativeEmbed(env, '@cf/baai/bge-base-en-v1.5', ['query'])).rejects.toThrow(/response shape mismatch/);
   });
 
   it('preserves input order using the returned index field', async () => {
@@ -102,9 +135,7 @@ describe('freeAiEmbed', () => {
   });
 
   it('fails closed when the provider returns a wrong-dimension vector', async () => {
-    captureFetch((req) =>
-      jsonResponse({ data: (req.body.input as string[]).map((_, i) => ({ index: i, embedding: vec(768) })) }),
-    );
+    captureFetch((req) => jsonResponse({ data: (req.body.input as string[]).map((_, i) => ({ index: i, embedding: vec(768) })) }));
     await expect(freeAiEmbed(makeEnv(), ['x'], { model: 'base' })).rejects.toThrow(/dimension mismatch/);
   });
 
@@ -163,10 +194,28 @@ describe('freeAiEmbed', () => {
 });
 
 describe('freeAiChatRaw', () => {
+  it('sends attributed nonstream chat through the private service binding', async () => {
+    let received: Request | undefined;
+    const binding = {
+      run: vi.fn(),
+      fetch: vi.fn(async (request: Request) => {
+        received = request;
+        return jsonResponse({ choices: [{ message: { content: 'attributed answer' } }] });
+      }),
+    };
+    const out = await freeAiChatRaw(makeEnv({ FREE_AI: binding }), 'auto', {
+      messages: [{ role: 'user', content: 'question' }],
+      max_tokens: 64,
+    });
+    expect(out.response).toBe('attributed answer');
+    expect(received?.url).toBe('https://fleet-gateway.internal/v1/chat/completions');
+    expect(received?.headers.get('x-gateway-project-id')).toBe('knowledge-base');
+    expect(received?.headers.get('authorization')).toBe('Bearer service-binding');
+    expect(await received?.json()).toMatchObject({ model: 'auto', stream: false, max_tokens: 64 });
+  });
+
   it('uses the configured direct synthesis model', async () => {
-    const calls = captureFetch(() =>
-      jsonResponse({ choices: [{ message: { content: 'answer' } }] }),
-    );
+    const calls = captureFetch(() => jsonResponse({ choices: [{ message: { content: 'answer' } }] }));
     const out = await freeAiChatRaw(
       makeEnv({
         FREE_AI_SYNTH_MODEL: 'command-code-mimo-v2-5',
@@ -200,14 +249,16 @@ describe('fetchFreeAiEmbeddingCatalog', () => {
   it('returns embedding rows with dimensions and availability', async () => {
     captureFetch(() =>
       jsonResponse({
-        data: [{
-          id: 'gemini-embedding-001',
-          type: 'embedding',
-          provider: 'gemini',
-          dimensions: 1536,
-          enabled: true,
-          aliases: ['text-embedding-3-small'],
-        }],
+        data: [
+          {
+            id: 'gemini-embedding-001',
+            type: 'embedding',
+            provider: 'gemini',
+            dimensions: 1536,
+            enabled: true,
+            aliases: ['text-embedding-3-small'],
+          },
+        ],
       }),
     );
 
@@ -225,9 +276,7 @@ describe('fetchFreeAiEmbeddingCatalog', () => {
 
 describe('freeAiChatRaw', () => {
   it('extracts direct provider message content', async () => {
-    const calls = captureFetch(() =>
-      jsonResponse({ choices: [{ message: { content: '{"status":"supported"}' } }] }),
-    );
+    const calls = captureFetch(() => jsonResponse({ choices: [{ message: { content: '{"status":"supported"}' } }] }));
     const out = await freeAiChatRaw(makeEnv(), 'gemini-2.5-flash', {
       messages: [{ role: 'user', content: 'hi' }],
       max_tokens: 64,

@@ -7,6 +7,7 @@ import { storeFileBytes, registerOwnedObject, persistParseArtifact, deleteOwnedF
 import { D1FileOwnership, type FileOperation } from './file-ownership';
 import { HTTPException } from 'hono/http-exception';
 import { parseUploadBytesWithCloudflare } from './document-parser';
+import { freeAiRun } from './free-ai';
 import { D1MetadataRepository } from './kb-metadata-repository';
 import {
   INGEST_JOB_LEASE_MS,
@@ -294,7 +295,6 @@ export function createRuntime(options: AppOptions = {}) {
     const started = performance.now();
     const candidates = payload.data.slice(0, Math.min(MAX_TOP_K, Math.max(topK, payload.data.length)));
     try {
-      const runAi = env.AI.run.bind(env.AI) as unknown as (model: string, input: Record<string, unknown>) => Promise<unknown>;
       const input = {
         query,
         top_k: Math.min(topK, candidates.length),
@@ -302,8 +302,7 @@ export function createRuntime(options: AppOptions = {}) {
           text: result.chunk_content.slice(0, MAX_RERANK_CONTEXT_CHARS),
         })),
       };
-      await reserveModelCall(env, DEFAULT_RERANKER_MODEL, input);
-      const response = await runAi(DEFAULT_RERANKER_MODEL, input);
+      const response = await freeAiRun(env, DEFAULT_RERANKER_MODEL, input);
       const rows = rerankResponseRows(response);
       const scored = rows
         .filter((row) => row.id >= 0 && row.id < candidates.length)

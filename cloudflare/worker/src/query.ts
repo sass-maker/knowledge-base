@@ -1,6 +1,7 @@
 import {
   CORRECTIVE_SEMANTIC_MIN_SCORE,
   DEFAULT_ANSWER_MODEL,
+  DEFAULT_BASE_EMBEDDING_MODEL,
   LEXICAL_SCORING_VERSION,
   MAX_RERANK_CONTEXT_CHARS,
   MAX_TOP_K,
@@ -27,7 +28,7 @@ import {
 import { analyticsNumber, analyticsString, elapsedMs, jsonRecord, writeAnalyticsPoint } from './app-utils';
 import { embedTexts } from './embeddings';
 import { reserveModelCall } from './shared-ai-budget';
-import { freeAiChatRaw, freeAiEmbed, freeAiSynthEnabled, freeAiSynthModel } from './free-ai';
+import { freeAiChatRaw, freeAiEmbed, freeAiNativeEmbed, freeAiSynthEnabled, freeAiSynthModel } from './free-ai';
 import type { EntityRecord, EntityRelationshipRecord, MetadataRepository, QueryTraceRecord } from './kb-metadata-repository';
 import type { ChunkRecord, CitationRecord, Env, JsonRecord, SearchResult } from './types';
 
@@ -623,7 +624,12 @@ function aiTextResponse(response: unknown): string {
 // otherwise use Cloudflare Workers AI. Matches the embedTexts signature so it
 // drops into the createApp `embed` dependency.
 export function defaultEmbed(env: Env, texts: string[], options: EmbeddingCallOptions = {}): Promise<number[][]> {
-  return env.RAG_EMBED_PROVIDER === 'free_ai' ? freeAiEmbed(env, texts, options) : embedTexts(env, texts, options);
+  const model = options.model || env.EMBEDDING_MODEL || DEFAULT_BASE_EMBEDDING_MODEL;
+  if (model === '@cf/baai/bge-base-en-v1.5') {
+    return freeAiNativeEmbed(env, model, texts);
+  }
+  if (env.RAG_EMBED_PROVIDER !== 'free_ai') return embedTexts(env, texts, options);
+  return freeAiEmbed(env, texts, options);
 }
 
 // Chat/synthesis provider seam: free-ai gateway or Workers AI. Both return a

@@ -3,10 +3,12 @@
 `knowledgebase` owns the fleet `RAG_SERVICE` as a Cloudflare Worker. The current
 product runtime is TypeScript/Node on Cloudflare: Hono routes, D1 metadata,
 Vectorize retrieval, R2 raw/parse artifacts, Queues/Workflows ingestion,
-embeddings + synthesis through the fleet `free-ai` gateway
-(`gemini-embedding-001` at 1536 dims, `gemini-2.5-flash`) with Workers AI as the
-fallback and for optional neural rerank/OCR, and a Worker-hosted `/ui` testing
-surface.
+the default BGE base embedding and cited synthesis paths through the private
+fleet `free-ai` gateway binding. BGE base still uses CLS pooling and the same
+768-dimensional vectors already stored by the Worker. Workers AI remains for
+document parsing/OCR. Neural reranking calls the gateway, which currently
+denies the unpriced reranker before inference; deterministic keyword reranking
+then handles the request.
 
 ## Runtime
 
@@ -17,7 +19,7 @@ flowchart LR
     Worker --> R2[(R2 raw files<br/>parse artifacts)]
     Worker --> Vectorize[(Vectorize indexes)]
     Worker --> FreeAI[(free-ai gateway<br/>embeddings + synthesis)]
-    Worker --> AI[(Workers AI<br/>fallback + rerank/OCR)]
+    Worker --> AI[(Workers AI<br/>document parsing and OCR)]
     Worker --> Queue[Queues + Workflows]
     Worker --> Analytics[Analytics Engine]
 ```
@@ -37,11 +39,13 @@ flowchart LR
 The old Qdrant BM42 path is replaced by a Cloudflare-native hybrid path:
 
 - D1 exact structured routes and relationship graph expansion.
-- Vectorize dense search (embeddings via the `free-ai` gateway).
+- Vectorize dense search (default BGE base embeddings via native gateway RPC;
+  768-dimensional index vectors remain unchanged).
 - In-Worker BM25 sparse lexical scoring over D1 chunks (fuzzy token matching;
   `sparseLexicalScore`), not a D1 `LIKE` query and not Qdrant BM42.
 - RRF fusion, MMR, deterministic rewrite/decompose fanout.
-- Keyword-overlap rerank by default; optional Workers AI neural rerank.
+- Keyword-overlap rerank by default; an unpriced gateway reranker is denied
+  before inference and uses the existing deterministic fallback.
 - Extractive cited answers by default; opt-in `free-ai`/Workers AI cited
   synthesis.
 

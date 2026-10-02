@@ -5,7 +5,7 @@
 > Update this file when durable current or shipped product truth changes. Do
 > not let deploy-version snapshots accumulate here — put those in the archive.
 
-Last updated: 2026-09-08
+Last updated: 2026-10-02
 
 ## Why / What
 
@@ -21,6 +21,14 @@ the non-negotiable product invariant.
 - Fleet consumers currently include Karte, Research Papers, and Starboard.
 
 ## Timeline
+
+- **2026-10-02** — Prepared the Free AI Issue [#83](https://github.com/sass-maker/free-ai/issues/83)
+  consumer integration in a clean branch: default BGE base inference and
+  managed synthesis use the private FleetGateway binding; stored BGE CLS/768
+  coordinates and existing query/storage admission remain unchanged. The
+  unpriced neural reranker is denied before inference and uses the existing
+  keyword fallback. Source work is not merged or deployed; no vectors were
+  rewritten.
 
 - **2026-09-08** — Added an offline read-only legacy ownership inventory over
   an explicit SQLite snapshot, plus verified offline raw-copy staging that
