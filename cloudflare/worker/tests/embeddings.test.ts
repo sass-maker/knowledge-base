@@ -4,7 +4,14 @@ import type { Env } from '../src/types';
 
 function makeEnv(calls: string[][], models: string[] = [], options: unknown[] = []): Env {
   return {
-    EMBEDDING_MODEL: '@cf/test-embedding',
+    EMBEDDING_MODEL: '@cf/baai/bge-base-en-v1.5',
+    NEURON_BUDGET: {
+      idFromName: (name: string) => name,
+      get: () => ({ fetch: async (_url: string, init: RequestInit) => {
+        const { neurons } = JSON.parse(String(init.body)) as { neurons: number };
+        return Response.json({ allowed: true, used: neurons, remaining: 9_500 - neurons, retryAfter: 0, dayKey: new Date().toISOString().slice(0, 10) });
+      } }),
+    } as unknown as DurableObjectNamespace,
     AI: {
       run: async (model: string, input: { text: string[] }, opts?: unknown) => {
         models.push(model);
@@ -42,9 +49,17 @@ describe('embedTexts', () => {
     const calls: string[][] = [];
     const models: string[] = [];
     const options: unknown[] = [];
-    await embedTexts(makeEnv(calls, models, options), ['alpha'], { model: '@cf/test-small' });
+    await embedTexts(makeEnv(calls, models, options), ['alpha'], { model: '@cf/baai/bge-small-en-v1.5' });
 
-    expect(models).toEqual(['@cf/test-small']);
+    expect(models).toEqual(['@cf/baai/bge-small-en-v1.5']);
     expect(options).toEqual([undefined]);
+  });
+
+  it('does not invoke Workers AI when the shared neuron budget is absent', async () => {
+    const calls: string[][] = [];
+    const env = makeEnv(calls);
+    delete env.NEURON_BUDGET;
+    await expect(embedTexts(env, ['protected input'])).rejects.toMatchObject({ status: 503 });
+    expect(calls).toEqual([]);
   });
 });

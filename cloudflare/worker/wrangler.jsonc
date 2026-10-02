@@ -13,6 +13,15 @@
 	"ai": {
 		"binding": "AI"
 	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "NEURON_BUDGET",
+				"class_name": "NeuronBudgetDO",
+				"script_name": "free-ai-gateway"
+			}
+		]
+	},
 	"vectorize": [
 		{
 			"binding": "VECTORIZE",

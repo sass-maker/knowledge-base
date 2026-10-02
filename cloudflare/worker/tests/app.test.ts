@@ -1,6 +1,10 @@
 import { strToU8, zipSync } from 'fflate';
 import { existsSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+vi.mock('../src/shared-ai-budget', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/shared-ai-budget')>();
+  return { ...actual, denyVectorizeStorageGrowth: vi.fn() };
+});
 import { buildLegacyParseEvalCases } from '../scripts/legacy-parse-eval.mjs';
 import { TtlCache } from '../src/cache';
 import { createApp, createWorker } from '../src/index';
@@ -1231,6 +1235,14 @@ function makeEnv(vectorize: FakeVectorize, db: D1Database = {
     EMBEDDING_MODEL: '@cf/baai/bge-base-en-v1.5',
     EMBEDDING_MODEL_SMALL: '@cf/baai/bge-small-en-v1.5',
     VECTORIZE: vectorize,
+    NEURON_BUDGET: {
+      idFromName: (name: string) => name,
+      get: () => ({ fetch: async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
+        if (body.neurons) return Response.json({ allowed: true, used: body.neurons, remaining: 9_500 - body.neurons, retryAfter: 0, dayKey: new Date().toISOString().slice(0, 10) });
+        return Response.json({ allowed: true, used: body.dimensions, remaining: 45_000_000 - (body.dimensions ?? 0), retryAfter: 0, monthKey: new Date().toISOString().slice(0, 7), baselineVerified: true });
+      } }),
+    } as unknown as DurableObjectNamespace,
     ...(vectorizeSmall ? { VECTORIZE_SMALL: vectorizeSmall } : {}),
     AI: {
       run: async (model: string, input: { text?: string[]; messages?: Array<{ role: string; content: string }>; contexts?: Array<{ text?: string }> }) => {
@@ -6059,7 +6071,7 @@ describe('knowledgebase RAG Worker app', () => {
           question: 'What has alpha exact wording?',
           mode: 'semantic',
           answer_mode: 'workers_ai',
-          answer_model: '@cf/test/synth',
+          answer_model: '@cf/meta/llama-3.1-8b-instruct',
         }),
       },
       env,
@@ -6077,7 +6089,7 @@ describe('knowledgebase RAG Worker app', () => {
     expect(answer.status).toBe(200);
     expect(body.ai_used).toBe(true);
     expect(body.answer_mode).toBe('workers_ai');
-    expect(body.answer_model).toBe('@cf/test/synth');
+    expect(body.answer_model).toBe('@cf/meta/llama-3.1-8b-instruct');
     expect(body.answer).toContain('Workers AI synthesized alpha exact wording');
     expect(body.answer).toContain('[1]');
     expect(body.citations[0]).toMatchObject({ index: 1, filename: 'alpha.txt' });
@@ -6088,7 +6100,7 @@ describe('knowledgebase RAG Worker app', () => {
     expect(timing).toMatchObject({
       answer_requested_mode: 'workers_ai',
       answer_mode: 'workers_ai',
-      synthesis_model: '@cf/test/synth',
+      synthesis_model: '@cf/meta/llama-3.1-8b-instruct',
     });
     expect(typeof timing.synthesis_ms).toBe('number');
   });

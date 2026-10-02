@@ -26,6 +26,7 @@ import {
 } from './app-types';
 import { analyticsNumber, analyticsString, elapsedMs, jsonRecord, writeAnalyticsPoint } from './app-utils';
 import { embedTexts } from './embeddings';
+import { reserveModelCall } from './shared-ai-budget';
 import { freeAiChatRaw, freeAiEmbed, freeAiSynthEnabled, freeAiSynthModel } from './free-ai';
 import type { EntityRecord, EntityRelationshipRecord, MetadataRepository, QueryTraceRecord } from './kb-metadata-repository';
 import type { ChunkRecord, CitationRecord, Env, JsonRecord, SearchResult } from './types';
@@ -640,7 +641,11 @@ async function runAiChat(
   if (freeAiSynthEnabled(env)) {
     return freeAiChatRaw(env, model, body);
   }
-  return env.AI.run(model, body as unknown as JsonRecord);
+  const maxTokens =
+    typeof body.max_tokens === 'number' && Number.isSafeInteger(body.max_tokens) && body.max_tokens > 0 ? Math.min(8_192, body.max_tokens) : 512;
+  const boundedBody = { ...body, max_tokens: maxTokens };
+  await reserveModelCall(env, model, boundedBody, maxTokens);
+  return env.AI.run(model, boundedBody as unknown as JsonRecord);
 }
 
 function parseJudgeJson(text: string): JsonRecord | null {

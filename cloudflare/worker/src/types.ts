@@ -2,6 +2,7 @@ export type JsonRecord = Record<string, unknown>;
 
 export interface Env {
   AI: Ai;
+  NEURON_BUDGET?: DurableObjectNamespace;
   DB: D1Database;
   VECTORIZE: VectorizeBinding;
   VECTORIZE_1024?: VectorizeBinding;
