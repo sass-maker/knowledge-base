@@ -10,7 +10,7 @@ deployment remain independent; it is not a public standalone product.
 This repo owns the Cloudflare-native shared RAG Worker in
 `cloudflare/worker`. That Worker is the SaaS Maker `RAG_SERVICE`: service-key
 authenticated ingestion/query APIs backed by the private fleet `free-ai`
-gateway (managed BGE base embeddings at unchanged CLS/768-vector coordinates
+gateway (managed BGE base embeddings at unchanged mean-pooled 768-vector coordinates
 plus synthesis), Workers AI (document parsing/OCR), Vectorize, D1, and R2.
 
 Each child project receives an isolated scope for its private information and
@@ -134,7 +134,7 @@ flowchart LR
         S6 --> S7[MMR diversity]
         S7 --> S8[corrective lexical retry]
         S8 --> SearchOut[ranked cited evidence]
-        S8 --> S9[extractive or Workers AI cited answer]
+        S8 --> S9[extractive or gateway cited answer]
         S9 --> S10[answer support checks]
         S10 --> S11[span_cite]
     end

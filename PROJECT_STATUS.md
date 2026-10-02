@@ -24,7 +24,7 @@ the non-negotiable product invariant.
 
 - **2026-10-02** — Prepared the Free AI Issue [#83](https://github.com/sass-maker/free-ai/issues/83)
   consumer integration in a clean branch: default BGE base inference and
-  managed synthesis use the private FleetGateway binding; stored BGE CLS/768
+  managed synthesis use the private FleetGateway binding; stored BGE mean/768
   coordinates and existing query/storage admission remain unchanged. The
   unpriced neural reranker is denied before inference and uses the existing
   keyword fallback. Source work is not merged or deployed; no vectors were

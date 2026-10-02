@@ -32,7 +32,13 @@ import type {
   SchemaRecord,
   SessionRecord,
 } from '../src/kb-metadata-repository';
-import type { CreateChunkInput, CreateDocumentInput, CreateIndexInput, LexicalChunkRecord, Repository } from '../src/repository';
+import type {
+  CreateChunkInput,
+  CreateDocumentInput,
+  CreateIndexInput,
+  LexicalChunkRecord,
+  Repository,
+} from '../src/repository';
 import type {
   ChunkRecord,
   CitationRecord,
@@ -77,19 +83,17 @@ function docxFixtureBytes(): ArrayBuffer {
 }
 
 function pdfTableFixtureBytes(): ArrayBuffer {
-  return new TextEncoder().encode(
-    [
-      '%PDF-1.7',
-      '1 0 obj << /Type /Page >> endobj',
-      'BT',
-      '1 0 0 1 72 720 Tm (Metric) Tj',
-      '1 0 0 1 180 720 Tm (Value) Tj',
-      '1 0 0 1 72 700 Tm (Revenue) Tj',
-      '1 0 0 1 180 700 Tm (1000) Tj',
-      'ET',
-      '%%EOF',
-    ].join('\n'),
-  ).buffer as ArrayBuffer;
+  return new TextEncoder().encode([
+    '%PDF-1.7',
+    '1 0 obj << /Type /Page >> endobj',
+    'BT',
+    '1 0 0 1 72 720 Tm (Metric) Tj',
+    '1 0 0 1 180 720 Tm (Value) Tj',
+    '1 0 0 1 72 700 Tm (Revenue) Tj',
+    '1 0 0 1 180 700 Tm (1000) Tj',
+    'ET',
+    '%%EOF',
+  ].join('\n')).buffer as ArrayBuffer;
 }
 
 class MemoryRepository implements Repository {
@@ -128,7 +132,9 @@ class MemoryRepository implements Repository {
 
   async getIndexByExternalId(tenant: string, externalId: string): Promise<IndexRecord | null> {
     this.getIndexByExternalIdCalls += 1;
-    return [...this.indexes.values()].find((row) => row.tenant === tenant && row.external_id === externalId) ?? null;
+    return [...this.indexes.values()].find(
+      (row) => row.tenant === tenant && row.external_id === externalId,
+    ) ?? null;
   }
 
   async deleteIndex(tenant: string, id: string): Promise<void> {
@@ -151,7 +157,9 @@ class MemoryRepository implements Repository {
   }
 
   async listDocuments(tenant: string, indexId: string): Promise<DocumentRecord[]> {
-    return [...this.documents.values()].filter((row) => row.tenant === tenant && row.index_id === indexId);
+    return [...this.documents.values()].filter(
+      (row) => row.tenant === tenant && row.index_id === indexId,
+    );
   }
 
   async getDocument(tenant: string, id: string): Promise<DocumentRecord | null> {
@@ -203,7 +211,12 @@ class MemoryRepository implements Repository {
       .slice(0, limit);
   }
 
-  async searchLexicalChunks(tenant: string, indexId: string, tokens: string[], limit: number): Promise<LexicalChunkRecord[]> {
+  async searchLexicalChunks(
+    tenant: string,
+    indexId: string,
+    tokens: string[],
+    limit: number,
+  ): Promise<LexicalChunkRecord[]> {
     return [...this.chunks.values()]
       .filter((row) => row.tenant === tenant && row.index_id === indexId)
       .map((row) => ({
@@ -216,11 +229,15 @@ class MemoryRepository implements Repository {
   }
 
   async getChunkIdsForDocument(tenant: string, documentId: string): Promise<string[]> {
-    return [...this.chunks.values()].filter((row) => row.tenant === tenant && row.document_id === documentId).map((row) => row.id);
+    return [...this.chunks.values()]
+      .filter((row) => row.tenant === tenant && row.document_id === documentId)
+      .map((row) => row.id);
   }
 
   async getChunkIdsForIndex(tenant: string, indexId: string): Promise<string[]> {
-    return [...this.chunks.values()].filter((row) => row.tenant === tenant && row.index_id === indexId).map((row) => row.id);
+    return [...this.chunks.values()]
+      .filter((row) => row.tenant === tenant && row.index_id === indexId)
+      .map((row) => row.id);
   }
 }
 
@@ -294,9 +311,16 @@ class MemoryMetadataRepository implements MetadataRepository {
     return [...this.domains.values()].filter((row) => row.project === project);
   }
 
-  async insertSchema(project: string, domain: string, name: string, spec: DomainSchema): Promise<SchemaRecord> {
+  async insertSchema(
+    project: string,
+    domain: string,
+    name: string,
+    spec: DomainSchema,
+  ): Promise<SchemaRecord> {
     await this.upsertDomain(project, domain);
-    const version = [...this.schemas.values()].filter((schema) => schema.project === project && schema.domain === domain && schema.name === name).length + 1;
+    const version = [...this.schemas.values()].filter(
+      (schema) => schema.project === project && schema.domain === domain && schema.name === name,
+    ).length + 1;
     const row: SchemaRecord = {
       id: `schema-${this.schemas.size + 1}`,
       project,
@@ -348,7 +372,11 @@ class MemoryMetadataRepository implements MetadataRepository {
   }
 
   async listSchemaDrafts(project: string, domain?: string, status = 'pending'): Promise<SchemaDraftRecord[]> {
-    return [...this.drafts.values()].filter((row) => row.project === project && (!domain || row.domain === domain) && (!status || row.status === status));
+    return [...this.drafts.values()].filter((row) =>
+      row.project === project
+      && (!domain || row.domain === domain)
+      && (!status || row.status === status),
+    );
   }
 
   async getSchemaDraft(project: string, id: string): Promise<SchemaDraftRecord | null> {
@@ -388,8 +416,10 @@ class MemoryMetadataRepository implements MetadataRepository {
   }
 
   async listFiles(project: string, domain?: string, statuses?: string[]): Promise<FileRecord[]> {
-    return [...this.files.values()].filter(
-      (row) => row.project === project && (!domain || row.domain === domain) && (!statuses || statuses.length === 0 || statuses.includes(row.status)),
+    return [...this.files.values()].filter((row) =>
+      row.project === project
+      && (!domain || row.domain === domain)
+      && (!statuses || statuses.length === 0 || statuses.includes(row.status)),
     );
   }
 
@@ -412,9 +442,18 @@ class MemoryMetadataRepository implements MetadataRepository {
       .filter(Boolean);
   }
 
-  async listKbChunks(project: string, domain?: string, fileId?: string, limit = 100): Promise<KbChunkRecord[]> {
+  async listKbChunks(
+    project: string,
+    domain?: string,
+    fileId?: string,
+    limit = 100,
+  ): Promise<KbChunkRecord[]> {
     return [...this.chunks.values()]
-      .filter((chunk) => chunk.project === project && (!domain || chunk.domain === domain) && (!fileId || chunk.fileId === fileId))
+      .filter((chunk) =>
+        chunk.project === project
+        && (!domain || chunk.domain === domain)
+        && (!fileId || chunk.fileId === fileId),
+      )
       .slice(0, Math.min(Math.max(Math.trunc(limit), 1), 500))
       .map((chunk) => ({
         id: chunk.id,
@@ -436,9 +475,8 @@ class MemoryMetadataRepository implements MetadataRepository {
 
   async hasSharedFileStorage(files: FileRecord[]): Promise<boolean> {
     const deleting = new Set(files.map((file) => file.id));
-    return [...this.files.values()].some(
-      (other) => !deleting.has(other.id) && files.some((file) => other.object_key === file.object_key || other.content_hash === file.content_hash),
-    );
+    return [...this.files.values()].some((other) => !deleting.has(other.id) && files.some((file) =>
+      other.object_key === file.object_key || other.content_hash === file.content_hash));
   }
 
   async deleteFiles(project: string, fileIds: string[]): Promise<FileRecord[]> {
@@ -491,7 +529,9 @@ class MemoryMetadataRepository implements MetadataRepository {
     workflowId?: string | null;
   }): Promise<IngestJobRecord> {
     await this.upsertDomain(input.project, input.domain);
-    const existing = [...this.jobs.values()].find((job) => job.file_id === input.fileId && (job.schema_id ?? null) === (input.schemaId ?? null));
+    const existing = [...this.jobs.values()].find((job) =>
+      job.file_id === input.fileId && (job.schema_id ?? null) === (input.schemaId ?? null),
+    );
     const row: IngestJobRecord = {
       id: existing?.id ?? `job-${this.jobs.size + 1}`,
       project: input.project,
@@ -513,16 +553,13 @@ class MemoryMetadataRepository implements MetadataRepository {
     return row;
   }
 
-  async updateIngestJob(
-    id: string,
-    input: {
-      stage?: string;
-      status?: string;
-      error?: string | null;
-      lockedBy?: string | null;
-      incrementAttempts?: boolean;
-    },
-  ): Promise<void> {
+  async updateIngestJob(id: string, input: {
+    stage?: string;
+    status?: string;
+    error?: string | null;
+    lockedBy?: string | null;
+    incrementAttempts?: boolean;
+  }): Promise<void> {
     const row = this.jobs.get(id);
     if (!row) return;
     if (input.stage !== undefined) row.stage = input.stage;
@@ -538,7 +575,11 @@ class MemoryMetadataRepository implements MetadataRepository {
 
   async listIngestJobs(project: string, domain?: string, statuses?: string[], limit = 100): Promise<IngestJobRecord[]> {
     return [...this.jobs.values()]
-      .filter((row) => row.project === project && (!domain || row.domain === domain) && (!statuses || statuses.length === 0 || statuses.includes(row.status)))
+      .filter((row) =>
+        row.project === project
+        && (!domain || row.domain === domain)
+        && (!statuses || statuses.length === 0 || statuses.includes(row.status)),
+      )
       .slice(0, limit);
   }
 
@@ -561,7 +602,9 @@ class MemoryMetadataRepository implements MetadataRepository {
     const persisted: Array<{ id: string; record: JsonRecord; type: string; identityField: string }> = [];
     for (const item of input.records) {
       for (const entityType of entityTypes) {
-        const identityField = entityType.fields.find((field) => field.identity)?.name ?? entityType.fields[0]?.name ?? 'id';
+        const identityField = entityType.fields.find((field) => field.identity)?.name
+          ?? entityType.fields[0]?.name
+          ?? 'id';
         const isPrimary = entityType.name === primaryType.name;
         const rawIdentity = item.record[identityField] ?? (isPrimary ? `${input.fileId}:record:${item.recordIndex}` : null);
         if (rawIdentity === null || rawIdentity === undefined || rawIdentity === '') continue;
@@ -617,14 +660,13 @@ class MemoryMetadataRepository implements MetadataRepository {
       }
       for (const field of Object.keys(item.record)) {
         const lower = field.toLowerCase();
-        const relType =
-          lower === 'parent' || lower === 'parent_id'
-            ? 'parent'
-            : lower.endsWith('_ids') && lower !== item.identityField.toLowerCase()
-              ? lower.slice(0, -4)
-              : lower.endsWith('_id') && lower !== item.identityField.toLowerCase()
-                ? lower.slice(0, -3)
-                : null;
+        const relType = lower === 'parent' || lower === 'parent_id'
+          ? 'parent'
+          : lower.endsWith('_ids') && lower !== item.identityField.toLowerCase()
+            ? lower.slice(0, -4)
+            : lower.endsWith('_id') && lower !== item.identityField.toLowerCase()
+              ? lower.slice(0, -3)
+              : null;
         if (relType && !relationshipFields.has(field)) relationshipFields.set(field, relType);
       }
       for (const [field, relType] of relationshipFields.entries()) {
@@ -633,16 +675,15 @@ class MemoryMetadataRepository implements MetadataRepository {
           .map((relationship) => relationship.to_type);
         const rawValues = Array.isArray(item.record[field]) ? item.record[field] : [item.record[field]];
         const values = rawValues
-          .map((value) => (value === null || value === undefined || value === '' ? null : String(value)))
+          .map((value) => value === null || value === undefined || value === '' ? null : String(value))
           .filter((value): value is string => Boolean(value));
         for (const value of values) {
-          const targetId =
-            targetTypesForRelationship.length > 0
-              ? targetTypesForRelationship
-                  .flatMap((type) => [`${type}:${value}`, `${type}:${canonicalTestIdentity(value)}`])
-                  .map((key) => byIdentity.get(key))
-                  .find(Boolean)
-              : null;
+          const targetId = targetTypesForRelationship.length > 0
+            ? targetTypesForRelationship
+                .flatMap((type) => [`${type}:${value}`, `${type}:${canonicalTestIdentity(value)}`])
+                .map((key) => byIdentity.get(key))
+                .find(Boolean)
+            : null;
           const resolvedTargetId = targetId ?? byIdentity.get(value) ?? byIdentity.get(canonicalTestIdentity(value));
           if (!resolvedTargetId || resolvedTargetId === item.id) continue;
           const id = `relationship-${this.relationships.size + 1}`;
@@ -676,7 +717,11 @@ class MemoryMetadataRepository implements MetadataRepository {
 
   async listEntities(project: string, domain?: string, type?: string, limit = 100): Promise<EntityRecord[]> {
     return [...this.entities.values()]
-      .filter((row) => row.project === project && (!domain || row.domain === domain) && (!type || row.type === type))
+      .filter((row) =>
+        row.project === project
+        && (!domain || row.domain === domain)
+        && (!type || row.type === type),
+      )
       .slice(0, limit);
   }
 
@@ -686,10 +731,12 @@ class MemoryMetadataRepository implements MetadataRepository {
   }
 
   async findEntity(project: string, domain: string, type: string, identityKey: string): Promise<EntityRecord | null> {
-    return (
-      [...this.entities.values()].find((row) => row.project === project && row.domain === domain && row.type === type && row.identity_key === identityKey) ??
-      null
-    );
+    return [...this.entities.values()].find((row) =>
+      row.project === project
+      && row.domain === domain
+      && row.type === type
+      && row.identity_key === identityKey,
+    ) ?? null;
   }
 
   async getEntityLineage(project: string, id: string): Promise<EntityLineageRecord> {
@@ -727,14 +774,19 @@ class MemoryMetadataRepository implements MetadataRepository {
       .slice(0, limit);
   }
 
-  async listRelationships(project: string, domain?: string, relType?: string, entityId?: string, limit = 100): Promise<EntityRelationshipRecord[]> {
+  async listRelationships(
+    project: string,
+    domain?: string,
+    relType?: string,
+    entityId?: string,
+    limit = 100,
+  ): Promise<EntityRelationshipRecord[]> {
     return [...this.relationships.values()]
-      .filter(
-        (row) =>
-          row.project === project &&
-          (!domain || row.domain === domain) &&
-          (!relType || row.rel_type === relType) &&
-          (!entityId || row.src_id === entityId || row.dst_id === entityId),
+      .filter((row) =>
+        row.project === project
+        && (!domain || row.domain === domain)
+        && (!relType || row.rel_type === relType)
+        && (!entityId || row.src_id === entityId || row.dst_id === entityId),
       )
       .slice(0, limit);
   }
@@ -763,7 +815,9 @@ class MemoryMetadataRepository implements MetadataRepository {
     for (const entity of scoped) {
       const entityType = schema.spec.entities.find((item) => item.name === entity.type);
       if (!entityType) continue;
-      const identityField = entityType.fields.find((field) => field.identity)?.name ?? entityType.fields[0]?.name ?? 'id';
+      const identityField = entityType.fields.find((field) => field.identity)?.name
+        ?? entityType.fields[0]?.name
+        ?? 'id';
       const outgoingRelationships = schema.spec.relationships.filter((relationship) => relationship.from_type === entity.type);
       if (schema.spec.relationships.length > 0 && outgoingRelationships.length === 0) continue;
       const relationshipFields = new Map<string, string>();
@@ -776,14 +830,13 @@ class MemoryMetadataRepository implements MetadataRepository {
       }
       for (const field of Object.keys(entity.fields)) {
         const lower = field.toLowerCase();
-        const relType =
-          lower === 'parent' || lower === 'parent_id'
-            ? 'parent'
-            : lower.endsWith('_ids') && lower !== identityField.toLowerCase()
-              ? lower.slice(0, -4)
-              : lower.endsWith('_id') && lower !== identityField.toLowerCase()
-                ? lower.slice(0, -3)
-                : null;
+        const relType = lower === 'parent' || lower === 'parent_id'
+          ? 'parent'
+          : lower.endsWith('_ids') && lower !== identityField.toLowerCase()
+            ? lower.slice(0, -4)
+            : lower.endsWith('_id') && lower !== identityField.toLowerCase()
+              ? lower.slice(0, -3)
+              : null;
         if (relType && !relationshipFields.has(field)) relationshipFields.set(field, relType);
       }
       for (const [field, relType] of relationshipFields.entries()) {
@@ -792,26 +845,24 @@ class MemoryMetadataRepository implements MetadataRepository {
           .map((relationship) => relationship.to_type);
         const rawValues = Array.isArray(entity.fields[field]) ? entity.fields[field] : [entity.fields[field]];
         const values = rawValues
-          .map((value) => (value === null || value === undefined || value === '' ? null : String(value)))
+          .map((value) => value === null || value === undefined || value === '' ? null : String(value))
           .filter((value): value is string => Boolean(value));
         for (const value of values) {
-          const targetId =
-            targetTypesForRelationship.length > 0
-              ? targetTypesForRelationship
-                  .flatMap((type) => [`${type}:${value}`, `${type}:${canonicalTestIdentity(value)}`])
-                  .map((key) => byIdentity.get(key))
-                  .find(Boolean)
-              : null;
+          const targetId = targetTypesForRelationship.length > 0
+            ? targetTypesForRelationship
+                .flatMap((type) => [`${type}:${value}`, `${type}:${canonicalTestIdentity(value)}`])
+                .map((key) => byIdentity.get(key))
+                .find(Boolean)
+            : null;
           const resolvedTargetId = targetId ?? byIdentity.get(value) ?? byIdentity.get(canonicalTestIdentity(value));
           if (!resolvedTargetId || resolvedTargetId === entity.id) continue;
           candidateRelationships += 1;
-          const exists = [...this.relationships.values()].some(
-            (row) =>
-              row.project === project &&
-              row.domain === schema.domain &&
-              row.rel_type === relType &&
-              row.src_id === entity.id &&
-              row.dst_id === resolvedTargetId,
+          const exists = [...this.relationships.values()].some((row) =>
+            row.project === project
+            && row.domain === schema.domain
+            && row.rel_type === relType
+            && row.src_id === entity.id
+            && row.dst_id === resolvedTargetId,
           );
           if (!exists) {
             const id = `relationship-${this.relationships.size + 1}`;
@@ -861,7 +912,9 @@ class MemoryMetadataRepository implements MetadataRepository {
   }
 
   async listSessions(project: string, domain?: string, limit = 50): Promise<SessionRecord[]> {
-    return [...this.sessions.values()].filter((row) => row.project === project && (!domain || row.domain === domain)).slice(0, limit);
+    return [...this.sessions.values()]
+      .filter((row) => row.project === project && (!domain || row.domain === domain))
+      .slice(0, limit);
   }
 
   async getSession(project: string, id: string): Promise<SessionRecord | null> {
@@ -889,8 +942,12 @@ class MemoryMetadataRepository implements MetadataRepository {
       if (schema.project === project) domains.add(schema.domain);
     }
     return [...domains].sort().map((domain) => {
-      const files = [...this.files.values()].filter((file) => file.project === project && file.domain === domain);
-      const hasSchema = [...this.schemas.values()].some((schema) => schema.project === project && schema.domain === domain && schema.is_active === 1);
+      const files = [...this.files.values()].filter(
+        (file) => file.project === project && file.domain === domain,
+      );
+      const hasSchema = [...this.schemas.values()].some(
+        (schema) => schema.project === project && schema.domain === domain && schema.is_active === 1,
+      );
       const readyFiles = files.filter((file) => file.status === 'ready').length;
       const failedFiles = files.filter((file) => file.status === 'failed').length;
       const stagedFiles = files.filter((file) => file.status === 'pending').length;
@@ -931,7 +988,9 @@ class MemoryMetadataRepository implements MetadataRepository {
   }
 
   async listQueryTraces(project: string, domain?: string, limit = 50): Promise<QueryTraceRecord[]> {
-    return [...this.traces.values()].filter((row) => row.project === project && (!domain || row.domain === domain)).slice(0, limit);
+    return [...this.traces.values()]
+      .filter((row) => row.project === project && (!domain || row.domain === domain))
+      .slice(0, limit);
   }
 
   async getQueryTrace(project: string, id: string): Promise<QueryTraceRecord | null> {
@@ -956,7 +1015,11 @@ class MemoryMetadataRepository implements MetadataRepository {
 
   async listEvalReports(project: string, kind?: string, domain?: string, limit = 50): Promise<EvalReportRecord[]> {
     return [...this.evalReports.values()]
-      .filter((row) => row.project === project && (!kind || row.kind === kind) && (!domain || row.domain === domain))
+      .filter((row) =>
+        row.project === project
+        && (!kind || row.kind === kind)
+        && (!domain || row.domain === domain),
+      )
       .slice(0, limit);
   }
 
@@ -1009,11 +1072,7 @@ class FakeVectorize implements VectorizeBinding {
 }
 
 function canonicalTestIdentity(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '');
+  return value.trim().toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '');
 }
 
 function addTestIdentityAlias(map: Map<string, string>, type: string, value: string, id: string, defaultType: string): void {
@@ -1026,17 +1085,14 @@ function addTestIdentityAlias(map: Map<string, string>, type: string, value: str
 
 class FakeQueryCacheD1 {
   rows = new Map<string, { tenant: string; indexId: string; payload: string; expiresAt: number }>();
-  embeddingRows = new Map<
-    string,
-    {
-      tenant: string;
-      model: string;
-      provider: string | null;
-      dimensions: number;
-      vector: string;
-      expiresAt: number;
-    }
-  >();
+  embeddingRows = new Map<string, {
+    tenant: string;
+    model: string;
+    provider: string | null;
+    dimensions: number;
+    vector: string;
+    expiresAt: number;
+  }>();
   selectPayloadCalls = 0;
   selectEmbeddingCalls = 0;
   insertCalls = 0;
@@ -1071,7 +1127,15 @@ class FakeQueryCacheD1 {
           }
           if (sql.includes('INSERT OR REPLACE INTO embedding_cache')) {
             this.insertEmbeddingCalls += 1;
-            const [cacheKey, tenant, model, provider, dimensions, vector, expiresAt] = args as [string, string, string, string | null, number, string, number];
+            const [cacheKey, tenant, model, provider, dimensions, vector, expiresAt] = args as [
+              string,
+              string,
+              string,
+              string | null,
+              number,
+              string,
+              number,
+            ];
             this.embeddingRows.set(cacheKey, { tenant, model, provider, dimensions, vector, expiresAt });
           }
           if (sql.includes('DELETE FROM query_cache')) {
@@ -1144,18 +1208,10 @@ class FakeWorkflow {
   private instance(id: string): WorkflowInstance {
     return {
       id,
-      pause: async () => {
-        this.statuses.set(id, 'paused');
-      },
-      resume: async () => {
-        this.statuses.set(id, 'running');
-      },
-      terminate: async () => {
-        this.statuses.set(id, 'terminated');
-      },
-      restart: async () => {
-        this.statuses.set(id, 'running');
-      },
+      pause: async () => { this.statuses.set(id, 'paused'); },
+      resume: async () => { this.statuses.set(id, 'running'); },
+      terminate: async () => { this.statuses.set(id, 'terminated'); },
+      restart: async () => { this.statuses.set(id, 'running'); },
       status: async () => ({ status: this.statuses.get(id) ?? 'unknown' }),
       sendEvent: async () => undefined,
     } as WorkflowInstance;
@@ -1170,18 +1226,10 @@ class FakeAnalyticsDataset implements AnalyticsEngineDataset {
   }
 }
 
-function makeEnv(
-  vectorize: FakeVectorize,
-  db: D1Database = {
-    prepare: () => ({ first: async () => ({ ok: 1 }) }),
-  } as unknown as D1Database,
-  vectorizeSmall?: FakeVectorize,
-  rawDocs?: R2Bucket,
-  ingestQueue?: Queue<KbIngestQueueMessage>,
-  ingestWorkflow?: Workflow<KbIngestQueueMessage>,
-  analytics?: AnalyticsEngineDataset,
-): Env {
-  const env = {
+function makeEnv(vectorize: FakeVectorize, db: D1Database = {
+  prepare: () => ({ first: async () => ({ ok: 1 }) }),
+} as unknown as D1Database, vectorizeSmall?: FakeVectorize, rawDocs?: R2Bucket, ingestQueue?: Queue<KbIngestQueueMessage>, ingestWorkflow?: Workflow<KbIngestQueueMessage>, analytics?: AnalyticsEngineDataset): Env {
+  const env: Env = {
     RAG_SERVICE_KEYS: JSON.stringify({ 'key-a': 'tenant-a', 'key-b': 'tenant-b' }),
     FREE_AI_BASE_URL: 'https://provider.example/v1',
     EMBEDDING_MODEL: '@cf/baai/bge-base-en-v1.5',
@@ -1189,34 +1237,18 @@ function makeEnv(
     VECTORIZE: vectorize,
     NEURON_BUDGET: {
       idFromName: (name: string) => name,
-      get: () => ({
-        fetch: async (_url: string, init: RequestInit) => {
-          const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
-          if (body.neurons)
-            return Response.json({
-              allowed: true,
-              used: body.neurons,
-              remaining: 9_500 - body.neurons,
-              retryAfter: 0,
-              dayKey: new Date().toISOString().slice(0, 10),
-            });
-          return Response.json({
-            allowed: true,
-            used: body.dimensions,
-            remaining: 45_000_000 - (body.dimensions ?? 0),
-            retryAfter: 0,
-            monthKey: new Date().toISOString().slice(0, 7),
-            baselineVerified: true,
-          });
-        },
-      }),
+      get: () => ({ fetch: async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
+        if (body.neurons) return Response.json({ allowed: true, used: body.neurons, remaining: 9_500 - body.neurons, retryAfter: 0, dayKey: new Date().toISOString().slice(0, 10) });
+        return Response.json({ allowed: true, used: body.dimensions, remaining: 45_000_000 - (body.dimensions ?? 0), retryAfter: 0, monthKey: new Date().toISOString().slice(0, 7), baselineVerified: true });
+      } }),
     } as unknown as DurableObjectNamespace,
     ...(vectorizeSmall ? { VECTORIZE_SMALL: vectorizeSmall } : {}),
     AI: {
       run: async (model: string, input: { text?: string[]; messages?: Array<{ role: string; content: string }>; contexts?: Array<{ text?: string }> }) => {
         if (Array.isArray(input.text)) {
           return {
-            data: input.text.map((text) => (model.includes('small') ? vectorFor(`${text} small`) : vectorFor(text))),
+            data: input.text.map((text) => model.includes('small') ? vectorFor(`${text} small`) : vectorFor(text)),
           };
         }
         if (Array.isArray(input.contexts)) {
@@ -1242,41 +1274,27 @@ function makeEnv(
       },
     } as unknown as Ai,
     FREE_AI: {
-      run: async (_project: string, _model: string, input: unknown) => {
+      run: async (_project: string, model: string, input: unknown) => {
         if (Array.isArray((input as { contexts?: unknown }).contexts)) throw new Error('neuron_budget_model_unpriced');
         const texts = (input as { text?: unknown }).text;
         if (!Array.isArray(texts)) throw new Error('unexpected native gateway input');
-        return { data: texts.map((text) => vectorFor(String(text))) };
+        const dimensions = model.includes('small') ? 384 : model.includes('large') ? 1024 : 768;
+        return { data: texts.map((text) => Array.from({ length: dimensions }, (_, i) => vectorFor(String(text))[i] ?? 0)) };
       },
       fetch: async (request: Request) => {
-        const target = new URL(request.url);
-        if (env.AI_HTTP) {
-          const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.clone().text();
-          return env.AI_HTTP.fetch(request.url, {
-            method: request.method,
-            headers: request.headers,
-            ...(body ? { body } : {}),
-          });
-        }
-        const body = (await request.json()) as { model?: string; messages?: Array<{ role: string; content: string }>; input?: string[]; dimensions?: number };
-        if (body.model === '@cf/baai/bge-reranker-base') return new Response('neuron_budget_model_unpriced', { status: 402 });
-        if (target.pathname.endsWith('/embeddings')) {
-          const dimensions = body.model?.includes('small') ? 384 : (body.dimensions ?? 1536);
-          return Response.json({ data: (body.input ?? []).map((_, index) => ({ index, embedding: vectorOf(dimensions, index + 1) })) });
-        }
-        return Response.json({
-          choices: [
-            { message: { content: JSON.stringify({ status: 'supported', score: 0.92, rationale: 'The answer is supported by the provided evidence.' }) } },
-          ],
-        });
+        const body = await request.clone().json() as { messages?: Array<{ content?: string }> };
+        const isJudge = body.messages?.some((message) => message.content?.includes('judge retrieval-augmented answers'));
+        return Response.json({ choices: [{ message: { content: isJudge
+          ? JSON.stringify({ status: 'supported', score: 0.92, rationale: 'Supported by evidence.' })
+          : 'gateway synthesized alpha exact wording with citations [1].' } }] });
       },
-    } as unknown as Fetcher,
+    },
     DB: db,
     ...(rawDocs ? { RAW_DOCS: rawDocs } : {}),
     ...(ingestQueue ? { INGEST_QUEUE: ingestQueue } : {}),
     ...(ingestWorkflow ? { KB_INGEST_WORKFLOW: ingestWorkflow } : {}),
     ...(analytics ? { RAG_ANALYTICS: analytics } : {}),
-  } as unknown as Env;
+  };
   return env;
 }
 
@@ -1291,15 +1309,13 @@ function configureStaleFreeAiDefault(env: Env): void {
       const href = typeof url === 'string' ? url : url.url;
       if (href.endsWith('/v1/models')) {
         return Response.json({
-          data: [
-            {
-              id: 'voyage-3.5-lite',
-              type: 'embedding',
-              provider: 'voyage_ai',
-              dimensions: 1024,
-              enabled: true,
-            },
-          ],
+          data: [{
+            id: 'voyage-3.5-lite',
+            type: 'embedding',
+            provider: 'voyage_ai',
+            dimensions: 1024,
+            enabled: true,
+          }],
         });
       }
       return new Response('not found', { status: 404 });
@@ -1316,7 +1332,11 @@ class FakeR2Bucket {
   }> = [];
   deletes: string[] = [];
 
-  async put(key: string, value: ArrayBuffer | string | ReadableStream, options?: R2PutOptions): Promise<R2Object> {
+  async put(
+    key: string,
+    value: ArrayBuffer | string | ReadableStream,
+    options?: R2PutOptions,
+  ): Promise<R2Object> {
     this.puts.push(options === undefined ? { key, value } : { key, value, options });
     this.objects.set(key, value);
     return { key } as R2Object;
@@ -1380,7 +1400,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(new FakeVectorize());
     env.RAG_SERVICE_DASHBOARD_KEYS = JSON.stringify({ 'dashboard-key': 'default' });
 
-    const res = await app.request('/v1/indexes', { headers: { Authorization: 'Bearer dashboard-key' } }, env);
+    const res = await app.request(
+      '/v1/indexes',
+      { headers: { Authorization: 'Bearer dashboard-key' } },
+      env,
+    );
 
     expect(res.status).toBe(200);
     expect((await res.json()) as { data: IndexRecord[] }).toEqual({ data: [] });
@@ -1404,8 +1428,16 @@ describe('knowledgebase RAG Worker app', () => {
       },
       env,
     );
-    const inventory = await app.request('/v1/kb/operator/projects', { headers: { Authorization: 'Bearer dashboard-key' } }, env);
-    const consumerInventory = await app.request('/v1/kb/operator/projects', { headers: { Authorization: 'Bearer key-a' } }, env);
+    const inventory = await app.request(
+      '/v1/kb/operator/projects',
+      { headers: { Authorization: 'Bearer dashboard-key' } },
+      env,
+    );
+    const consumerInventory = await app.request(
+      '/v1/kb/operator/projects',
+      { headers: { Authorization: 'Bearer key-a' } },
+      env,
+    );
     const consumerOverride = await app.request(
       '/v1/kb/projects',
       {
@@ -1452,7 +1484,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1473,15 +1505,11 @@ describe('knowledgebase RAG Worker app', () => {
     } as unknown as Fetcher;
 
     const models = await app.request('/v1/embedding-models', { headers: { Authorization: 'Bearer key-a' } }, env);
-    const created = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Gemini Index' }),
-      },
-      env,
-    );
+    const created = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Gemini Index' }),
+    }, env);
 
     expect(models.status).toBe(200);
     expect(await models.json()).toMatchObject({
@@ -1521,7 +1549,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1541,15 +1569,11 @@ describe('knowledgebase RAG Worker app', () => {
       },
     } as unknown as Fetcher;
 
-    const created = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Unavailable Default Model' }),
-      },
-      env,
-    );
+    const created = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Unavailable Default Model' }),
+    }, env);
 
     expect(created.status).toBe(400);
     expect(await created.json()).toMatchObject({
@@ -1567,26 +1591,29 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => ragRepo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     env.RAG_EMBED_PROVIDER = 'free_ai';
     env.FREE_AI_EMBED_MODEL = 'gemini-embedding-001';
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
           return Response.json({
-            data: [
-              {
-                id: 'gemini-embedding-001',
-                type: 'embedding',
-                provider: 'gemini',
-                dimensions: 1536,
-                enabled: true,
-              },
-            ],
+            data: [{
+              id: 'gemini-embedding-001',
+              type: 'embedding',
+              provider: 'gemini',
+              dimensions: 1536,
+              enabled: true,
+            }],
           });
         }
         if (href.endsWith('/v1/embeddings')) {
@@ -1601,19 +1628,15 @@ describe('knowledgebase RAG Worker app', () => {
       },
     } as unknown as Fetcher;
 
-    const ingested = await app.request(
-      '/v1/kb/ingest/text',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: 'freeai-notes',
-          title: 'free-ai-note',
-          text: 'Knowledgebase domain auto-indexing should pin free-ai metadata.',
-        }),
-      },
-      env,
-    );
+    const ingested = await app.request('/v1/kb/ingest/text', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        domain: 'freeai-notes',
+        title: 'free-ai-note',
+        text: 'Knowledgebase domain auto-indexing should pin free-ai metadata.',
+      }),
+    }, env);
 
     const index = [...ragRepo.indexes.values()].find((row) => row.external_id === 'kb:freeai-notes');
     expect(ingested.status).toBe(201);
@@ -1641,13 +1664,18 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => ragRepo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     env.RAG_EMBED_PROVIDER = 'free_ai';
     env.FREE_AI_EMBED_MODEL = 'gemini-embedding-001';
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1683,34 +1711,26 @@ describe('knowledgebase RAG Worker app', () => {
       },
     } as unknown as Fetcher;
 
-    const savedDomain = await app.request(
-      '/v1/kb/domains',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'selected-domain',
-          description: 'custom input with selected embeddings',
-          embedding_model: 'text-embedding-3-small',
-        }),
-      },
-      env,
-    );
-    const ingested = await app.request(
-      '/v1/kb/ingest/text',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: 'selected-domain',
-          title: 'selected note',
-          text: 'Custom input should inherit the domain embedding model.',
-        }),
-      },
-      env,
-    );
+    const savedDomain = await app.request('/v1/kb/domains', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'selected-domain',
+        description: 'custom input with selected embeddings',
+        embedding_model: 'text-embedding-3-small',
+      }),
+    }, env);
+    const ingested = await app.request('/v1/kb/ingest/text', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        domain: 'selected-domain',
+        title: 'selected note',
+        text: 'Custom input should inherit the domain embedding model.',
+      }),
+    }, env);
 
-    const domain = (await savedDomain.json()) as DomainRecord;
+    const domain = await savedDomain.json() as DomainRecord;
     const index = [...ragRepo.indexes.values()].find((row) => row.external_id === 'kb:selected-domain');
     expect(savedDomain.status).toBe(201);
     expect(domain).toMatchObject({
@@ -1741,34 +1761,36 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => ragRepo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     env.RAG_EMBED_PROVIDER = 'free_ai';
     env.FREE_AI_EMBED_MODEL = 'gemini-embedding-001';
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
           return Response.json({
-            data: [
-              {
-                id: 'gemini-embedding-001',
-                type: 'embedding',
-                provider: 'gemini',
-                dimensions: 1536,
-                enabled: true,
-                aliases: ['text-embedding-3-small'],
-              },
-              {
-                id: 'other-gemini-embedding',
-                type: 'embedding',
-                provider: 'gemini',
-                dimensions: 1536,
-                enabled: true,
-              },
-            ],
+            data: [{
+              id: 'gemini-embedding-001',
+              type: 'embedding',
+              provider: 'gemini',
+              dimensions: 1536,
+              enabled: true,
+              aliases: ['text-embedding-3-small'],
+            }, {
+              id: 'other-gemini-embedding',
+              type: 'embedding',
+              provider: 'gemini',
+              dimensions: 1536,
+              enabled: true,
+            }],
           });
         }
         if (href.endsWith('/v1/embeddings')) {
@@ -1781,34 +1803,26 @@ describe('knowledgebase RAG Worker app', () => {
       },
     } as unknown as Fetcher;
 
-    const ingested = await app.request(
-      '/v1/kb/ingest/text',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: 'one-shot-selected-domain',
-          title: 'selected note',
-          text: 'Custom input should be able to choose embeddings in one request.',
-          embedding_model: 'text-embedding-3-small',
-        }),
-      },
-      env,
-    );
-    const switched = await app.request(
-      '/v1/kb/ingest/text',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: 'one-shot-selected-domain',
-          title: 'switch note',
-          text: 'This should not silently switch the existing domain index.',
-          embedding_model: 'other-gemini-embedding',
-        }),
-      },
-      env,
-    );
+    const ingested = await app.request('/v1/kb/ingest/text', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        domain: 'one-shot-selected-domain',
+        title: 'selected note',
+        text: 'Custom input should be able to choose embeddings in one request.',
+        embedding_model: 'text-embedding-3-small',
+      }),
+    }, env);
+    const switched = await app.request('/v1/kb/ingest/text', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        domain: 'one-shot-selected-domain',
+        title: 'switch note',
+        text: 'This should not silently switch the existing domain index.',
+        embedding_model: 'other-gemini-embedding',
+      }),
+    }, env);
 
     const index = [...ragRepo.indexes.values()].find((row) => row.external_id === 'kb:one-shot-selected-domain');
     const domain = (await metadata.listDomains('tenant-a')).find((row) => row.name === 'one-shot-selected-domain');
@@ -1837,45 +1851,44 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => ragRepo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     env.RAG_EMBED_PROVIDER = 'free_ai';
     env.FREE_AI_EMBED_MODEL = 'gemini-embedding-001';
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
           return Response.json({
-            data: [
-              {
-                id: 'voyage-3.5-lite',
-                type: 'embedding',
-                provider: 'voyage_ai',
-                dimensions: 1024,
-                enabled: true,
-              },
-            ],
+            data: [{
+              id: 'voyage-3.5-lite',
+              type: 'embedding',
+              provider: 'voyage_ai',
+              dimensions: 1024,
+              enabled: true,
+            }],
           });
         }
         return new Response('not found', { status: 404 });
       },
     } as unknown as Fetcher;
 
-    const ingested = await app.request(
-      '/v1/kb/ingest/text',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: 'stale-freeai',
-          title: 'stale-free-ai',
-          text: 'This should not create an index against a stale free-ai catalog.',
-        }),
-      },
-      env,
-    );
+    const ingested = await app.request('/v1/kb/ingest/text', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        domain: 'stale-freeai',
+        title: 'stale-free-ai',
+        text: 'This should not create an index against a stale free-ai catalog.',
+      }),
+    }, env);
 
     expect(ingested.status).toBe(400);
     expect(await ingested.json()).toMatchObject({
@@ -1891,15 +1904,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(new FakeVectorize());
     env.RAG_EMBED_PROVIDER = 'workers_ai';
 
-    const created = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Ignored Model Index', embedding_model: 'gemini-embedding-001' }),
-      },
-      env,
-    );
+    const created = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Ignored Model Index', embedding_model: 'gemini-embedding-001' }),
+    }, env);
 
     expect(created.status).toBe(400);
     expect(await created.json()).toMatchObject({
@@ -1917,7 +1926,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -1948,37 +1957,27 @@ describe('knowledgebase RAG Worker app', () => {
     } as unknown as Fetcher;
 
     const models = await app.request('/v1/embedding-models', { headers: { Authorization: 'Bearer key-a' } }, env);
-    const created = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Selected Model Index', embedding_model: 'text-embedding-3-small' }),
-      },
-      env,
-    );
-    const index = (await created.json()) as IndexRecord;
-    const ingested = await app.request(
-      `/v1/indexes/${index.id}/ingest`,
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ documents: [{ content: 'alpha selected embedding content' }] }),
-      },
-      env,
-    );
+    const created = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Selected Model Index', embedding_model: 'text-embedding-3-small' }),
+    }, env);
+    const index = await created.json() as IndexRecord;
+    const ingested = await app.request(`/v1/indexes/${index.id}/ingest`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ documents: [{ content: 'alpha selected embedding content' }] }),
+    }, env);
 
     expect(models.status).toBe(200);
     expect(await models.json()).toMatchObject({
       catalog_source: 'free_ai',
-      free_ai_models: [
-        expect.objectContaining({
-          id: 'gemini-embedding-001',
-          enabled: true,
-          dimensions: 1536,
-          selectable: true,
-        }),
-      ],
+      free_ai_models: [expect.objectContaining({
+        id: 'gemini-embedding-001',
+        enabled: true,
+        dimensions: 1536,
+        selectable: true,
+      })],
     });
     expect(created.status).toBe(201);
     expect(index).toMatchObject({
@@ -2005,7 +2004,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -2025,15 +2024,11 @@ describe('knowledgebase RAG Worker app', () => {
       },
     } as unknown as Fetcher;
 
-    const created = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Static Voyage Index', embedding_model: 'voyage-3.5-lite' }),
-      },
-      env,
-    );
+    const created = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Static Voyage Index', embedding_model: 'voyage-3.5-lite' }),
+    }, env);
 
     expect(created.status).toBe(400);
     expect(await created.json()).toMatchObject({
@@ -2050,7 +2045,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -2078,24 +2073,16 @@ describe('knowledgebase RAG Worker app', () => {
     } as unknown as Fetcher;
 
     const models = await app.request('/v1/embedding-models', { headers: { Authorization: 'Bearer key-a' } }, env);
-    const disabled = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Disabled Gemini', embedding_model: 'gemini-embedding-001' }),
-      },
-      env,
-    );
-    const unbound = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Unbound BGE', embedding_model: '@cf/baai/bge-base-en-v1.5' }),
-      },
-      env,
-    );
+    const disabled = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Disabled Gemini', embedding_model: 'gemini-embedding-001' }),
+    }, env);
+    const unbound = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Unbound BGE', embedding_model: '@cf/baai/bge-base-en-v1.5' }),
+    }, env);
 
     expect(models.status).toBe(200);
     expect(await models.json()).toMatchObject({
@@ -2137,7 +2124,7 @@ describe('knowledgebase RAG Worker app', () => {
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -2166,38 +2153,28 @@ describe('knowledgebase RAG Worker app', () => {
     } as unknown as Fetcher;
 
     const models = await app.request('/v1/embedding-models', { headers: { Authorization: 'Bearer key-a' } }, env);
-    const created = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Voyage Index', embedding_model: 'voyage-3.5-lite' }),
-      },
-      env,
-    );
-    const index = (await created.json()) as IndexRecord;
-    const ingested = await app.request(
-      `/v1/indexes/${index.id}/ingest`,
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ documents: [{ content: 'alpha voyage embedding content' }] }),
-      },
-      env,
-    );
-    const queried = await app.request(
-      `/v1/indexes/${index.id}/query`,
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ query: 'alpha', mode: 'semantic' }),
-      },
-      env,
-    );
+    const created = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Voyage Index', embedding_model: 'voyage-3.5-lite' }),
+    }, env);
+    const index = await created.json() as IndexRecord;
+    const ingested = await app.request(`/v1/indexes/${index.id}/ingest`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ documents: [{ content: 'alpha voyage embedding content' }] }),
+    }, env);
+    const queried = await app.request(`/v1/indexes/${index.id}/query`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ query: 'alpha', mode: 'semantic' }),
+    }, env);
 
     expect(models.status).toBe(200);
     expect(await models.json()).toMatchObject({
-      vectorize_profiles: expect.arrayContaining([expect.objectContaining({ key: 'dim_1024', dimensions: 1024, vectorize_binding: 'VECTORIZE_1024' })]),
+      vectorize_profiles: expect.arrayContaining([
+        expect.objectContaining({ key: 'dim_1024', dimensions: 1024, vectorize_binding: 'VECTORIZE_1024' }),
+      ]),
       free_ai_models: [
         expect.objectContaining({
           id: 'voyage-3.5-lite',
@@ -2233,14 +2210,14 @@ describe('knowledgebase RAG Worker app', () => {
     const vectorize = new FakeVectorize();
     const vectorize384 = new FakeVectorize();
     const env = makeEnv(vectorize);
-    const embeddingCalls: Array<{ headers: Record<string, string>; body: { model?: string; dimensions?: number; input?: string[] } }> = [];
+    const embeddingCalls: Array<{ project?: string; model?: string; input?: unknown; headers?: Record<string, string>; body?: { model?: string; dimensions?: number; input?: string[] } }> = [];
     env.VECTORIZE_384 = vectorize384;
     env.RAG_EMBED_PROVIDER = 'free_ai';
     env.FREE_AI_EMBED_MODEL = 'gemini-embedding-001';
     env.FREE_AI_EMBED_PROVIDER = 'gemini';
     env.FREE_AI_EMBED_DIMENSIONS = '1536';
     env.FREE_AI_API_KEY = 'test-free-ai-key';
-    env.AI_HTTP = {
+  env.AI_HTTP = {
       fetch: async (url: string | Request, init?: RequestInit) => {
         const href = typeof url === 'string' ? url : url.url;
         if (href.endsWith('/v1/models')) {
@@ -2267,40 +2244,35 @@ describe('knowledgebase RAG Worker app', () => {
         return new Response('not found', { status: 404 });
       },
     } as unknown as Fetcher;
+    env.FREE_AI!.run = async (project, model, input) => {
+      embeddingCalls.push({ project, model, input });
+      const texts = (input as { text: string[] }).text;
+      return { data: texts.map(() => vectorOf(384, 1)) };
+    };
 
     const models = await app.request('/v1/embedding-models', { headers: { Authorization: 'Bearer key-a' } }, env);
-    const created = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'BGE Small Index', embedding_model: '@cf/baai/bge-small-en-v1.5' }),
-      },
-      env,
-    );
-    const index = (await created.json()) as IndexRecord;
-    const ingested = await app.request(
-      `/v1/indexes/${index.id}/ingest`,
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ documents: [{ content: 'alpha bge small embedding content' }] }),
-      },
-      env,
-    );
-    const queried = await app.request(
-      `/v1/indexes/${index.id}/query`,
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ query: 'alpha', mode: 'semantic' }),
-      },
-      env,
-    );
+    const created = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'BGE Small Index', embedding_model: '@cf/baai/bge-small-en-v1.5' }),
+    }, env);
+    const index = await created.json() as IndexRecord;
+    const ingested = await app.request(`/v1/indexes/${index.id}/ingest`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ documents: [{ content: 'alpha bge small embedding content' }] }),
+    }, env);
+    const queried = await app.request(`/v1/indexes/${index.id}/query`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ query: 'alpha', mode: 'semantic' }),
+    }, env);
 
     expect(models.status).toBe(200);
     expect(await models.json()).toMatchObject({
-      vectorize_profiles: expect.arrayContaining([expect.objectContaining({ key: 'dim_384', dimensions: 384, vectorize_binding: 'VECTORIZE_384' })]),
+      vectorize_profiles: expect.arrayContaining([
+        expect.objectContaining({ key: 'dim_384', dimensions: 384, vectorize_binding: 'VECTORIZE_384' }),
+      ]),
       free_ai_models: [
         expect.objectContaining({
           id: '@cf/baai/bge-small-en-v1.5',
@@ -2319,11 +2291,11 @@ describe('knowledgebase RAG Worker app', () => {
     expect(ingested.status).toBe(201);
     expect(queried.status).toBe(200);
     expect(embeddingCalls[0]).toMatchObject({
-      body: {
-        model: '@cf/baai/bge-small-en-v1.5',
-      },
+      project: 'knowledge-base',
+      model: '@cf/baai/bge-small-en-v1.5',
+      input: { text: expect.any(Array) },
     });
-    expect(embeddingCalls[0]?.body).not.toHaveProperty('dimensions');
+    expect(embeddingCalls[0]?.input).not.toHaveProperty('pooling');
     expect(vectorize.vectors.size).toBe(0);
     expect(vectorize.queries).toHaveLength(0);
     expect(vectorize384.vectors.size).toBeGreaterThan(0);
@@ -2335,15 +2307,11 @@ describe('knowledgebase RAG Worker app', () => {
     const app = createApp({ makeRepository: () => repo });
     const env = makeEnv(new FakeVectorize());
 
-    const res = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Small Index', embedding_profile: 'small' }),
-      },
-      env,
-    );
+    const res = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Small Index', embedding_profile: 'small' }),
+    }, env);
 
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: 'small embedding profile is not configured' });
@@ -2356,34 +2324,22 @@ describe('knowledgebase RAG Worker app', () => {
     const vectorizeSmall = new FakeVectorize();
     const env = makeEnv(vectorize, undefined as unknown as D1Database, vectorizeSmall);
 
-    const created = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Small Index', embedding_profile: 'small' }),
-      },
-      env,
-    );
-    const index = (await created.json()) as IndexRecord;
-    const ingested = await app.request(
-      `/v1/indexes/${index.id}/ingest`,
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ documents: [{ content: 'alpha small profile content' }] }),
-      },
-      env,
-    );
-    const queried = await app.request(
-      `/v1/indexes/${index.id}/query`,
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ query: 'alpha', mode: 'semantic' }),
-      },
-      env,
-    );
+    const created = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Small Index', embedding_profile: 'small' }),
+    }, env);
+    const index = await created.json() as IndexRecord;
+    const ingested = await app.request(`/v1/indexes/${index.id}/ingest`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ documents: [{ content: 'alpha small profile content' }] }),
+    }, env);
+    const queried = await app.request(`/v1/indexes/${index.id}/query`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ query: 'alpha', mode: 'semantic' }),
+    }, env);
 
     expect(created.status).toBe(201);
     expect(index.dimensions).toBe(384);
@@ -2400,25 +2356,17 @@ describe('knowledgebase RAG Worker app', () => {
     const app = createApp({ makeRepository: () => repo });
     const env = makeEnv(new FakeVectorize());
 
-    const created = await app.request(
-      '/v1/indexes',
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ name: 'Base Index' }),
-      },
-      env,
-    );
-    const index = (await created.json()) as IndexRecord;
-    const queried = await app.request(
-      `/v1/indexes/${index.id}/query`,
-      {
-        method: 'POST',
-        headers: { Authorization: 'Bearer key-a' },
-        body: JSON.stringify({ query: 'alpha', mode: 'semantic', semantic_model: 'small' }),
-      },
-      env,
-    );
+    const created = await app.request('/v1/indexes', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ name: 'Base Index' }),
+    }, env);
+    const index = await created.json() as IndexRecord;
+    const queried = await app.request(`/v1/indexes/${index.id}/query`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer key-a' },
+      body: JSON.stringify({ query: 'alpha', mode: 'semantic', semantic_model: 'small' }),
+    }, env);
 
     expect(created.status).toBe(201);
     expect(queried.status).toBe(400);
@@ -2427,7 +2375,12 @@ describe('knowledgebase RAG Worker app', () => {
 
   it('serves public readiness and Prometheus-compatible metrics aliases', async () => {
     const app = createApp();
-    const env = makeEnv(new FakeVectorize(), undefined as unknown as D1Database, undefined, new FakeR2Bucket() as unknown as R2Bucket);
+    const env = makeEnv(
+      new FakeVectorize(),
+      undefined as unknown as D1Database,
+      undefined,
+      new FakeR2Bucket() as unknown as R2Bucket,
+    );
 
     const readyz = await app.request('/readyz', {}, env);
     const metrics = await app.request('/metrics', {}, env);
@@ -2470,7 +2423,12 @@ describe('knowledgebase RAG Worker app', () => {
         },
       }),
     } as unknown as D1Database;
-    const env = makeEnv(new FakeVectorize(), db, undefined, new FakeR2Bucket() as unknown as R2Bucket);
+    const env = makeEnv(
+      new FakeVectorize(),
+      db,
+      undefined,
+      new FakeR2Bucket() as unknown as R2Bucket,
+    );
 
     const health = await app.request('/v1/healthz', {}, env);
     const readyz = await app.request('/readyz', {}, env);
@@ -2505,7 +2463,12 @@ describe('knowledgebase RAG Worker app', () => {
         },
       }),
     } as unknown as D1Database;
-    const env = makeEnv(new FakeVectorize(), db, undefined, new FakeR2Bucket() as unknown as R2Bucket);
+    const env = makeEnv(
+      new FakeVectorize(),
+      db,
+      undefined,
+      new FakeR2Bucket() as unknown as R2Bucket,
+    );
     env.RAG_ALLOW_UNMIGRATED_LOCAL_D1 = 'true';
 
     const health = await app.request('/v1/healthz', {}, env);
@@ -2532,7 +2495,12 @@ describe('knowledgebase RAG Worker app', () => {
 
   it('allows an explicit deploy fingerprint override in health metadata', async () => {
     const app = createApp();
-    const env = makeEnv(new FakeVectorize(), undefined as unknown as D1Database, undefined, new FakeR2Bucket() as unknown as R2Bucket);
+    const env = makeEnv(
+      new FakeVectorize(),
+      undefined as unknown as D1Database,
+      undefined,
+      new FakeR2Bucket() as unknown as R2Bucket,
+    );
     env.RAG_DEPLOY_FINGERPRINT = 'build"one\\two';
 
     const health = await app.request('/v1/healthz', {}, env);
@@ -2548,10 +2516,19 @@ describe('knowledgebase RAG Worker app', () => {
     const repo = new MemoryRepository();
     const vectorize = new FakeVectorize();
     const app = createApp({ makeRepository: () => repo });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, new FakeR2Bucket() as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      new FakeR2Bucket() as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
 
     const ingest = await app.request(
@@ -2596,7 +2573,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, new FakeR2Bucket() as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      new FakeR2Bucket() as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
     const created = await app.request(
@@ -2615,12 +2597,10 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          documents: [
-            {
-              content: 'alpha runbook documents Cloudflare RAG streaming parity',
-              metadata: { filename: 'alpha.md' },
-            },
-          ],
+          documents: [{
+            content: 'alpha runbook documents Cloudflare RAG streaming parity',
+            metadata: { filename: 'alpha.md' },
+          }],
         }),
       },
       env,
@@ -2660,7 +2640,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, new FakeR2Bucket() as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      new FakeR2Bucket() as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
     const health = await app.request('/healthz', {}, env);
@@ -2704,12 +2689,10 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          documents: [
-            {
-              content: 'alpha legacy route compatibility evidence',
-              metadata: { filename: 'legacy.md' },
-            },
-          ],
+          documents: [{
+            content: 'alpha legacy route compatibility evidence',
+            metadata: { filename: 'legacy.md' },
+          }],
         }),
       },
       env,
@@ -2844,7 +2827,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(new FakeVectorize());
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    await app.request('/v1/kb/domains', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'manuals' }) }, env);
+    await app.request(
+      '/v1/kb/domains',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'manuals' }) },
+      env,
+    );
     const projects = await app.request('/v1/kb/projects', { headers: auth }, env);
     const upsertedProject = await app.request(
       '/v1/kb/projects',
@@ -2885,7 +2872,11 @@ describe('knowledgebase RAG Worker app', () => {
     );
     const inferredBody = (await inferred.json()) as { draft_id: string };
     const draft = await app.request(`/v1/kb/schemas/drafts/${inferredBody.draft_id}`, { headers: auth }, env);
-    const applied = await app.request(`/v1/kb/schemas/drafts/${inferredBody.draft_id}/apply`, { method: 'POST', headers: auth }, env);
+    const applied = await app.request(
+      `/v1/kb/schemas/drafts/${inferredBody.draft_id}/apply`,
+      { method: 'POST', headers: auth },
+      env,
+    );
     const active = await app.request('/v1/kb/schemas/contracts/active', { headers: auth }, env);
     const stagedFile = await app.request(
       '/v1/kb/files',
@@ -2923,7 +2914,11 @@ describe('knowledgebase RAG Worker app', () => {
       env,
     );
     const secondBody = (await second.json()) as { draft_id: string };
-    const discarded = await app.request(`/v1/kb/schemas/drafts/${secondBody.draft_id}/discard`, { method: 'POST', headers: auth }, env);
+    const discarded = await app.request(
+      `/v1/kb/schemas/drafts/${secondBody.draft_id}/discard`,
+      { method: 'POST', headers: auth },
+      env,
+    );
 
     expect(draft.status).toBe(200);
     expect(await draft.json()).toMatchObject({ id: inferredBody.draft_id, status: 'pending' });
@@ -2956,7 +2951,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => ragRepo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, vectorizeSmall, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      vectorizeSmall,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const fileRes = await app.request(
       '/v1/kb/files',
@@ -2976,7 +2976,10 @@ describe('knowledgebase RAG Worker app', () => {
     );
     const file = (await fileRes.json()) as FileRecord;
     const rawBytes = new TextEncoder().encode('hello upload');
-    rawDocs.objects.set(file.object_key, rawBytes.buffer.slice(rawBytes.byteOffset, rawBytes.byteOffset + rawBytes.byteLength) as ArrayBuffer);
+    rawDocs.objects.set(file.object_key, rawBytes.buffer.slice(
+      rawBytes.byteOffset,
+      rawBytes.byteOffset + rawBytes.byteLength,
+    ) as ArrayBuffer);
     await metadata.upsertParseArtifact({
       contentHash: file.content_hash,
       parser: 'worker-text-structured-v1',
@@ -2997,10 +3000,18 @@ describe('knowledgebase RAG Worker app', () => {
 
     const listed = await app.request('/v1/kb/files?domain=manuals', { headers: auth }, env);
     const got = await app.request(`/v1/kb/files/${file.id}`, { headers: auth }, env);
-    const reprocess = await app.request(`/v1/kb/files/${file.id}/reprocess`, { method: 'POST', headers: auth }, env);
+    const reprocess = await app.request(
+      `/v1/kb/files/${file.id}/reprocess`,
+      { method: 'POST', headers: auth },
+      env,
+    );
     const reprocessBody = (await reprocess.json()) as { job: IngestJobRecord };
     const job = await app.request(`/v1/kb/ingest/jobs/${reprocessBody.job.id}`, { headers: auth }, env);
-    const deleted = await app.request(`/v1/kb/files/${file.id}`, { method: 'DELETE', headers: auth }, env);
+    const deleted = await app.request(
+      `/v1/kb/files/${file.id}`,
+      { method: 'DELETE', headers: auth },
+      env,
+    );
     const afterDelete = await app.request(`/v1/kb/files/${file.id}`, { headers: auth }, env);
 
     expect(listed.status).toBe(200);
@@ -3060,7 +3071,11 @@ describe('knowledgebase RAG Worker app', () => {
       text: 'Must remain isolated',
     });
 
-    const invalidLimit = await app.request('/v1/kb/chunks?domain=manuals&limit=not-a-number', { headers: { Authorization: 'Bearer key-a' } }, env);
+    const invalidLimit = await app.request(
+      '/v1/kb/chunks?domain=manuals&limit=not-a-number',
+      { headers: { Authorization: 'Bearer key-a' } },
+      env,
+    );
     expect(invalidLimit.status).toBe(200);
     await expect(invalidLimit.json()).resolves.toEqual(
       expect.objectContaining({
@@ -3068,7 +3083,11 @@ describe('knowledgebase RAG Worker app', () => {
       }),
     );
 
-    const response = await app.request('/v1/kb/chunks?domain=manuals&file_id=file-a&limit=1', { headers: { Authorization: 'Bearer key-a' } }, env);
+    const response = await app.request(
+      '/v1/kb/chunks?domain=manuals&file_id=file-a&limit=1',
+      { headers: { Authorization: 'Bearer key-a' } },
+      env,
+    );
     const body = (await response.json()) as { chunks: KbChunkRecord[] };
 
     expect(response.status).toBe(200);
@@ -3084,7 +3103,9 @@ describe('knowledgebase RAG Worker app', () => {
         metadata: { section: 'Setup' },
       }),
     ]);
-    expect(body.chunks).not.toEqual(expect.arrayContaining([expect.objectContaining({ project: 'tenant-b' })]));
+    expect(body.chunks).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ project: 'tenant-b' })]),
+    );
   });
 
   it('gets entity detail, lineage, and relationship aliases', async () => {
@@ -3129,7 +3150,11 @@ describe('knowledgebase RAG Worker app', () => {
     });
 
     const detail = await app.request('/v1/kb/entities/child-1', { headers: auth }, env);
-    const found = await app.request('/v1/kb/entities/find?domain=contracts&type=Contract&identity_key=c-1', { headers: auth }, env);
+    const found = await app.request(
+      '/v1/kb/entities/find?domain=contracts&type=Contract&identity_key=c-1',
+      { headers: auth },
+      env,
+    );
     const lineage = await app.request('/v1/kb/entities/child-1/lineage', { headers: auth }, env);
     const relationships = await app.request('/v1/kb/entities/child-1/relationships', { headers: auth }, env);
 
@@ -3167,7 +3192,12 @@ describe('knowledgebase RAG Worker app', () => {
         return texts.map(vectorFor);
       },
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     await app.request(
       '/v1/kb/schemas',
@@ -3177,16 +3207,14 @@ describe('knowledgebase RAG Worker app', () => {
         body: JSON.stringify({
           domain: 'contracts',
           name: 'default',
-          entities: [
-            {
-              name: 'Contract',
-              fields: [
-                { name: 'contract_id', type: 'string', identity: true },
-                { name: 'counterparty', type: 'string' },
-                { name: 'value', type: 'number' },
-              ],
-            },
-          ],
+          entities: [{
+            name: 'Contract',
+            fields: [
+              { name: 'contract_id', type: 'string', identity: true },
+              { name: 'counterparty', type: 'string' },
+              { name: 'value', type: 'number' },
+            ],
+          }],
           relationships: [],
         }),
       },
@@ -3249,7 +3277,11 @@ describe('knowledgebase RAG Worker app', () => {
       chunks_indexed: number;
     };
     const inferredSchema = await app.request('/v1/kb/schemas/tickets/active', { headers: auth }, env);
-    const inferredEntities = await app.request('/v1/kb/entities?domain=tickets&type=TicketRecord', { headers: auth }, env);
+    const inferredEntities = await app.request(
+      '/v1/kb/entities?domain=tickets&type=TicketRecord',
+      { headers: auth },
+      env,
+    );
     const explicitRecordIngest = await app.request(
       '/v1/kb/ingest/record',
       {
@@ -3275,7 +3307,11 @@ describe('knowledgebase RAG Worker app', () => {
       chunks_indexed: number;
     };
     const explicitSchema = await app.request('/v1/kb/schemas/incidents/active', { headers: auth }, env);
-    const explicitEntities = await app.request('/v1/kb/entities?domain=incidents&type=Incident', { headers: auth }, env);
+    const explicitEntities = await app.request(
+      '/v1/kb/entities?domain=incidents&type=Incident',
+      { headers: auth },
+      env,
+    );
 
     const textIngest = await app.request(
       '/v1/kb/ingest/text',
@@ -3441,12 +3477,10 @@ describe('knowledgebase RAG Worker app', () => {
       id: explicitRecordBody.schema_id,
       domain: 'incidents',
       spec: {
-        entities: [
-          expect.objectContaining({
-            name: 'Incident',
-            aliases: expect.arrayContaining(['IncidentRecord']),
-          }),
-        ],
+        entities: [expect.objectContaining({
+          name: 'Incident',
+          aliases: expect.arrayContaining(['IncidentRecord']),
+        })],
       },
     });
     expect(explicitEntities.status).toBe(200);
@@ -3522,7 +3556,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeMetadataRepository: () => metadata,
       embed: async (_env, texts) => texts.map(vectorFor),
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
     const response = await app.request(
@@ -3533,18 +3572,16 @@ describe('knowledgebase RAG Worker app', () => {
         body: JSON.stringify({
           domain: 'papers',
           type: 'Paper',
-          data: [
-            {
-              paper_id: 'p-1',
-              title: 'Attention paper',
-              abstract: 'Transformers use attention.',
-              author_names: ['Ada Lovelace', 'Grace Hopper'],
-              primary_topic: 'Neural Networks',
-              publication_year: 2024,
-              citation_count: 1000,
-              pdf_url: 'https://example.test/attention.pdf',
-            },
-          ],
+          data: [{
+            paper_id: 'p-1',
+            title: 'Attention paper',
+            abstract: 'Transformers use attention.',
+            author_names: ['Ada Lovelace', 'Grace Hopper'],
+            primary_topic: 'Neural Networks',
+            publication_year: 2024,
+            citation_count: 1000,
+            pdf_url: 'https://example.test/attention.pdf',
+          }],
         }),
       },
       env,
@@ -3573,7 +3610,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeMetadataRepository: () => metadata,
       embed: async (_env, texts) => texts.map(vectorFor),
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const longSummary = 'oversized metadata '.repeat(900);
 
@@ -3585,24 +3627,22 @@ describe('knowledgebase RAG Worker app', () => {
         body: JSON.stringify({
           domain: 'papers-oversized-metadata',
           type: 'Paper',
-          data: [
-            {
-              paper_id: 'p-large-meta',
-              title: 'Large metadata paper',
-              abstract: 'A concise abstract should remain available in chunk content.',
-              author_names: ['Ada Lovelace', 'Grace Hopper'],
-              authors: Array.from({ length: 40 }, (_, i) => ({
-                name: `Author ${i}`,
-                openalex_id: `https://openalex.org/A${i}`,
-                institutions: ['A very verbose institution name that is not needed in Vectorize metadata'],
-              })),
-              primary_topic: 'Neural Networks',
-              publication_year: 2024,
-              citation_count: 1000,
-              url: 'https://doi.org/10.0000/large-meta',
-              summary: longSummary,
-            },
-          ],
+          data: [{
+            paper_id: 'p-large-meta',
+            title: 'Large metadata paper',
+            abstract: 'A concise abstract should remain available in chunk content.',
+            author_names: ['Ada Lovelace', 'Grace Hopper'],
+            authors: Array.from({ length: 40 }, (_, i) => ({
+              name: `Author ${i}`,
+              openalex_id: `https://openalex.org/A${i}`,
+              institutions: ['A very verbose institution name that is not needed in Vectorize metadata'],
+            })),
+            primary_topic: 'Neural Networks',
+            publication_year: 2024,
+            citation_count: 1000,
+            url: 'https://doi.org/10.0000/large-meta',
+            summary: longSummary,
+          }],
         }),
       },
       env,
@@ -3648,22 +3688,29 @@ describe('knowledgebase RAG Worker app', () => {
       makeMetadataRepository: () => metadata,
       embed: async (_env, texts) => texts.map(vectorFor),
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const request = {
       domain: 'papers-retry',
       type: 'Paper',
-      data: [
-        {
-          paper_id: 'p-retry',
-          title: 'Retry-safe paper',
-          abstract: 'A retry should not duplicate chunks.',
-          citation_count: 1001,
-        },
-      ],
+      data: [{
+        paper_id: 'p-retry',
+        title: 'Retry-safe paper',
+        abstract: 'A retry should not duplicate chunks.',
+        citation_count: 1001,
+      }],
     };
 
-    const first = await app.request('/v1/kb/ingest/record', { method: 'POST', headers: auth, body: JSON.stringify(request) }, env);
+    const first = await app.request(
+      '/v1/kb/ingest/record',
+      { method: 'POST', headers: auth, body: JSON.stringify(request) },
+      env,
+    );
     const firstBody = (await first.json()) as {
       chunks_indexed: number;
       chunk_metadata_failure_classification: { category: string };
@@ -3671,7 +3718,11 @@ describe('knowledgebase RAG Worker app', () => {
     const ragChunkCountAfterFirst = ragRepo.chunks.size;
     const kbChunkCountAfterFirst = metadata.chunks.size;
     const vectorCountAfterFirst = vectorize.vectors.size;
-    const retried = await app.request('/v1/kb/ingest/record', { method: 'POST', headers: auth, body: JSON.stringify(request) }, env);
+    const retried = await app.request(
+      '/v1/kb/ingest/record',
+      { method: 'POST', headers: auth, body: JSON.stringify(request) },
+      env,
+    );
     const retryBody = (await retried.json()) as { chunks_indexed: number; idempotent_replay: boolean };
 
     expect(first.status).toBe(201);
@@ -3703,7 +3754,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeMetadataRepository: () => metadata,
       embed: async (_env, texts) => texts.map(vectorFor),
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
     const response = await app.request(
@@ -3714,14 +3770,12 @@ describe('knowledgebase RAG Worker app', () => {
         body: JSON.stringify({
           domain: 'papers-structured-warning',
           type: 'Paper',
-          data: [
-            {
-              paper_id: 'p-warning',
-              title: 'RAG survives structured warnings',
-              abstract: 'The vector index should still be ready.',
-              citation_count: 1002,
-            },
-          ],
+          data: [{
+            paper_id: 'p-warning',
+            title: 'RAG survives structured warnings',
+            abstract: 'The vector index should still be ready.',
+            citation_count: 1002,
+          }],
         }),
       },
       env,
@@ -3744,7 +3798,12 @@ describe('knowledgebase RAG Worker app', () => {
     const metadata = new MemoryMetadataRepository();
     const rawDocs = new FakeR2Bucket();
     const app = createApp({ makeMetadataRepository: () => metadata });
-    const env = makeEnv(new FakeVectorize(), undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      new FakeVectorize(),
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
     const sources = await app.request('/v1/kb/sources', { headers: auth }, env);
@@ -3767,12 +3826,11 @@ describe('knowledgebase RAG Worker app', () => {
       const url = String(input);
       fetches.push({
         url,
-        userAgent:
-          init?.headers instanceof Headers
-            ? init.headers.get('User-Agent')
-            : typeof init?.headers === 'object' && init.headers
-              ? ((init.headers as Record<string, string>)['User-Agent'] ?? null)
-              : null,
+        userAgent: init?.headers instanceof Headers
+          ? init.headers.get('User-Agent')
+          : typeof init?.headers === 'object' && init.headers
+            ? (init.headers as Record<string, string>)['User-Agent'] ?? null
+            : null,
       });
       if (url.startsWith('data:')) return await originalFetch(input, init);
       if (url === 'https://www.sec.gov/files/company_tickers.json') {
@@ -3852,15 +3910,12 @@ describe('knowledgebase RAG Worker app', () => {
     });
     expect(fetches.some((call) => call.url.includes('/submissions/CIK0000320193.json'))).toBe(true);
     expect(fetches.every((call) => call.url.startsWith('data:') || call.userAgent === 'knowledgebase-test test@example.com')).toBe(true);
-    expect(
-      rawDocs.puts.some(
-        (put) =>
-          put.key.startsWith('raw/sec/') &&
-          put.options?.customMetadata?.source === 'edgar' &&
-          put.options.customMetadata.form === '10-K' &&
-          put.options.customMetadata.ticker === 'AAPL',
-      ),
-    ).toBe(true);
+    expect(rawDocs.puts.some((put) =>
+      put.key.startsWith('raw/sec/')
+      && put.options?.customMetadata?.source === 'edgar'
+      && put.options.customMetadata.form === '10-K'
+      && put.options.customMetadata.ticker === 'AAPL'
+    )).toBe(true);
     expect(unsupported.status).toBe(400);
     expect(await unsupported.json()).toMatchObject({ supported_sources: ['url', 'edgar'] });
   });
@@ -3869,7 +3924,12 @@ describe('knowledgebase RAG Worker app', () => {
     const metadata = new MemoryMetadataRepository();
     const rawDocs = new FakeR2Bucket();
     const app = createApp({ makeMetadataRepository: () => metadata });
-    const env = makeEnv(new FakeVectorize(), undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      new FakeVectorize(),
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const form = new FormData();
     form.set('domain', 'Manuals');
     form.set('file', new File(['hello upload'], 'guide.txt', { type: 'text/plain' }));
@@ -3903,7 +3963,7 @@ describe('knowledgebase RAG Worker app', () => {
     });
   });
 
-  it('infers and applies a schema from arbitrary structured records', async () => {
+	  it('infers and applies a schema from arbitrary structured records', async () => {
     const metadata = new MemoryMetadataRepository();
     const app = createApp({ makeMetadataRepository: () => metadata });
     const env = makeEnv(new FakeVectorize());
@@ -3959,8 +4019,8 @@ describe('knowledgebase RAG Worker app', () => {
         expect.objectContaining({ name: 'contract_id', identity: true }),
         expect.objectContaining({ name: 'value', type: 'integer' }),
         expect.objectContaining({ name: 'effective_date', type: 'date' }),
-      ]),
-    );
+        ]),
+      );
     expect(inferredBody.spec.relationships).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'parent', kind: 'parent', from_type: 'ContractRecord', to_type: 'ContractRecord' }),
@@ -3969,51 +4029,51 @@ describe('knowledgebase RAG Worker app', () => {
       ]),
     );
     expect(applied.status).toBe(201);
-    expect(await schemas.json()).toMatchObject({
-      data: [{ project: 'tenant-a', domain: 'contracts', name: 'inferred', version: 1 }],
-    });
-  });
+	    expect(await schemas.json()).toMatchObject({
+	      data: [{ project: 'tenant-a', domain: 'contracts', name: 'inferred', version: 1 }],
+	    });
+	  });
 
-  it('infers records from nested arbitrary JSON structures', async () => {
-    const metadata = new MemoryMetadataRepository();
-    const app = createApp({ makeMetadataRepository: () => metadata });
-    const env = makeEnv(new FakeVectorize());
-    const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
+	  it('infers records from nested arbitrary JSON structures', async () => {
+	    const metadata = new MemoryMetadataRepository();
+	    const app = createApp({ makeMetadataRepository: () => metadata });
+	    const env = makeEnv(new FakeVectorize());
+	    const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const inferred = await app.request(
-      '/v1/kb/schemas/infer',
-      {
-        method: 'POST',
-        headers: auth,
-        body: JSON.stringify({
-          domain: 'contracts',
-          input: {
-            source_system: 'crm',
-            exported_at: '2026-06-20',
-            payload: {
-              contracts: [
-                { contract_id: 'c-1', counterparty: 'Acme, Inc.', value: 1000 },
-                { contract_id: 'c-2', counterparty: 'Beta', value: 2500 },
-              ],
-            },
-          },
-        }),
-      },
-      env,
-    );
-    const inferredBody = (await inferred.json()) as { spec: DomainSchema; sample_count: number };
+	    const inferred = await app.request(
+	      '/v1/kb/schemas/infer',
+	      {
+	        method: 'POST',
+	        headers: auth,
+	        body: JSON.stringify({
+	          domain: 'contracts',
+	          input: {
+	            source_system: 'crm',
+	            exported_at: '2026-06-20',
+	            payload: {
+	              contracts: [
+	                { contract_id: 'c-1', counterparty: 'Acme, Inc.', value: 1000 },
+	                { contract_id: 'c-2', counterparty: 'Beta', value: 2500 },
+	              ],
+	            },
+	          },
+	        }),
+	      },
+	      env,
+	    );
+	    const inferredBody = (await inferred.json()) as { spec: DomainSchema; sample_count: number };
 
-    expect(inferred.status).toBe(200);
-    expect(inferredBody.sample_count).toBe(2);
-    expect(inferredBody.spec.entities[0]?.fields).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: 'source_system', type: 'string' }),
-        expect.objectContaining({ name: 'contract_id', identity: true }),
-        expect.objectContaining({ name: 'counterparty', type: 'enum' }),
-        expect.objectContaining({ name: 'value', type: 'integer' }),
-      ]),
-    );
-  });
+	    expect(inferred.status).toBe(200);
+	    expect(inferredBody.sample_count).toBe(2);
+	    expect(inferredBody.spec.entities[0]?.fields).toEqual(
+	      expect.arrayContaining([
+	        expect.objectContaining({ name: 'source_system', type: 'string' }),
+	        expect.objectContaining({ name: 'contract_id', identity: true }),
+	        expect.objectContaining({ name: 'counterparty', type: 'enum' }),
+	        expect.objectContaining({ name: 'value', type: 'integer' }),
+	      ]),
+	    );
+	  });
 
   it('infers and ingests cross-type entity relationships from prefixed fields', async () => {
     const metadata = new MemoryMetadataRepository();
@@ -4025,7 +4085,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       embed: async (_env, texts) => texts.map(vectorFor),
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
     const inferred = await app.request(
@@ -4064,14 +4129,18 @@ describe('knowledgebase RAG Worker app', () => {
     form.set('domain', 'orders');
     form.set(
       'file',
-      new File(
-        ['order_id,customer_id,customer_name,product_id,product_name,total\n' + 'o-1,cu-1,Acme,p-1,Widget,100\n' + 'o-2,cu-2,Beta,p-2,Gadget,200'],
-        'orders.csv',
-        { type: 'text/csv' },
-      ),
+      new File([
+        'order_id,customer_id,customer_name,product_id,product_name,total\n'
+        + 'o-1,cu-1,Acme,p-1,Widget,100\n'
+        + 'o-2,cu-2,Beta,p-2,Gadget,200',
+      ], 'orders.csv', { type: 'text/csv' }),
     );
     await app.request('/v1/kb/files/upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
-    const run = await app.request('/v1/kb/ingest/run', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'orders', async: false }) }, env);
+    const run = await app.request(
+      '/v1/kb/ingest/run',
+      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'orders', async: false }) },
+      env,
+    );
     const runBody = (await run.json()) as { files: Array<{ entities: number; relationships: number }> };
     const entities = await app.request('/v1/kb/entities?domain=orders&limit=20', { headers: auth }, env);
     const entitiesBody = (await entities.json()) as { entities: EntityRecord[] };
@@ -4079,7 +4148,11 @@ describe('knowledgebase RAG Worker app', () => {
     const relationshipsBody = (await relationships.json()) as { relationships: EntityRelationshipRecord[] };
 
     expect(inferred.status).toBe(200);
-    expect(inferredBody.spec.entities.map((entity) => entity.name)).toEqual(['OrderRecord', 'CustomerRecord', 'ProductRecord']);
+    expect(inferredBody.spec.entities.map((entity) => entity.name)).toEqual([
+      'OrderRecord',
+      'CustomerRecord',
+      'ProductRecord',
+    ]);
     expect(inferredBody.spec.relationships).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'customer', from_type: 'OrderRecord', to_type: 'CustomerRecord' }),
@@ -4089,10 +4162,20 @@ describe('knowledgebase RAG Worker app', () => {
     expect(run.status).toBe(200);
     expect(runBody.files[0]).toMatchObject({ entities: 6, relationships: 4 });
     expect(entitiesBody.entities.map((entity) => `${entity.type}:${entity.identity_key}`)).toEqual(
-      expect.arrayContaining(['OrderRecord:o-1', 'OrderRecord:o-2', 'CustomerRecord:cu-1', 'CustomerRecord:cu-2', 'ProductRecord:p-1', 'ProductRecord:p-2']),
+      expect.arrayContaining([
+        'OrderRecord:o-1',
+        'OrderRecord:o-2',
+        'CustomerRecord:cu-1',
+        'CustomerRecord:cu-2',
+        'ProductRecord:p-1',
+        'ProductRecord:p-2',
+      ]),
     );
     expect(relationshipsBody.relationships).toEqual(
-      expect.arrayContaining([expect.objectContaining({ rel_type: 'customer' }), expect.objectContaining({ rel_type: 'product' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ rel_type: 'customer' }),
+        expect.objectContaining({ rel_type: 'product' }),
+      ]),
     );
   });
 
@@ -4158,8 +4241,16 @@ describe('knowledgebase RAG Worker app', () => {
       updated_at: new Date(0).toISOString(),
     });
 
-    const backfill = await app.request('/v1/kb/relationships/backfill', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) }, env);
-    const second = await app.request('/v1/kb/relationships/backfill', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) }, env);
+    const backfill = await app.request(
+      '/v1/kb/relationships/backfill',
+      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) },
+      env,
+    );
+    const second = await app.request(
+      '/v1/kb/relationships/backfill',
+      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) },
+      env,
+    );
     const relationships = await app.request('/v1/kb/relationships?domain=contracts', { headers: auth }, env);
 
     expect(backfill.status).toBe(200);
@@ -4178,31 +4269,34 @@ describe('knowledgebase RAG Worker app', () => {
       parent_links_updated: 0,
     });
     expect((await relationships.json()) as { relationships: EntityRelationshipRecord[] }).toMatchObject({
-      relationships: [
-        expect.objectContaining({
-          rel_type: 'parent',
-          src_id: 'entity-child',
-          dst_id: 'entity-parent',
-          evidence_file: null,
-        }),
-      ],
+      relationships: [expect.objectContaining({
+        rel_type: 'parent',
+        src_id: 'entity-child',
+        dst_id: 'entity-parent',
+        evidence_file: null,
+      })],
     });
     expect(metadata.entities.get('tenant-a:contracts:ContractRecord:c-2')?.parent_id).toBe('entity-parent');
   });
 
-  it('infers a schema directly from an uploaded structured file', async () => {
+	  it('infers a schema directly from an uploaded structured file', async () => {
     const metadata = new MemoryMetadataRepository();
     const rawDocs = new FakeR2Bucket();
     const app = createApp({ makeMetadataRepository: () => metadata });
-    const env = makeEnv(new FakeVectorize(), undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      new FakeVectorize(),
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const form = new FormData();
     form.set('domain', 'contracts');
-    form.set(
-      'file',
-      new File(['contract_id,counterparty,value\nc-1,"Acme, Inc.",1000\nc-2,Beta,2500'], 'contracts.csv', {
-        type: 'text/csv',
-      }),
-    );
+	    form.set(
+	      'file',
+	      new File(['contract_id,counterparty,value\nc-1,"Acme, Inc.",1000\nc-2,Beta,2500'], 'contracts.csv', {
+	        type: 'text/csv',
+	      }),
+	    );
 
     const res = await app.request(
       '/v1/kb/schemas/infer-upload',
@@ -4234,15 +4328,23 @@ describe('knowledgebase RAG Worker app', () => {
 
   it('ingests uploaded structured files into a domain index and searches them', async () => {
     const repo = new MemoryRepository();
-    const metadata = new MemoryMetadataRepository();
-    const rawDocs = new FakeR2Bucket();
-    const vectorize = new FakeVectorize();
-    const analytics = new FakeAnalyticsDataset();
-    const app = createApp({
+	    const metadata = new MemoryMetadataRepository();
+	    const rawDocs = new FakeR2Bucket();
+	    const vectorize = new FakeVectorize();
+	    const analytics = new FakeAnalyticsDataset();
+	    const app = createApp({
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket, undefined, undefined, analytics);
+    const env = makeEnv(
+      vectorize,
+	      undefined as unknown as D1Database,
+	      undefined,
+	      rawDocs as unknown as R2Bucket,
+	      undefined,
+	      undefined,
+	      analytics,
+	    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const form = new FormData();
     form.set('domain', 'contracts');
@@ -4252,11 +4354,23 @@ describe('knowledgebase RAG Worker app', () => {
         type: 'text/csv',
       }),
     );
-    const inferred = await app.request('/v1/kb/schemas/infer-upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    const inferred = await app.request(
+      '/v1/kb/schemas/infer-upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
+      env,
+    );
     const inferredBody = (await inferred.json()) as { spec: DomainSchema };
-    await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
+    await app.request(
+      '/v1/kb/schemas',
+      { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) },
+      env,
+    );
 
-    const ingest = await app.request('/v1/kb/ingest/run', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) }, env);
+    const ingest = await app.request(
+      '/v1/kb/ingest/run',
+      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) },
+      env,
+    );
     const search = await app.request(
       '/v1/kb/search',
       {
@@ -4267,11 +4381,11 @@ describe('knowledgebase RAG Worker app', () => {
       env,
     );
     const searchBody = (await search.json()) as { data: SearchResult[] };
-    const entities = await app.request('/v1/kb/entities?domain=contracts', { headers: auth }, env);
-    const entitiesBody = (await entities.json()) as { entities: EntityRecord[] };
-    const relationships = await app.request('/v1/kb/relationships?domain=contracts', { headers: auth }, env);
-    const relationshipsBody = (await relationships.json()) as { relationships: EntityRelationshipRecord[] };
-    const entitySearch = await app.request(
+	    const entities = await app.request('/v1/kb/entities?domain=contracts', { headers: auth }, env);
+	    const entitiesBody = (await entities.json()) as { entities: EntityRecord[] };
+	    const relationships = await app.request('/v1/kb/relationships?domain=contracts', { headers: auth }, env);
+	    const relationshipsBody = (await relationships.json()) as { relationships: EntityRelationshipRecord[] };
+	    const entitySearch = await app.request(
       '/v1/kb/entities/search',
       {
         method: 'POST',
@@ -4323,11 +4437,11 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          domain: 'contracts',
-          mode: 'auto',
-          ai_judge: true,
-          cases: [{ id: 'q1', question: 'Acme', expected_text: 'Acme' }],
-        }),
+	          domain: 'contracts',
+	          mode: 'auto',
+	          ai_judge: true,
+	          cases: [{ id: 'q1', question: 'Acme', expected_text: 'Acme' }],
+	        }),
       },
       env,
     );
@@ -4337,33 +4451,33 @@ describe('knowledgebase RAG Worker app', () => {
       citation_rate: number;
       avg_faithfulness_score: number | null;
       avg_unsupported_answer_tokens: number;
-      ai_use_rate: number;
-      model_judge_enabled: boolean;
-      model_judged_count: number;
-      avg_model_judge_score: number | null;
-      rows: Array<{
-        route: string;
-        ai_used: boolean;
-        cited: boolean;
-        faithfulness_status: string;
-        faithfulness_score: number | null;
-        model_judged: boolean;
-        model_judge_status: string;
-        model_judge_score: number;
-        answer_token_count: number;
-        unsupported_answer_token_count: number;
-      }>;
+	      ai_use_rate: number;
+	      model_judge_enabled: boolean;
+	      model_judged_count: number;
+	      avg_model_judge_score: number | null;
+	      rows: Array<{
+	        route: string;
+	        ai_used: boolean;
+	        cited: boolean;
+	        faithfulness_status: string;
+	        faithfulness_score: number | null;
+	        model_judged: boolean;
+	        model_judge_status: string;
+	        model_judge_score: number;
+	        answer_token_count: number;
+	        unsupported_answer_token_count: number;
+	      }>;
     };
-    const evalReports = await app.request('/v1/kb/evals/reports?domain=contracts', { headers: auth }, env);
-    const evalReportsBody = (await evalReports.json()) as { reports: EvalReportRecord[] };
-    const evalSummary = await app.request('/v1/kb/evals/summary?domain=contracts', { headers: auth }, env);
-    const evalSummaryBody = (await evalSummary.json()) as {
-      report_count: number;
-      summaries: JsonRecord[];
-    };
-    const evalReport = await app.request(`/v1/kb/evals/reports/${queryEvalBody.report_id}`, { headers: auth }, env);
+	    const evalReports = await app.request('/v1/kb/evals/reports?domain=contracts', { headers: auth }, env);
+	    const evalReportsBody = (await evalReports.json()) as { reports: EvalReportRecord[] };
+	    const evalSummary = await app.request('/v1/kb/evals/summary?domain=contracts', { headers: auth }, env);
+	    const evalSummaryBody = (await evalSummary.json()) as {
+	      report_count: number;
+	      summaries: JsonRecord[];
+	    };
+	    const evalReport = await app.request(`/v1/kb/evals/reports/${queryEvalBody.report_id}`, { headers: auth }, env);
     const evalReportBody = (await evalReport.json()) as EvalReportRecord;
-    const ingestBody = (await ingest.json()) as {
+    const ingestBody = await ingest.json() as {
       files: Array<{
         job_id: string;
         parse_artifact: ParseArtifactRecord;
@@ -4379,45 +4493,43 @@ describe('knowledgebase RAG Worker app', () => {
     expect(ingestBody).toMatchObject({
       project: 'tenant-a',
       domain: 'contracts',
-      files: [
-        {
-          job_id: expect.any(String),
-          filename: 'contracts.csv',
-          status: 'ready',
-          parse_artifact: expect.objectContaining({
-            parser: 'worker-text-structured-v1',
-            object_key: expect.stringContaining('parse/contracts/'),
-          }),
-          documents_created: 2,
-          entities: 2,
-          mentions: 2,
-          relationships: 3,
-          provenance_spans: 12,
-        },
-      ],
-    });
+      files: [{
+        job_id: expect.any(String),
+        filename: 'contracts.csv',
+        status: 'ready',
+        parse_artifact: expect.objectContaining({
+          parser: 'worker-text-structured-v1',
+          object_key: expect.stringContaining('parse/contracts/'),
+        }),
+	        documents_created: 2,
+	        entities: 2,
+	        mentions: 2,
+		        relationships: 3,
+		        provenance_spans: 12,
+		      }],
+		    });
     expect(search.status).toBe(200);
     expect(searchBody.data[0]?.chunk_content).toContain('Acme');
     expect(entities.status).toBe(200);
-    expect(entitiesBody.entities).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          identity_key: 'c-1',
-          display_name: 'c-1',
+	    expect(entitiesBody.entities).toEqual(
+	      expect.arrayContaining([
+	        expect.objectContaining({
+	          identity_key: 'c-1',
+	          display_name: 'c-1',
           fields: expect.objectContaining({ counterparty: 'Acme' }),
-        }),
-      ]),
-    );
-    expect(relationships.status).toBe(200);
-    expect(relationshipsBody.relationships).toHaveLength(3);
-    expect(relationshipsBody.relationships).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ rel_type: 'parent', evidence_file: expect.any(String) }),
-        expect.objectContaining({ rel_type: 'owner', evidence_file: expect.any(String) }),
-        expect.objectContaining({ rel_type: 'related', evidence_file: expect.any(String) }),
-      ]),
-    );
-    expect(entitySearch.status).toBe(200);
+	        }),
+	      ]),
+	    );
+		    expect(relationships.status).toBe(200);
+		    expect(relationshipsBody.relationships).toHaveLength(3);
+		    expect(relationshipsBody.relationships).toEqual(
+		      expect.arrayContaining([
+		        expect.objectContaining({ rel_type: 'parent', evidence_file: expect.any(String) }),
+		        expect.objectContaining({ rel_type: 'owner', evidence_file: expect.any(String) }),
+		        expect.objectContaining({ rel_type: 'related', evidence_file: expect.any(String) }),
+		      ]),
+		    );
+	    expect(entitySearch.status).toBe(200);
     expect(entitySearchBody).toMatchObject({
       ai_used: false,
       route: 'd1_entities',
@@ -4427,13 +4539,13 @@ describe('knowledgebase RAG Worker app', () => {
     expect(structuredAnswerBody).toMatchObject({
       ai_used: false,
       route: 'd1_entities',
-      confidence: expect.objectContaining({
-        route: 'd1_graph',
-        graph_result_count: 3,
-        verification_checked: true,
-        verification_status: 'supported',
-        citation_coverage: expect.any(Number),
-      }),
+		      confidence: expect.objectContaining({
+		        route: 'd1_graph',
+		        graph_result_count: 3,
+		        verification_checked: true,
+	        verification_status: 'supported',
+	        citation_coverage: expect.any(Number),
+	      }),
       data: expect.arrayContaining([
         expect.objectContaining({ metadata: expect.objectContaining({ identity_key: 'c-1' }) }),
         expect.objectContaining({
@@ -4452,11 +4564,11 @@ describe('knowledgebase RAG Worker app', () => {
     expect(fieldedAnswer.status).toBe(200);
     expect(fieldedAnswerBody).toMatchObject({
       ai_used: false,
-      confidence: expect.objectContaining({
-        structured_filters: [expect.objectContaining({ normalized_field: 'counterparty', value: 'Acme' })],
-        verification_checked: true,
-        verification_status: 'supported',
-      }),
+	      confidence: expect.objectContaining({
+	        structured_filters: [expect.objectContaining({ normalized_field: 'counterparty', value: 'Acme' })],
+	        verification_checked: true,
+	        verification_status: 'supported',
+	      }),
       data: expect.arrayContaining([
         expect.objectContaining({
           metadata: expect.objectContaining({
@@ -4473,75 +4585,77 @@ describe('knowledgebase RAG Worker app', () => {
       report_id: 'eval-1',
       hit_rate: 1,
       citation_rate: 1,
-      ai_use_rate: 0,
-      model_judge_enabled: true,
-      model_judged_count: 1,
-      avg_model_judge_score: 0.92,
-      avg_faithfulness_score: expect.any(Number),
+	      ai_use_rate: 0,
+	      model_judge_enabled: true,
+	      model_judged_count: 1,
+	      avg_model_judge_score: 0.92,
+	      avg_faithfulness_score: expect.any(Number),
       avg_unsupported_answer_tokens: expect.any(Number),
       rows: [
         expect.objectContaining({
           route: 'd1_entities',
           ai_used: false,
           cited: true,
-          faithfulness_status: expect.stringMatching(/supported|partial|weak/),
-          faithfulness_score: expect.any(Number),
-          model_judged: true,
-          model_judge_status: 'supported',
-          model_judge_score: 0.92,
-          answer_token_count: expect.any(Number),
+	          faithfulness_status: expect.stringMatching(/supported|partial|weak/),
+	          faithfulness_score: expect.any(Number),
+	          model_judged: true,
+	          model_judge_status: 'supported',
+	          model_judge_score: 0.92,
+	          answer_token_count: expect.any(Number),
           unsupported_answer_token_count: expect.any(Number),
         }),
       ],
     });
-    expect(evalReports.status).toBe(200);
-    expect(evalReportsBody.reports[0]).toMatchObject({ id: queryEvalBody.report_id, kind: 'query' });
-    expect(evalSummary.status).toBe(200);
-    expect(evalSummaryBody).toMatchObject({
-      report_count: 1,
-      summaries: [
-        expect.objectContaining({
-          kind: 'query',
-          domain: 'contracts',
-          report_count: 1,
-          avg_hit_rate: 1,
-          avg_citation_rate: 1,
-          avg_faithfulness_score: expect.any(Number),
-          avg_unsupported_answer_tokens: expect.any(Number),
-          avg_ai_use_rate: 0,
-          avg_model_judge_score: 0.92,
-        }),
-      ],
-    });
-    expect(evalReport.status).toBe(200);
-    expect(evalReportBody).toMatchObject({
-      id: queryEvalBody.report_id,
+	    expect(evalReports.status).toBe(200);
+	    expect(evalReportsBody.reports[0]).toMatchObject({ id: queryEvalBody.report_id, kind: 'query' });
+	    expect(evalSummary.status).toBe(200);
+	    expect(evalSummaryBody).toMatchObject({
+	      report_count: 1,
+	      summaries: [
+	        expect.objectContaining({
+	          kind: 'query',
+	          domain: 'contracts',
+	          report_count: 1,
+	          avg_hit_rate: 1,
+	          avg_citation_rate: 1,
+	          avg_faithfulness_score: expect.any(Number),
+	          avg_unsupported_answer_tokens: expect.any(Number),
+		          avg_ai_use_rate: 0,
+		          avg_model_judge_score: 0.92,
+		        }),
+	      ],
+	    });
+	    expect(evalReport.status).toBe(200);
+	    expect(evalReportBody).toMatchObject({
+	      id: queryEvalBody.report_id,
       kind: 'query',
       summary: expect.objectContaining({
         hit_rate: 1,
         citation_rate: 1,
-        avg_faithfulness_score: expect.any(Number),
-        model_judge_enabled: true,
-        avg_model_judge_score: 0.92,
-      }),
-    });
-    expect(analytics.points).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          blobs: expect.arrayContaining(['query_trace', 'tenant-a', 'contracts']),
-          doubles: expect.arrayContaining([expect.any(Number)]),
-          indexes: ['tenant-a'],
-        }),
-        expect.objectContaining({
-          blobs: expect.arrayContaining(['eval_report', 'tenant-a', 'query', 'contracts', queryEvalBody.report_id]),
-          doubles: expect.arrayContaining([1, 1, 1, 0.92]),
-          indexes: ['tenant-a'],
-        }),
-      ]),
-    );
-    expect(jobs.status).toBe(200);
+	        avg_faithfulness_score: expect.any(Number),
+	        model_judge_enabled: true,
+	        avg_model_judge_score: 0.92,
+	      }),
+	    });
+	    expect(analytics.points).toEqual(
+	      expect.arrayContaining([
+	        expect.objectContaining({
+	          blobs: expect.arrayContaining(['query_trace', 'tenant-a', 'contracts']),
+	          doubles: expect.arrayContaining([expect.any(Number)]),
+	          indexes: ['tenant-a'],
+	        }),
+	        expect.objectContaining({
+	          blobs: expect.arrayContaining(['eval_report', 'tenant-a', 'query', 'contracts', queryEvalBody.report_id]),
+	          doubles: expect.arrayContaining([1, 1, 1, 0.92]),
+	          indexes: ['tenant-a'],
+	        }),
+	      ]),
+	    );
+	    expect(jobs.status).toBe(200);
     expect(jobsBody.jobs).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: ingestBody.files[0]?.job_id, status: 'succeeded', stage: 'indexed' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ id: ingestBody.files[0]?.job_id, status: 'succeeded', stage: 'indexed' }),
+      ]),
     );
     expect(artifact.status).toBe(200);
     expect(artifactBody).toMatchObject({
@@ -4562,7 +4676,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const form = new FormData();
     form.set('domain', 'contracts');
@@ -4573,10 +4692,22 @@ describe('knowledgebase RAG Worker app', () => {
       }),
     );
 
-    const inferred = await app.request('/v1/kb/schemas/infer-upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    const inferred = await app.request(
+      '/v1/kb/schemas/infer-upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
+      env,
+    );
     const inferredBody = (await inferred.json()) as { parser: string; spec: DomainSchema };
-    await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
-    const ingest = await app.request('/v1/kb/ingest/run', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) }, env);
+    await app.request(
+      '/v1/kb/schemas',
+      { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) },
+      env,
+    );
+    const ingest = await app.request(
+      '/v1/kb/ingest/run',
+      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) },
+      env,
+    );
     const ingestBody = (await ingest.json()) as {
       files: Array<{ parse_artifact: ParseArtifactRecord; documents_created: number; entities: number }>;
     };
@@ -4612,7 +4743,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const form = new FormData();
     form.set('domain', 'manuals');
@@ -4623,8 +4759,16 @@ describe('knowledgebase RAG Worker app', () => {
       }),
     );
 
-    const uploaded = await app.request('/v1/kb/files/upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
-    const ingest = await app.request('/v1/kb/ingest/run', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'manuals', async: false }) }, env);
+    const uploaded = await app.request(
+      '/v1/kb/files/upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
+      env,
+    );
+    const ingest = await app.request(
+      '/v1/kb/ingest/run',
+      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'manuals', async: false }) },
+      env,
+    );
     const ingestBody = (await ingest.json()) as {
       files: Array<{ parse_artifact: ParseArtifactRecord; documents_created: number }>;
     };
@@ -4658,25 +4802,38 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const form = new FormData();
     form.set('domain', 'filings');
     form.set('file', new File([pdfTableFixtureBytes()], 'metrics.pdf', { type: 'application/pdf' }));
 
-    const uploaded = await app.request('/v1/kb/files/upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
-    const ingest = await app.request('/v1/kb/ingest/run', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'filings', async: false }) }, env);
+    const uploaded = await app.request(
+      '/v1/kb/files/upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
+      env,
+    );
+    const ingest = await app.request(
+      '/v1/kb/ingest/run',
+      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'filings', async: false }) },
+      env,
+    );
     const ingestBody = (await ingest.json()) as {
       files: Array<{ parse_artifact: ParseArtifactRecord; documents_created: number }>;
     };
     const artifact = ingestBody.files[0]?.parse_artifact;
     const artifactObject = artifact ? await rawDocs.get(artifact.object_key) : null;
     const artifactJson = artifactObject
-      ? (JSON.parse(new TextDecoder().decode(await artifactObject.arrayBuffer())) as {
+      ? JSON.parse(new TextDecoder().decode(await artifactObject.arrayBuffer())) as {
           parser: string;
           record_count: number;
           documents: Array<{ content: string; metadata: JsonRecord }>;
-        })
+        }
       : null;
     const search = await app.request(
       '/v1/kb/search',
@@ -4720,7 +4877,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, vectorizeSmall, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      vectorizeSmall,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const form = new FormData();
     form.set('domain', 'contracts');
@@ -4730,10 +4892,22 @@ describe('knowledgebase RAG Worker app', () => {
         type: 'text/csv',
       }),
     );
-    const inferred = await app.request('/v1/kb/schemas/infer-upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    const inferred = await app.request(
+      '/v1/kb/schemas/infer-upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
+      env,
+    );
     const inferredBody = (await inferred.json()) as { spec: DomainSchema };
-    await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
-    await app.request('/v1/kb/ingest/run', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) }, env);
+    await app.request(
+      '/v1/kb/schemas',
+      { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) },
+      env,
+    );
+    await app.request(
+      '/v1/kb/ingest/run',
+      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) },
+      env,
+    );
 
     const sourceSets = await app.request('/v1/kb/source-sets?domain=contracts', { headers: auth }, env);
     const sourceSetsBody = (await sourceSets.json()) as {
@@ -4780,7 +4954,7 @@ describe('knowledgebase RAG Worker app', () => {
     expect(emptySourceSetsBody.source_sets).toEqual([]);
   });
 
-  it('queues ingestion and processes Cloudflare Queue messages', async () => {
+	  it('queues ingestion and processes Cloudflare Queue messages', async () => {
     const repo = new MemoryRepository();
     const metadata = new MemoryMetadataRepository();
     const rawDocs = new FakeR2Bucket();
@@ -4792,7 +4966,13 @@ describe('knowledgebase RAG Worker app', () => {
     };
     const app = createApp(options);
     const worker = createWorker(options);
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket, queue);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+      queue,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const form = new FormData();
     form.set('domain', 'contracts');
@@ -4802,34 +4982,46 @@ describe('knowledgebase RAG Worker app', () => {
         type: 'text/csv',
       }),
     );
-    const inferred = await app.request('/v1/kb/schemas/infer-upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
-    const inferredBody = (await inferred.json()) as { spec: DomainSchema };
-    await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
-
-    const queued = await app.request(
-      '/v1/kb/ingest/run',
-      {
-        method: 'POST',
-        headers: auth,
-        body: JSON.stringify({
-          domain: 'contracts',
-          run_id: 'run-queued-1',
-          markdown_conversion: 'off',
-          vision_ocr_model: '@cf/test/vision',
-        }),
-      },
+    const inferred = await app.request(
+      '/v1/kb/schemas/infer-upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
       env,
     );
-    const queuedBody = (await queued.json()) as {
-      run_id: string;
-      ingestion_mode: string;
-      queued: boolean;
-      jobs: IngestJobRecord[];
-    };
-    const queuedRun = await app.request('/v1/kb/ingest/runs/run-queued-1?domain=contracts', { headers: auth }, env);
-    const queuedRunBody = (await queuedRun.json()) as {
-      summary: { state: string; total_jobs: number; active_jobs: number; done: boolean };
-    };
+    const inferredBody = (await inferred.json()) as { spec: DomainSchema };
+    await app.request(
+      '/v1/kb/schemas',
+      { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) },
+      env,
+    );
+
+	    const queued = await app.request(
+	      '/v1/kb/ingest/run',
+	      {
+          method: 'POST',
+          headers: auth,
+          body: JSON.stringify({
+            domain: 'contracts',
+            run_id: 'run-queued-1',
+            markdown_conversion: 'off',
+            vision_ocr_model: '@cf/test/vision',
+          }),
+        },
+	      env,
+	    );
+	    const queuedBody = (await queued.json()) as {
+	      run_id: string;
+	      ingestion_mode: string;
+	      queued: boolean;
+	      jobs: IngestJobRecord[];
+	    };
+	    const queuedRun = await app.request(
+	      '/v1/kb/ingest/runs/run-queued-1?domain=contracts',
+	      { headers: auth },
+	      env,
+	    );
+	    const queuedRunBody = (await queuedRun.json()) as {
+	      summary: { state: string; total_jobs: number; active_jobs: number; done: boolean };
+	    };
     const acked: string[] = [];
     const retried: string[] = [];
     const message = {
@@ -4837,56 +5029,57 @@ describe('knowledgebase RAG Worker app', () => {
       timestamp: new Date(0),
       attempts: 1,
       body: queue.sent[0],
-      ack: () => {
-        acked.push('msg-1');
-      },
-      retry: () => {
-        retried.push('msg-1');
-      },
+      ack: () => { acked.push('msg-1'); },
+      retry: () => { retried.push('msg-1'); },
     } as Message<KbIngestQueueMessage>;
-    await worker.queue(
-      {
-        messages: [message],
-        queue: 'knowledgebase-ingest',
-        metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } },
-        ackAll: () => undefined,
-        retryAll: () => undefined,
-      } as MessageBatch<KbIngestQueueMessage>,
+    await worker.queue({
+      messages: [message],
+      queue: 'knowledgebase-ingest',
+      metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } },
+      ackAll: () => undefined,
+      retryAll: () => undefined,
+    } as MessageBatch<KbIngestQueueMessage>, env);
+    const completedRun = await app.request(
+      '/v1/kb/ingest/runs/run-queued-1?domain=contracts',
+      { headers: auth },
       env,
     );
-    const completedRun = await app.request('/v1/kb/ingest/runs/run-queued-1?domain=contracts', { headers: auth }, env);
     const completedRunBody = (await completedRun.json()) as {
       summary: { state: string; total_jobs: number; succeeded_jobs: number; done: boolean };
     };
     const jobs = await metadata.listIngestJobs('tenant-a', 'contracts');
     const files = await metadata.listFiles('tenant-a', 'contracts');
 
-    expect(queued.status).toBe(202);
-    expect(queuedBody.run_id).toBe('run-queued-1');
-    expect(queuedBody.ingestion_mode).toBe('queued');
-    expect(queuedBody.queued).toBe(true);
-    expect(queuedBody.jobs[0]).toMatchObject({ status: 'queued', stage: 'parse', workflow_id: 'run-queued-1' });
-    expect(queuedRun.status).toBe(200);
-    expect(queuedRunBody.summary).toMatchObject({
-      state: 'running',
-      total_jobs: 1,
-      active_jobs: 1,
-      done: false,
-    });
-    expect(queue.sent).toEqual([
-      expect.objectContaining({
-        kind: 'kb_ingest',
-        project: 'tenant-a',
-        domain: 'contracts',
-        run_id: 'run-queued-1',
-        markdown_conversion: 'off',
-        vision_ocr_model: '@cf/test/vision',
-      }),
-    ]);
+	    expect(queued.status).toBe(202);
+	    expect(queuedBody.run_id).toBe('run-queued-1');
+	    expect(queuedBody.ingestion_mode).toBe('queued');
+	    expect(queuedBody.queued).toBe(true);
+	    expect(queuedBody.jobs[0]).toMatchObject({ status: 'queued', stage: 'parse', workflow_id: 'run-queued-1' });
+	    expect(queuedRun.status).toBe(200);
+	    expect(queuedRunBody.summary).toMatchObject({
+	      state: 'running',
+	      total_jobs: 1,
+	      active_jobs: 1,
+	      done: false,
+	    });
+	    expect(queue.sent).toEqual([
+	      expect.objectContaining({
+	        kind: 'kb_ingest',
+	        project: 'tenant-a',
+	        domain: 'contracts',
+	        run_id: 'run-queued-1',
+	        markdown_conversion: 'off',
+	        vision_ocr_model: '@cf/test/vision',
+	      }),
+	    ]);
     expect(acked).toEqual(['msg-1']);
     expect(retried).toEqual([]);
     expect(files[0]).toMatchObject({ status: 'ready' });
-    expect(jobs).toEqual(expect.arrayContaining([expect.objectContaining({ status: 'succeeded', stage: 'indexed', workflow_id: 'run-queued-1' })]));
+	    expect(jobs).toEqual(
+	      expect.arrayContaining([
+	        expect.objectContaining({ status: 'succeeded', stage: 'indexed', workflow_id: 'run-queued-1' }),
+	      ]),
+	    );
     expect(completedRun.status).toBe(200);
     expect(completedRunBody.summary).toMatchObject({
       state: 'succeeded',
@@ -4894,9 +5087,9 @@ describe('knowledgebase RAG Worker app', () => {
       succeeded_jobs: 1,
       done: true,
     });
-    expect(rawDocs.puts.some((put) => put.key.startsWith('parse/contracts/'))).toBe(true);
-    expect(vectorize.vectors.size).toBeGreaterThan(0);
-  });
+	    expect(rawDocs.puts.some((put) => put.key.startsWith('parse/contracts/'))).toBe(true);
+	    expect(vectorize.vectors.size).toBeGreaterThan(0);
+	  });
 
   it('duplicate queue delivery does not create a second durable write', async () => {
     const repo = new MemoryRepository();
@@ -4919,50 +5112,22 @@ describe('knowledgebase RAG Worker app', () => {
     const inferredBody = (await inferred.json()) as { spec: DomainSchema };
     await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
 
-    const queued = await app.request(
-      '/v1/kb/ingest/run',
-      {
-        method: 'POST',
-        headers: auth,
-        body: JSON.stringify({ domain: 'dedup-test', run_id: 'run-dedup-1' }),
-      },
-      env,
-    );
+    const queued = await app.request('/v1/kb/ingest/run', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ domain: 'dedup-test', run_id: 'run-dedup-1' }),
+    }, env);
     expect(queued.status).toBe(202);
 
-    const makeMessage = (id: string): Message<KbIngestQueueMessage> =>
-      ({
-        id,
-        timestamp: new Date(0),
-        attempts: 1,
-        body: queue.sent[0],
-        ack: () => undefined,
-        retry: () => undefined,
-      }) as Message<KbIngestQueueMessage>;
+    const makeMessage = (id: string): Message<KbIngestQueueMessage> => ({
+      id, timestamp: new Date(0), attempts: 1, body: queue.sent[0],
+      ack: () => undefined, retry: () => undefined,
+    } as Message<KbIngestQueueMessage>);
 
-    await worker.queue(
-      {
-        messages: [makeMessage('msg-dedup-1')],
-        queue: 'knowledgebase-ingest',
-        metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } },
-        ackAll: () => undefined,
-        retryAll: () => undefined,
-      } as MessageBatch<KbIngestQueueMessage>,
-      env,
-    );
+    await worker.queue({ messages: [makeMessage('msg-dedup-1')], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
     const chunksAfterFirst = [...metadata.chunks.keys()];
     const vectorsAfterFirst = vectorize.vectors.size;
 
-    await worker.queue(
-      {
-        messages: [makeMessage('msg-dedup-2')],
-        queue: 'knowledgebase-ingest',
-        metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } },
-        ackAll: () => undefined,
-        retryAll: () => undefined,
-      } as MessageBatch<KbIngestQueueMessage>,
-      env,
-    );
+    await worker.queue({ messages: [makeMessage('msg-dedup-2')], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
     const chunksAfterSecond = [...metadata.chunks.keys()];
     const vectorsAfterSecond = vectorize.vectors.size;
 
@@ -4991,15 +5156,10 @@ describe('knowledgebase RAG Worker app', () => {
     const inferredBody = (await inferred.json()) as { spec: DomainSchema };
     await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
 
-    const queued = await app.request(
-      '/v1/kb/ingest/run',
-      {
-        method: 'POST',
-        headers: auth,
-        body: JSON.stringify({ domain: 'lease-test', run_id: 'run-lease-1' }),
-      },
-      env,
-    );
+    const queued = await app.request('/v1/kb/ingest/run', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ domain: 'lease-test', run_id: 'run-lease-1' }),
+    }, env);
     expect(queued.status).toBe(202);
 
     const jobsBefore = await metadata.listIngestJobs('tenant-a', 'lease-test');
@@ -5010,27 +5170,11 @@ describe('knowledgebase RAG Worker app', () => {
     const retried: string[] = [];
     const acked: string[] = [];
     const message = {
-      id: 'msg-lease-1',
-      timestamp: new Date(0),
-      attempts: 1,
-      body: queue.sent[0],
-      ack: () => {
-        acked.push('msg-lease-1');
-      },
-      retry: () => {
-        retried.push('msg-lease-1');
-      },
+      id: 'msg-lease-1', timestamp: new Date(0), attempts: 1, body: queue.sent[0],
+      ack: () => { acked.push('msg-lease-1'); },
+      retry: () => { retried.push('msg-lease-1'); },
     } as Message<KbIngestQueueMessage>;
-    await worker.queue(
-      {
-        messages: [message],
-        queue: 'knowledgebase-ingest',
-        metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } },
-        ackAll: () => undefined,
-        retryAll: () => undefined,
-      } as MessageBatch<KbIngestQueueMessage>,
-      env,
-    );
+    await worker.queue({ messages: [message], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
 
     expect(acked).toEqual(['msg-lease-1']);
     expect(retried).toEqual([]);
@@ -5055,45 +5199,21 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket, queue);
 
     await metadata.registerFile({
-      id: 'file-poison',
-      project: 'tenant-a',
-      domain: 'poison-test',
-      filename: 'poison.txt',
-      mime: 'text/plain',
-      bytes: 5,
-      contentHash: 'sha256-poison',
-      objectKey: 'raw/poison-test/sha256-poison',
+      id: 'file-poison', project: 'tenant-a', domain: 'poison-test',
+      filename: 'poison.txt', mime: 'text/plain', bytes: 5,
+      contentHash: 'sha256-poison', objectKey: 'raw/poison-test/sha256-poison',
     });
     const message: KbIngestQueueMessage = {
-      kind: 'kb_ingest',
-      project: 'tenant-a',
-      domain: 'poison-test',
-      run_id: 'run-poison-1',
+      kind: 'kb_ingest', project: 'tenant-a', domain: 'poison-test', run_id: 'run-poison-1',
     };
     const retried: string[] = [];
     const acked: string[] = [];
     const poisonMessage = {
-      id: 'msg-poison-1',
-      timestamp: new Date(0),
-      attempts: 99,
-      body: message,
-      ack: () => {
-        acked.push('msg-poison-1');
-      },
-      retry: () => {
-        retried.push('msg-poison-1');
-      },
+      id: 'msg-poison-1', timestamp: new Date(0), attempts: 99, body: message,
+      ack: () => { acked.push('msg-poison-1'); },
+      retry: () => { retried.push('msg-poison-1'); },
     } as Message<KbIngestQueueMessage>;
-    await worker.queue(
-      {
-        messages: [poisonMessage],
-        queue: 'knowledgebase-ingest',
-        metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } },
-        ackAll: () => undefined,
-        retryAll: () => undefined,
-      } as MessageBatch<KbIngestQueueMessage>,
-      env,
-    );
+    await worker.queue({ messages: [poisonMessage], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
 
     expect(acked).toEqual(['msg-poison-1']);
     expect(retried).toEqual([]);
@@ -5117,15 +5237,10 @@ describe('knowledgebase RAG Worker app', () => {
     const inferredBody = (await inferred.json()) as { spec: DomainSchema };
     await app.request('/v1/kb/schemas', { method: 'POST', headers: auth, body: JSON.stringify(inferredBody.spec) }, env);
 
-    const queued = await app.request(
-      '/v1/kb/ingest/run',
-      {
-        method: 'POST',
-        headers: auth,
-        body: JSON.stringify({ domain: 'replay-test', run_id: 'run-replay-1' }),
-      },
-      env,
-    );
+    const queued = await app.request('/v1/kb/ingest/run', {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ domain: 'replay-test', run_id: 'run-replay-1' }),
+    }, env);
     expect(queued.status).toBe(202);
 
     const jobsBefore = await metadata.listIngestJobs('tenant-a', 'replay-test');
@@ -5141,27 +5256,11 @@ describe('knowledgebase RAG Worker app', () => {
     const retried: string[] = [];
     const acked: string[] = [];
     const failMessage = {
-      id: 'msg-replay-fail',
-      timestamp: new Date(0),
-      attempts: 1,
-      body: queue.sent[0],
-      ack: () => {
-        acked.push('msg-replay-fail');
-      },
-      retry: () => {
-        retried.push('msg-replay-fail');
-      },
+      id: 'msg-replay-fail', timestamp: new Date(0), attempts: 1, body: queue.sent[0],
+      ack: () => { acked.push('msg-replay-fail'); },
+      retry: () => { retried.push('msg-replay-fail'); },
     } as Message<KbIngestQueueMessage>;
-    await worker.queue(
-      {
-        messages: [failMessage],
-        queue: 'knowledgebase-ingest',
-        metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } },
-        ackAll: () => undefined,
-        retryAll: () => undefined,
-      } as MessageBatch<KbIngestQueueMessage>,
-      env,
-    );
+    await worker.queue({ messages: [failMessage], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
 
     expect(acked).toEqual(['msg-replay-fail']);
     expect(retried).toEqual([]);
@@ -5180,34 +5279,15 @@ describe('knowledgebase RAG Worker app', () => {
     const replayAcked: string[] = [];
     const replayRetried: string[] = [];
     const replayMessage: KbIngestQueueMessage = {
-      kind: 'kb_ingest',
-      project: 'tenant-a',
-      domain: 'replay-test',
-      run_id: 'run-replay-2',
-      file_ids: [fileId],
+      kind: 'kb_ingest', project: 'tenant-a', domain: 'replay-test',
+      run_id: 'run-replay-2', file_ids: [fileId],
     };
     const replayMsg = {
-      id: 'msg-replay-2',
-      timestamp: new Date(0),
-      attempts: 1,
-      body: replayMessage,
-      ack: () => {
-        replayAcked.push('msg-replay-2');
-      },
-      retry: () => {
-        replayRetried.push('msg-replay-2');
-      },
+      id: 'msg-replay-2', timestamp: new Date(0), attempts: 1, body: replayMessage,
+      ack: () => { replayAcked.push('msg-replay-2'); },
+      retry: () => { replayRetried.push('msg-replay-2'); },
     } as Message<KbIngestQueueMessage>;
-    await worker.queue(
-      {
-        messages: [replayMsg],
-        queue: 'knowledgebase-ingest',
-        metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } },
-        ackAll: () => undefined,
-        retryAll: () => undefined,
-      } as MessageBatch<KbIngestQueueMessage>,
-      env,
-    );
+    await worker.queue({ messages: [replayMsg], queue: 'knowledgebase-ingest', metadata: { metrics: { backlogCount: 1, backlogBytes: 0 } }, ackAll: () => undefined, retryAll: () => undefined } as MessageBatch<KbIngestQueueMessage>, env);
 
     expect(replayAcked).toEqual(['msg-replay-2']);
     expect(replayRetried).toEqual([]);
@@ -5228,7 +5308,13 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket, queue);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+      queue,
+    );
     configureStaleFreeAiDefault(env);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     await metadata.registerFile({
@@ -5272,7 +5358,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(new FakeVectorize(), undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      new FakeVectorize(),
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     configureStaleFreeAiDefault(env);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
@@ -5295,7 +5386,11 @@ describe('knowledgebase RAG Worker app', () => {
     const uploadForm = new FormData();
     uploadForm.set('domain', 'stale-stage');
     uploadForm.set('file', new File(['hello upload'], 'guide.txt', { type: 'text/plain' }));
-    const uploaded = await app.request('/v1/kb/files/upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: uploadForm }, env);
+    const uploaded = await app.request(
+      '/v1/kb/files/upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: uploadForm },
+      env,
+    );
     const inferForm = new FormData();
     inferForm.set('domain', 'stale-stage');
     inferForm.set('file', new File(['id,name\n1,Acme'], 'rows.csv', { type: 'text/csv' }));
@@ -5390,23 +5485,29 @@ describe('knowledgebase RAG Worker app', () => {
       version: 1,
       description: '',
       vocabulary: {},
-      entities: [
-        {
-          name: 'Guide',
-          description: '',
-          fields: [],
-          summary_field: null,
-          aliases: [],
-          graph_route: false,
-          tabular: false,
-        },
-      ],
+      entities: [{
+        name: 'Guide',
+        description: '',
+        fields: [],
+        summary_field: null,
+        aliases: [],
+        graph_route: false,
+        tabular: false,
+      }],
       relationships: [],
     });
     const filesBefore = await metadata.listFiles('tenant-a', 'stale-reprocess');
 
-    const schemaReprocess = await app.request('/v1/kb/schemas/stale-reprocess/reprocess', { method: 'POST', headers: auth }, env);
-    const fileReprocess = await app.request(`/v1/kb/files/${file.id}/reprocess`, { method: 'POST', headers: auth }, env);
+    const schemaReprocess = await app.request(
+      '/v1/kb/schemas/stale-reprocess/reprocess',
+      { method: 'POST', headers: auth },
+      env,
+    );
+    const fileReprocess = await app.request(
+      `/v1/kb/files/${file.id}/reprocess`,
+      { method: 'POST', headers: auth },
+      env,
+    );
     const sourceRequeue = await app.request(
       '/v1/kb/source-sets/domain:stale-reprocess/actions',
       { method: 'POST', headers: auth, body: JSON.stringify({ action: 'requeue_all' }) },
@@ -5433,7 +5534,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(new FakeVectorize(), undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      new FakeVectorize(),
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     env.VECTORIZE_1024 = vectorize1024;
     configureStaleFreeAiDefault(env);
     await repo.createIndex({
@@ -5449,7 +5555,11 @@ describe('knowledgebase RAG Worker app', () => {
     form.set('domain', 'existing-stale');
     form.set('file', new File(['existing stale model'], 'guide.txt', { type: 'text/plain' }));
 
-    const uploaded = await app.request('/v1/kb/files/upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    const uploaded = await app.request(
+      '/v1/kb/files/upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
+      env,
+    );
 
     expect(uploaded.status).toBe(400);
     expect(await uploaded.json()).toMatchObject({
@@ -5483,7 +5593,11 @@ describe('knowledgebase RAG Worker app', () => {
     const form = new FormData();
     form.set('domain', 'contracts');
     form.set('file', new File(['contract_id,counterparty\nc-1,Acme'], 'contracts.csv', { type: 'text/csv' }));
-    await app.request('/v1/kb/files/upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    await app.request(
+      '/v1/kb/files/upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
+      env,
+    );
 
     const queued = await app.request(
       '/v1/kb/ingest/run',
@@ -5506,7 +5620,11 @@ describe('knowledgebase RAG Worker app', () => {
       workflow: { id: string };
       jobs: IngestJobRecord[];
     };
-    const run = await app.request('/v1/kb/ingest/runs/run-workflow-1?domain=contracts', { headers: auth }, env);
+    const run = await app.request(
+      '/v1/kb/ingest/runs/run-workflow-1?domain=contracts',
+      { headers: auth },
+      env,
+    );
     const runBody = (await run.json()) as {
       workflow: { id: string; status: string };
       summary: { state: string; active_jobs: number };
@@ -5554,12 +5672,22 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket, queue);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+      queue,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const form = new FormData();
     form.set('domain', 'contracts');
     form.set('file', new File(['contract_id,counterparty\nc-1,Acme'], 'contracts.csv', { type: 'text/csv' }));
-    await app.request('/v1/kb/files/upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    await app.request(
+      '/v1/kb/files/upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
+      env,
+    );
 
     const inline = await app.request(
       '/v1/kb/ingest/run',
@@ -5593,14 +5721,17 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const seenVisionModels: string[] = [];
-    (
-      env.AI as unknown as {
-        run: (model: string, input: { image?: number[]; text?: string[] }) => Promise<unknown>;
-        toMarkdown: () => Promise<unknown>;
-      }
-    ).run = async (model, input) => {
+    (env.AI as unknown as {
+      run: (model: string, input: { image?: number[]; text?: string[] }) => Promise<unknown>;
+      toMarkdown: () => Promise<unknown>;
+    }).run = async (model, input) => {
       if (Array.isArray(input.image)) {
         seenVisionModels.push(model);
         return { response: 'Per-request OCR receipt total 100' };
@@ -5617,7 +5748,11 @@ describe('knowledgebase RAG Worker app', () => {
     const form = new FormData();
     form.set('domain', 'receipts');
     form.set('file', new File(['not really a png'], 'receipt.png', { type: 'image/png' }));
-    await app.request('/v1/kb/files/upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
+    await app.request(
+      '/v1/kb/files/upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
+      env,
+    );
 
     const inline = await app.request(
       '/v1/kb/ingest/run',
@@ -5654,7 +5789,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeRepository: () => repo,
       makeMetadataRepository: () => metadata,
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const form = new FormData();
     form.set('domain', 'contracts');
@@ -5664,56 +5804,68 @@ describe('knowledgebase RAG Worker app', () => {
         type: 'text/csv',
       }),
     );
-    await app.request('/v1/kb/schemas/infer-upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
-    await app.request('/v1/kb/ingest/run', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) }, env);
-    const createdSession = await app.request(
-      '/v1/kb/sessions',
-      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts', id: 'session-1' }) },
+    await app.request(
+      '/v1/kb/schemas/infer-upload',
+      { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form },
       env,
     );
+	    await app.request(
+	      '/v1/kb/ingest/run',
+	      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts' }) },
+	      env,
+	    );
+	    const createdSession = await app.request(
+	      '/v1/kb/sessions',
+	      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'contracts', id: 'session-1' }) },
+	      env,
+	    );
 
-    const answer = await app.request(
-      '/v1/kb/query',
-      {
-        method: 'POST',
-        headers: auth,
-        body: JSON.stringify({
-          domain: 'contracts',
-          question: 'Which contract mentions Acme?',
-          mode: 'lexical',
-          session_id: 'session-1',
-        }),
-      },
-      env,
-    );
-    const secondAnswer = await app.request(
-      '/v1/kb/query',
-      {
-        method: 'POST',
-        headers: auth,
-        body: JSON.stringify({
-          domain: 'contracts',
-          question: 'Which contract mentions Beta?',
-          mode: 'lexical',
-          session_id: 'session-1',
-        }),
-      },
-      env,
-    );
-    const createdSessionBody = (await createdSession.json()) as SessionRecord;
-    const answerBody = (await answer.json()) as {
-      trace_id: string;
-      session_id: string | null;
-      answer: string;
-      citations: CitationRecord[];
-      confidence: JsonRecord;
-    };
-    const secondAnswerBody = (await secondAnswer.json()) as { trace_id: string };
-    const traces = await app.request('/v1/kb/query/traces?domain=contracts', { headers: auth }, env);
-    const tracesBody = (await traces.json()) as { traces: QueryTraceRecord[] };
+	    const answer = await app.request(
+	      '/v1/kb/query',
+	      {
+	        method: 'POST',
+	        headers: auth,
+	        body: JSON.stringify({
+	          domain: 'contracts',
+	          question: 'Which contract mentions Acme?',
+	          mode: 'lexical',
+	          session_id: 'session-1',
+	        }),
+	      },
+	      env,
+	    );
+	    const secondAnswer = await app.request(
+	      '/v1/kb/query',
+	      {
+	        method: 'POST',
+	        headers: auth,
+	        body: JSON.stringify({
+	          domain: 'contracts',
+	          question: 'Which contract mentions Beta?',
+	          mode: 'lexical',
+	          session_id: 'session-1',
+	        }),
+	      },
+	      env,
+	    );
+	    const createdSessionBody = (await createdSession.json()) as SessionRecord;
+	    const answerBody = (await answer.json()) as {
+	      trace_id: string;
+	      session_id: string | null;
+	      answer: string;
+	      citations: CitationRecord[];
+	      confidence: JsonRecord;
+	    };
+	    const secondAnswerBody = (await secondAnswer.json()) as { trace_id: string };
+	    const traces = await app.request('/v1/kb/query/traces?domain=contracts', { headers: auth }, env);
+	    const tracesBody = (await traces.json()) as { traces: QueryTraceRecord[] };
     const trace = await app.request(`/v1/kb/query/trace/${answerBody.trace_id}`, { headers: auth }, env);
     const traceBody = (await trace.json()) as QueryTraceRecord;
-    const traceDrilldown = await app.request(`/v1/kb/query/trace/${answerBody.trace_id}/drilldown`, { headers: auth }, env);
+    const traceDrilldown = await app.request(
+      `/v1/kb/query/trace/${answerBody.trace_id}/drilldown`,
+      { headers: auth },
+      env,
+    );
     const traceDrilldownBody = (await traceDrilldown.json()) as {
       trace_id: string;
       quality: {
@@ -5728,38 +5880,38 @@ describe('knowledgebase RAG Worker app', () => {
     const traceExportBody = (await traceExport.json()) as {
       summary: { trace_count: number; citation_count: number };
       traces: QueryTraceRecord[];
-    };
-    const traceCompare = await app.request(
-      '/v1/kb/query/traces/compare',
-      {
-        method: 'POST',
-        headers: auth,
-        body: JSON.stringify({ trace_ids: [answerBody.trace_id, secondAnswerBody.trace_id] }),
-      },
-      env,
-    );
-    const traceCompareBody = (await traceCompare.json()) as {
-      comparison: {
-        baseline_trace_id: string;
-        candidate_trace_id: string;
-        same_question: boolean;
-        retrieved: { baseline_count: number; candidate_count: number };
-      };
-    };
-    const sessions = await app.request('/v1/kb/sessions?domain=contracts', { headers: auth }, env);
-    const sessionsBody = (await sessions.json()) as { sessions: SessionRecord[] };
-    const session = await app.request('/v1/kb/sessions/session-1', { headers: auth }, env);
-    const sessionBody = (await session.json()) as SessionRecord;
+	    };
+	    const traceCompare = await app.request(
+	      '/v1/kb/query/traces/compare',
+	      {
+	        method: 'POST',
+	        headers: auth,
+	        body: JSON.stringify({ trace_ids: [answerBody.trace_id, secondAnswerBody.trace_id] }),
+	      },
+	      env,
+	    );
+	    const traceCompareBody = (await traceCompare.json()) as {
+	      comparison: {
+	        baseline_trace_id: string;
+	        candidate_trace_id: string;
+	        same_question: boolean;
+	        retrieved: { baseline_count: number; candidate_count: number };
+	      };
+	    };
+	    const sessions = await app.request('/v1/kb/sessions?domain=contracts', { headers: auth }, env);
+	    const sessionsBody = (await sessions.json()) as { sessions: SessionRecord[] };
+	    const session = await app.request('/v1/kb/sessions/session-1', { headers: auth }, env);
+	    const sessionBody = (await session.json()) as SessionRecord;
 
-    expect(createdSession.status).toBe(201);
-    expect(createdSessionBody.id).toBe('session-1');
-    expect(answer.status).toBe(200);
-    expect(answerBody.session_id).toBe('session-1');
-    expect(answerBody.answer).toContain('[1]');
-    expect(answerBody.citations[0]).toMatchObject({
-      index: 1,
-      filename: 'contracts.csv',
-    });
+	    expect(createdSession.status).toBe(201);
+	    expect(createdSessionBody.id).toBe('session-1');
+	    expect(answer.status).toBe(200);
+	    expect(answerBody.session_id).toBe('session-1');
+	    expect(answerBody.answer).toContain('[1]');
+	    expect(answerBody.citations[0]).toMatchObject({
+	      index: 1,
+	      filename: 'contracts.csv',
+	    });
     expect(answerBody.citations[0]?.excerpt).toContain('Acme');
     expect(answerBody.citations[0]?.span_terms).toContain('acme');
     expect(answerBody.citations[0]?.metadata.citation_span_strategy).toBe('question_token_sentence');
@@ -5770,46 +5922,48 @@ describe('knowledgebase RAG Worker app', () => {
       verification_method: 'deterministic_answer_evidence_token_overlap',
       citation_coverage: 1,
     });
-    expect(traces.status).toBe(200);
-    expect(tracesBody.traces[0]?.id).toBe(answerBody.trace_id);
-    expect(trace.status).toBe(200);
-    expect(traceBody.answer).toBe(answerBody.answer);
-    expect(traceBody.citations[0]?.chunk_id).toBe(answerBody.citations[0]?.chunk_id);
+		    expect(traces.status).toBe(200);
+		    expect(tracesBody.traces[0]?.id).toBe(answerBody.trace_id);
+		    expect(trace.status).toBe(200);
+		    expect(traceBody.answer).toBe(answerBody.answer);
+		    expect(traceBody.citations[0]?.chunk_id).toBe(answerBody.citations[0]?.chunk_id);
     expect(traceBody.confidence).toMatchObject({
       verification_checked: true,
       verification_status: 'supported',
       timing: expect.objectContaining({ route: 'query' }),
-      timing_stages: expect.arrayContaining([expect.objectContaining({ stage: expect.any(String) })]),
+      timing_stages: expect.arrayContaining([
+        expect.objectContaining({ stage: expect.any(String) }),
+      ]),
       empty_result_diagnostics: expect.objectContaining({
         result_count: expect.any(Number),
         status: 'has_results',
       }),
     });
-    expect(traceDrilldown.status).toBe(200);
-    expect(traceDrilldownBody.trace_id).toBe(answerBody.trace_id);
-    expect(['supported', 'partial']).toContain(traceDrilldownBody.quality.status);
-    expect(traceDrilldownBody.quality.answer_token_count).toBeGreaterThan(0);
-    expect(traceDrilldownBody.quality.citation_count).toBeGreaterThan(0);
-    expect(traceDrilldownBody.quality.citation_coverage).toBeGreaterThan(0);
-    expect(traceDrilldownBody.quality.citations[0]?.chunk_id).toBe(answerBody.citations[0]?.chunk_id);
-    expect(traceDrilldownBody.quality.citations[0]?.answer_token_overlap_count).toBeGreaterThan(0);
-    expect(traceExport.status).toBe(200);
-    expect(traceExportBody.summary.trace_count).toBe(2);
-    expect(traceExportBody.summary.citation_count).toBeGreaterThan(0);
-    expect(traceCompare.status).toBe(200);
-    expect(traceCompareBody.comparison).toMatchObject({
-      baseline_trace_id: answerBody.trace_id,
-      candidate_trace_id: secondAnswerBody.trace_id,
-      same_question: false,
-    });
-    expect(traceCompareBody.comparison.retrieved.baseline_count).toBeGreaterThan(0);
-    expect(sessions.status).toBe(200);
-    expect(sessionsBody.sessions[0]?.id).toBe('session-1');
-    expect(session.status).toBe(200);
-    expect(sessionBody.history).toHaveLength(4);
-    expect(sessionBody.history[0]).toMatchObject({ role: 'user', trace_id: answerBody.trace_id });
-    expect(sessionBody.history[1]).toMatchObject({ role: 'assistant', trace_id: answerBody.trace_id });
-  });
+	    expect(traceDrilldown.status).toBe(200);
+	    expect(traceDrilldownBody.trace_id).toBe(answerBody.trace_id);
+	    expect(['supported', 'partial']).toContain(traceDrilldownBody.quality.status);
+	    expect(traceDrilldownBody.quality.answer_token_count).toBeGreaterThan(0);
+	    expect(traceDrilldownBody.quality.citation_count).toBeGreaterThan(0);
+	    expect(traceDrilldownBody.quality.citation_coverage).toBeGreaterThan(0);
+	    expect(traceDrilldownBody.quality.citations[0]?.chunk_id).toBe(answerBody.citations[0]?.chunk_id);
+	    expect(traceDrilldownBody.quality.citations[0]?.answer_token_overlap_count).toBeGreaterThan(0);
+	    expect(traceExport.status).toBe(200);
+	    expect(traceExportBody.summary.trace_count).toBe(2);
+	    expect(traceExportBody.summary.citation_count).toBeGreaterThan(0);
+	    expect(traceCompare.status).toBe(200);
+	    expect(traceCompareBody.comparison).toMatchObject({
+	      baseline_trace_id: answerBody.trace_id,
+	      candidate_trace_id: secondAnswerBody.trace_id,
+	      same_question: false,
+	    });
+	    expect(traceCompareBody.comparison.retrieved.baseline_count).toBeGreaterThan(0);
+	    expect(sessions.status).toBe(200);
+	    expect(sessionsBody.sessions[0]?.id).toBe('session-1');
+	    expect(session.status).toBe(200);
+	    expect(sessionBody.history).toHaveLength(4);
+	    expect(sessionBody.history[0]).toMatchObject({ role: 'user', trace_id: answerBody.trace_id });
+		    expect(sessionBody.history[1]).toMatchObject({ role: 'assistant', trace_id: answerBody.trace_id });
+		  });
 
   it('caches complete stateless KB answers after the first retrieval', async () => {
     const repo = new MemoryRepository();
@@ -5828,7 +5982,12 @@ describe('knowledgebase RAG Worker app', () => {
       queryCache: new TtlCache({ enabled: true, ttlMs: 60_000, maxEntries: 100 }),
       answerCache: new TtlCache({ enabled: true, ttlMs: 60_000, maxEntries: 100 }),
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const ingested = await app.request(
       '/v1/kb/ingest/text',
@@ -5852,9 +6011,17 @@ describe('knowledgebase RAG Worker app', () => {
       top_k: 3,
       answer_mode: 'extractive',
     };
-    const first = await app.request('/v1/kb/query', { method: 'POST', headers: auth, body: JSON.stringify(queryBody) }, env);
+    const first = await app.request(
+      '/v1/kb/query',
+      { method: 'POST', headers: auth, body: JSON.stringify(queryBody) },
+      env,
+    );
     const firstBody = (await first.json()) as { trace_id: string; answer: string };
-    const second = await app.request('/v1/kb/query', { method: 'POST', headers: auth, body: JSON.stringify(queryBody) }, env);
+    const second = await app.request(
+      '/v1/kb/query',
+      { method: 'POST', headers: auth, body: JSON.stringify(queryBody) },
+      env,
+    );
     const secondBody = (await second.json()) as { trace_id: string; answer: string };
     const secondTiming = JSON.parse(second.headers.get('X-RAG-Timing') ?? '{}');
     const traces = await app.request('/v1/kb/query/traces?domain=memories', { headers: auth }, env);
@@ -5872,7 +6039,7 @@ describe('knowledgebase RAG Worker app', () => {
     expect(tracesBody.traces).toHaveLength(1);
   });
 
-  it('can synthesize cited domain answers with Workers AI', async () => {
+  it('can synthesize cited domain answers through the Free AI gateway', async () => {
     const repo = new MemoryRepository();
     const metadata = new MemoryMetadataRepository();
     const vectorize = new FakeVectorize();
@@ -5943,9 +6110,9 @@ describe('knowledgebase RAG Worker app', () => {
 
     expect(answer.status).toBe(200);
     expect(body.ai_used).toBe(true);
-    expect(body.answer_mode).toBe('workers_ai');
-    expect(body.answer_model).toBe('@cf/meta/llama-3.1-8b-instruct');
-    expect(body.answer).toContain('Workers AI synthesized alpha exact wording');
+    expect(body.answer_mode).toBe('free_ai');
+    expect(body.answer_model).toBe('auto');
+    expect(body.answer).toContain('gateway synthesized alpha exact wording');
     expect(body.answer).toContain('[1]');
     expect(body.citations[0]).toMatchObject({ index: 1, filename: 'alpha.txt' });
     expect(body.confidence).toMatchObject({
@@ -5954,8 +6121,8 @@ describe('knowledgebase RAG Worker app', () => {
     });
     expect(timing).toMatchObject({
       answer_requested_mode: 'workers_ai',
-      answer_mode: 'workers_ai',
-      synthesis_model: '@cf/meta/llama-3.1-8b-instruct',
+      answer_mode: 'free_ai',
+      synthesis_model: 'auto',
     });
     expect(typeof timing.synthesis_ms).toBe('number');
   });
@@ -5963,82 +6130,82 @@ describe('knowledgebase RAG Worker app', () => {
   it('serves the Cloudflare-hosted testing UI without a service key', async () => {
     const app = createApp();
     const res = await app.request('/', {}, makeEnv(new FakeVectorize()));
-    const html = await res.text();
+	    const html = await res.text();
 
-    expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('text/html');
-    expect(html).toContain('Knowledgebase Cloudflare');
-    expect(html).toContain('/v1/kb/files/upload');
-    expect(html).toContain('<h2>Admin</h2>');
-    expect(html).toContain('id="loadProjects"');
-    expect(html).toContain('id="loadDomains"');
-    expect(html).toContain('id="loadFiles"');
-    expect(html).toContain('id="loadIndexes"');
-    expect(html).toContain('id="loadEmbeddingModelsAdmin"');
-    expect(html).toContain('/v1/kb/projects');
-    expect(html).toContain('/v1/kb/domains');
-    expect(html).toContain('/v1/kb/files?domain=');
-    expect(html).toContain('/v1/indexes');
-    expect(html).toContain('/v1/embedding-models');
-    expect(html).toContain('/v1/kb/entities');
-    expect(html).toContain('/v1/kb/entities/search');
-    expect(html).toContain('/v1/kb/relationships');
-    expect(html).toContain('/v1/kb/relationships/backfill');
-    expect(html).toContain('id="backfillRelationships"');
-    expect(html).toContain('/v1/kb/jobs');
-    expect(html).toContain('/v1/kb/source-sets');
-    expect(html).toContain('/v1/kb/sources/import');
-    expect(html).toContain('/v1/kb/ingest/record');
-    expect(html).toContain('/v1/kb/ingest/text');
-    expect(html).toContain('id="sourceType"');
-    expect(html).toContain('id="sourceUrls"');
-    expect(html).toContain('id="sourceTickers"');
-    expect(html).toContain('id="recordType"');
-    expect(html).toContain('id="recordData"');
-    expect(html).toContain('id="domainText"');
-    expect(html).toContain('function setLastSchema');
-    expect(html).toContain('Import Source');
-    expect(html).toContain('Ingest Records');
-    expect(html).toContain('Ingest Domain Text');
-    expect(html).toContain('Dry Run Source Action');
-    expect(html).toContain('/v1/kb/ingest/runs/');
-    expect(html).toContain('Load Run Progress');
-    expect(html).toContain('Inline Ingest');
-    expect(html).toContain('Queue Ingest');
-    expect(html).toContain('/v1/kb/query');
-    expect(html).toContain('/v1/kb/query/stream');
-    expect(html).toContain('Stream Answer');
-    expect(html).toContain('/v1/kb/sessions');
-    expect(html).toContain('/v1/kb/query/traces/export');
-    expect(html).toContain('/v1/kb/query/traces/compare');
-    expect(html).toContain('/v1/kb/query/trace/');
-    expect(html).toContain('/drilldown');
-    expect(html).toContain('Load Trace Drilldown');
-    expect(html).toContain('id="semanticModel"');
-    expect(html).toContain('function embeddingSelection()');
-    expect(html).toContain('function applyEmbeddingSelectionForm(form)');
-    expect(html).toContain('applyEmbeddingSelectionForm(form);');
-    expect(html).toContain('return embeddingModel ? { embedding_model: embeddingModel } : {};');
-    expect(html).toContain('...embeddingSelection()');
-    expect(html).toContain('if (embeddingModel) payload.embedding_model = embeddingModel;');
-    expect(html).toContain("else payload.embedding_profile = $('embeddingProfile').value;");
-    expect(html).toContain("if (body.catalog_source !== 'free_ai') return;");
-    expect(html).toContain('item && item.selectable === true');
-    expect(html).toContain('id="minScore"');
-    expect(html).toContain('id="scope"');
-    expect(html).toContain('id="queryFilter"');
-    expect(html).toContain('id="rerank"');
-    expect(html).toContain('id="rerankModel"');
-    expect(html).toContain('id="answerMode"');
-    expect(html).toContain('id="answerModel"');
-    expect(html).toContain('id="mmr"');
-    expect(html).toContain('id="queryRewrite"');
-    expect(html).toContain('id="queryDecompose"');
-    expect(html).toContain('/v1/kb/evals/parse');
-    expect(html).toContain('/v1/kb/evals/query');
-    expect(html).toContain('/v1/kb/evals/summary');
-    expect(html).toContain('/v1/kb/evals/reports');
-  });
+	    expect(res.status).toBe(200);
+	    expect(res.headers.get('content-type')).toContain('text/html');
+	    expect(html).toContain('Knowledgebase Cloudflare');
+	    expect(html).toContain('/v1/kb/files/upload');
+	    expect(html).toContain('<h2>Admin</h2>');
+	    expect(html).toContain('id="loadProjects"');
+	    expect(html).toContain('id="loadDomains"');
+	    expect(html).toContain('id="loadFiles"');
+	    expect(html).toContain('id="loadIndexes"');
+	    expect(html).toContain('id="loadEmbeddingModelsAdmin"');
+	    expect(html).toContain('/v1/kb/projects');
+	    expect(html).toContain('/v1/kb/domains');
+	    expect(html).toContain('/v1/kb/files?domain=');
+	    expect(html).toContain('/v1/indexes');
+	    expect(html).toContain('/v1/embedding-models');
+	    expect(html).toContain('/v1/kb/entities');
+	    expect(html).toContain('/v1/kb/entities/search');
+	    expect(html).toContain('/v1/kb/relationships');
+	    expect(html).toContain('/v1/kb/relationships/backfill');
+	    expect(html).toContain('id="backfillRelationships"');
+	    expect(html).toContain('/v1/kb/jobs');
+	    expect(html).toContain('/v1/kb/source-sets');
+	    expect(html).toContain('/v1/kb/sources/import');
+	    expect(html).toContain('/v1/kb/ingest/record');
+	    expect(html).toContain('/v1/kb/ingest/text');
+	    expect(html).toContain('id="sourceType"');
+	    expect(html).toContain('id="sourceUrls"');
+	    expect(html).toContain('id="sourceTickers"');
+	    expect(html).toContain('id="recordType"');
+	    expect(html).toContain('id="recordData"');
+	    expect(html).toContain('id="domainText"');
+	    expect(html).toContain('function setLastSchema');
+	    expect(html).toContain('Import Source');
+	    expect(html).toContain('Ingest Records');
+	    expect(html).toContain('Ingest Domain Text');
+	    expect(html).toContain('Dry Run Source Action');
+	    expect(html).toContain('/v1/kb/ingest/runs/');
+	    expect(html).toContain('Load Run Progress');
+	    expect(html).toContain('Inline Ingest');
+	    expect(html).toContain('Queue Ingest');
+	    expect(html).toContain('/v1/kb/query');
+	    expect(html).toContain('/v1/kb/query/stream');
+	    expect(html).toContain('Stream Answer');
+	    expect(html).toContain('/v1/kb/sessions');
+	    expect(html).toContain('/v1/kb/query/traces/export');
+	    expect(html).toContain('/v1/kb/query/traces/compare');
+	    expect(html).toContain('/v1/kb/query/trace/');
+	    expect(html).toContain('/drilldown');
+	    expect(html).toContain('Load Trace Drilldown');
+	    expect(html).toContain('id="semanticModel"');
+	    expect(html).toContain('function embeddingSelection()');
+	    expect(html).toContain('function applyEmbeddingSelectionForm(form)');
+	    expect(html).toContain("applyEmbeddingSelectionForm(form);");
+	    expect(html).toContain("return embeddingModel ? { embedding_model: embeddingModel } : {};");
+	    expect(html).toContain('...embeddingSelection()');
+	    expect(html).toContain('if (embeddingModel) payload.embedding_model = embeddingModel;');
+	    expect(html).toContain("else payload.embedding_profile = $('embeddingProfile').value;");
+	    expect(html).toContain("if (body.catalog_source !== 'free_ai') return;");
+	    expect(html).toContain('item && item.selectable === true');
+	    expect(html).toContain('id="minScore"');
+	    expect(html).toContain('id="scope"');
+	    expect(html).toContain('id="queryFilter"');
+	    expect(html).toContain('id="rerank"');
+	    expect(html).toContain('id="rerankModel"');
+	    expect(html).toContain('id="answerMode"');
+	    expect(html).toContain('id="answerModel"');
+	    expect(html).toContain('id="mmr"');
+	    expect(html).toContain('id="queryRewrite"');
+	    expect(html).toContain('id="queryDecompose"');
+	    expect(html).toContain('/v1/kb/evals/parse');
+	    expect(html).toContain('/v1/kb/evals/query');
+	    expect(html).toContain('/v1/kb/evals/summary');
+	    expect(html).toContain('/v1/kb/evals/reports');
+	  });
 
   it('can ingest and query the small semantic Vectorize index by namespace', async () => {
     const repo = new MemoryRepository();
@@ -6048,7 +6215,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize, undefined as unknown as D1Database, vectorizeSmall);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Small Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Small Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest`,
@@ -6102,7 +6273,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Cached Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Cached Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -6163,7 +6338,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Eval Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Eval Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -6171,16 +6350,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-eval',
-              document_id: 'doc-eval',
-              document_content: 'alpha eval document',
-              content: 'alpha eval document',
-              embedding: vectorFor('alpha'),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-eval',
+            document_id: 'doc-eval',
+            document_content: 'alpha eval document',
+            content: 'alpha eval document',
+            embedding: vectorFor('alpha'),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -6199,7 +6376,7 @@ describe('knowledgebase RAG Worker app', () => {
       },
       env,
     );
-    const body = (await res.json()) as { report_id: string };
+    const body = await res.json() as { report_id: string };
     const report = await app.request(`/v1/kb/evals/reports/${body.report_id}`, { headers: auth }, env);
     const reportBody = (await report.json()) as EvalReportRecord;
 
@@ -6249,16 +6426,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-present',
-              document_id: 'doc-present',
-              document_content: 'alpha query eval document',
-              content: 'alpha query eval document',
-              embedding: vectorFor('alpha query eval document'),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-present',
+            document_id: 'doc-present',
+            document_content: 'alpha query eval document',
+            content: 'alpha query eval document',
+            embedding: vectorFor('alpha query eval document'),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -6281,7 +6456,7 @@ describe('knowledgebase RAG Worker app', () => {
       },
       env,
     );
-    const body = (await res.json()) as {
+    const body = await res.json() as {
       hit_rate: number;
       rows: Array<{ id: string; hit: boolean; result_count: number }>;
     };
@@ -6300,34 +6475,29 @@ describe('knowledgebase RAG Worker app', () => {
     const vectorize = new FakeVectorize();
     const app = createApp({ makeMetadataRepository: () => metadata });
     const env = makeEnv(vectorize);
-    (
-      env.AI as unknown as {
-        toMarkdown: (file: MarkdownDocument) => Promise<ConversionResponse>;
-        run: (model: string, input: { image?: number[] }) => Promise<unknown>;
+    (env.AI as unknown as {
+      toMarkdown: (file: MarkdownDocument) => Promise<ConversionResponse>;
+      run: (model: string, input: { image?: number[] }) => Promise<unknown>;
+    }).toMarkdown = async (file) => file.name === 'scan.pdf'
+      ? {
+        id: 'converted-pdf',
+        name: 'scan.pdf',
+        mimeType: 'application/pdf',
+        format: 'markdown',
+        tokens: 12,
+        data: 'Markdown fallback supply chain concentration',
       }
-    ).toMarkdown = async (file) =>
-      file.name === 'scan.pdf'
-        ? {
-            id: 'converted-pdf',
-            name: 'scan.pdf',
-            mimeType: 'application/pdf',
-            format: 'markdown',
-            tokens: 12,
-            data: 'Markdown fallback supply chain concentration',
-          }
-        : {
-            id: 'converted-1',
-            name: 'scan.png',
-            mimeType: 'image/png',
-            format: 'markdown',
-            tokens: 18,
-            data: '# Invoice\n\n| Field | Value |\n| --- | --- |\n| Total | 100 |',
-          };
-    (
-      env.AI as unknown as {
-        run: (model: string, input: { image?: number[] }) => Promise<unknown>;
-      }
-    ).run = async (_model, input) => {
+      : {
+        id: 'converted-1',
+        name: 'scan.png',
+        mimeType: 'image/png',
+        format: 'markdown',
+        tokens: 18,
+        data: '# Invoice\n\n| Field | Value |\n| --- | --- |\n| Total | 100 |',
+      };
+    (env.AI as unknown as {
+      run: (model: string, input: { image?: number[] }) => Promise<unknown>;
+    }).run = async (_model, input) => {
       if (Array.isArray(input.image)) return { response: 'Vision OCR risk factor paragraph' };
       return { response: '{}' };
     };
@@ -6340,44 +6510,38 @@ describe('knowledgebase RAG Worker app', () => {
         headers: auth,
         body: JSON.stringify({
           domain: 'contracts',
-          cases: [
-            {
-              id: 'scan',
-              filename: 'scan.png',
-              mime: 'image/png',
-              content_base64: Buffer.from('fake image bytes').toString('base64'),
-              expected_text: ['Invoice', 'Total'],
-              expected_parser: 'workers-ai-markdown-v1',
-              markdown_conversion: 'always',
-            },
-            {
-              id: 'vision-pdf',
-              filename: 'scan.pdf',
-              mime: 'application/pdf',
-              content_base64: Buffer.from(
-                '%PDF-1.4\n1 0 obj << /Subtype /Image /Filter /DCTDecode /Length 4 >> stream\nxxxx\nendstream\nendobj\n%%EOF',
-              ).toString('base64'),
-              expected_text: ['Vision OCR risk factor paragraph', 'Markdown fallback supply chain'],
-              expected_parser: 'workers-ai-vision-markdown-ocr-v1',
-              vision_ocr_model: '@cf/test/vision',
-            },
-            {
-              id: 'wrapped-text',
-              filename: 'wrapped.txt',
-              mime: 'text/plain',
-              content: 'Alpha\n\nBeta   Gamma\nNVDA Risk Factors Sample\nSupply chain concentration is performed by Taiwan Semiconductor Manufacturing Company',
-              expected_text: [
-                'Alpha Beta Gamma',
-                'NVDA-RiskFactors-Sample',
-                'Supply chain concentration Is performed by Talwan Semiconductor Manufacturing Company',
-              ],
-            },
-          ],
+          cases: [{
+            id: 'scan',
+            filename: 'scan.png',
+            mime: 'image/png',
+            content_base64: Buffer.from('fake image bytes').toString('base64'),
+            expected_text: ['Invoice', 'Total'],
+            expected_parser: 'workers-ai-markdown-v1',
+            markdown_conversion: 'always',
+          }, {
+            id: 'vision-pdf',
+            filename: 'scan.pdf',
+            mime: 'application/pdf',
+            content_base64: Buffer.from('%PDF-1.4\n1 0 obj << /Subtype /Image /Filter /DCTDecode /Length 4 >> stream\nxxxx\nendstream\nendobj\n%%EOF').toString('base64'),
+            expected_text: ['Vision OCR risk factor paragraph', 'Markdown fallback supply chain'],
+            expected_parser: 'workers-ai-vision-markdown-ocr-v1',
+            vision_ocr_model: '@cf/test/vision',
+          }, {
+            id: 'wrapped-text',
+            filename: 'wrapped.txt',
+            mime: 'text/plain',
+            content: 'Alpha\n\nBeta   Gamma\nNVDA Risk Factors Sample\nSupply chain concentration is performed by Taiwan Semiconductor Manufacturing Company',
+            expected_text: [
+              'Alpha Beta Gamma',
+              'NVDA-RiskFactors-Sample',
+              'Supply chain concentration Is performed by Talwan Semiconductor Manufacturing Company',
+            ],
+          }],
         }),
       },
       env,
     );
-    const body = (await res.json()) as {
+    const body = await res.json() as {
       report_id: string;
       pass_rate: number;
       parser_counts: Record<string, number>;
@@ -6415,12 +6579,10 @@ describe('knowledgebase RAG Worker app', () => {
     const app = createApp({ makeMetadataRepository: () => metadata });
     const env = makeEnv(vectorize);
     const calls: string[] = [];
-    (
-      env.AI as unknown as {
-        toMarkdown: (file: MarkdownDocument) => Promise<ConversionResponse>;
-        run: (model: string, input: unknown) => Promise<unknown>;
-      }
-    ).toMarkdown = async () => ({
+    (env.AI as unknown as {
+      toMarkdown: (file: MarkdownDocument) => Promise<ConversionResponse>;
+      run: (model: string, input: unknown) => Promise<unknown>;
+    }).toMarkdown = async () => ({
       id: 'converted-pdf',
       name: 'scan.pdf',
       mimeType: 'application/pdf',
@@ -6428,11 +6590,9 @@ describe('knowledgebase RAG Worker app', () => {
       tokens: 12,
       data: 'Markdown Conversion found only the page title',
     });
-    (
-      env.AI as unknown as {
-        run: (model: string, input: unknown) => Promise<unknown>;
-      }
-    ).run = async (model) => {
+    (env.AI as unknown as {
+      run: (model: string, input: unknown) => Promise<unknown>;
+    }).run = async (model) => {
       calls.push(model);
       if (model.includes('llama-4-scout')) return { response: 'NVDA-RiskFactors-Sample' };
       return { response: 'Customer concentration: a small number of customers accounted for revenue.' };
@@ -6444,24 +6604,20 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cases: [
-            {
-              id: 'vision-chain-pdf',
-              filename: 'scan.pdf',
-              mime: 'application/pdf',
-              content_base64: Buffer.from(
-                '%PDF-1.4\n1 0 obj << /Subtype /Image /Filter /DCTDecode /Length 4 >> stream\nxxxx\nendstream\nendobj\n%%EOF',
-              ).toString('base64'),
-              expected_text: ['Customer concentration: a small number of customers accounted for revenue.'],
-              expected_parser: 'workers-ai-vision-markdown-ocr-v1',
-              vision_ocr_model: '@cf/meta/llama-4-scout-17b-16e-instruct,@cf/meta/llama-3.2-11b-vision-instruct',
-            },
-          ],
+          cases: [{
+            id: 'vision-chain-pdf',
+            filename: 'scan.pdf',
+            mime: 'application/pdf',
+            content_base64: Buffer.from('%PDF-1.4\n1 0 obj << /Subtype /Image /Filter /DCTDecode /Length 4 >> stream\nxxxx\nendstream\nendobj\n%%EOF').toString('base64'),
+            expected_text: ['Customer concentration: a small number of customers accounted for revenue.'],
+            expected_parser: 'workers-ai-vision-markdown-ocr-v1',
+            vision_ocr_model: '@cf/meta/llama-4-scout-17b-16e-instruct,@cf/meta/llama-3.2-11b-vision-instruct',
+          }],
         }),
       },
       env,
     );
-    const body = (await res.json()) as {
+    const body = await res.json() as {
       pass_rate: number;
       rows: Array<{
         ok: boolean;
@@ -6473,19 +6629,24 @@ describe('knowledgebase RAG Worker app', () => {
     };
 
     expect(res.status).toBe(200);
-    expect(calls).toEqual(['@cf/meta/llama-4-scout-17b-16e-instruct', '@cf/meta/llama-3.2-11b-vision-instruct']);
+    expect(calls).toEqual([
+      '@cf/meta/llama-4-scout-17b-16e-instruct',
+      '@cf/meta/llama-3.2-11b-vision-instruct',
+    ]);
     expect(body.pass_rate).toBe(1);
     expect(body.rows[0]).toMatchObject({
       ok: true,
       missing_text: [],
-      vision_ocr_models_tried: ['@cf/meta/llama-4-scout-17b-16e-instruct', '@cf/meta/llama-3.2-11b-vision-instruct'],
+      vision_ocr_models_tried: [
+        '@cf/meta/llama-4-scout-17b-16e-instruct',
+        '@cf/meta/llama-3.2-11b-vision-instruct',
+      ],
       vision_ocr_retry_reason: 'missing_expected_text',
     });
   });
 
   it('runs the real NVDA scanned-PDF direct parse-eval case through the vision model retry gate when the fixture is present', async () => {
-    const fixture =
-      '../../data/minio/kb-bucket/raw/sec/a56062aa2ee3c2eb6e1128e440e4ab683641e2ef4ccfa7e955538676a02c4c39/NVDA_riskfactors_sample_scanned.pdf/xl.meta';
+    const fixture = '../../data/minio/kb-bucket/raw/sec/a56062aa2ee3c2eb6e1128e440e4ab683641e2ef4ccfa7e955538676a02c4c39/NVDA_riskfactors_sample_scanned.pdf/xl.meta';
     if (!existsSync(fixture)) return;
 
     const { cases } = await buildLegacyParseEvalCases({
@@ -6508,12 +6669,10 @@ describe('knowledgebase RAG Worker app', () => {
     const app = createApp({ makeMetadataRepository: () => metadata });
     const env = makeEnv(vectorize);
     const calls: string[] = [];
-    (
-      env.AI as unknown as {
-        toMarkdown: (file: MarkdownDocument) => Promise<ConversionResponse>;
-        run: (model: string, input: unknown) => Promise<unknown>;
-      }
-    ).toMarkdown = async () => ({
+    (env.AI as unknown as {
+      toMarkdown: (file: MarkdownDocument) => Promise<ConversionResponse>;
+      run: (model: string, input: unknown) => Promise<unknown>;
+    }).toMarkdown = async () => ({
       id: 'converted-nvda',
       name: 'NVDA_riskfactors_sample_scanned.pdf',
       mimeType: 'application/pdf',
@@ -6521,11 +6680,9 @@ describe('knowledgebase RAG Worker app', () => {
       tokens: 12,
       data: expectedText[0] ?? 'NVDA-RiskFactors-Sample',
     });
-    (
-      env.AI as unknown as {
-        run: (model: string, input: unknown) => Promise<unknown>;
-      }
-    ).run = async (model) => {
+    (env.AI as unknown as {
+      run: (model: string, input: unknown) => Promise<unknown>;
+    }).run = async (model) => {
       calls.push(model);
       if (model.includes('llama-3.2')) return { response: expectedText[0] ?? '' };
       return { response: expectedText.join('\n') };
@@ -6547,7 +6704,7 @@ describe('knowledgebase RAG Worker app', () => {
       },
       env,
     );
-    const body = (await res.json()) as {
+    const body = await res.json() as {
       pass_rate: number;
       rows: Array<{
         ok: boolean;
@@ -6562,7 +6719,10 @@ describe('knowledgebase RAG Worker app', () => {
     };
 
     expect(res.status).toBe(200);
-    expect(calls).toEqual(['@cf/meta/llama-3.2-11b-vision-instruct', '@cf/meta/llama-4-scout-17b-16e-instruct']);
+    expect(calls).toEqual([
+      '@cf/meta/llama-3.2-11b-vision-instruct',
+      '@cf/meta/llama-4-scout-17b-16e-instruct',
+    ]);
     expect(body.pass_rate).toBe(1);
     expect(body.rows[0]).toMatchObject({
       ok: true,
@@ -6570,7 +6730,10 @@ describe('knowledgebase RAG Worker app', () => {
       expected_text_count: expectedText.length,
       matched_text_count: expectedText.length,
       missing_text: [],
-      vision_ocr_models_tried: ['@cf/meta/llama-3.2-11b-vision-instruct', '@cf/meta/llama-4-scout-17b-16e-instruct'],
+      vision_ocr_models_tried: [
+        '@cf/meta/llama-3.2-11b-vision-instruct',
+        '@cf/meta/llama-4-scout-17b-16e-instruct',
+      ],
       vision_ocr_retry_reason: 'missing_expected_text',
     });
     for (const snippet of expectedText) {
@@ -6599,7 +6762,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize, db as unknown as D1Database);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Lexical Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Lexical Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -6607,16 +6774,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-lexical',
-              document_id: 'doc-lexical',
-              document_content: 'billing guardrails are documented here',
-              content: 'billing guardrails are documented here',
-              embedding: vectorFor('unrelated'),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-lexical',
+            document_id: 'doc-lexical',
+            document_content: 'billing guardrails are documented here',
+            content: 'billing guardrails are documented here',
+            embedding: vectorFor('unrelated'),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -6667,7 +6832,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Query Plan Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Query Plan Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -6724,7 +6893,9 @@ describe('knowledgebase RAG Worker app', () => {
       query_plan_results: 2,
     });
     expect(timing.query_plan_variants).toBeGreaterThanOrEqual(2);
-    expect(result.data.map((item) => item.chunk_id)).toEqual(expect.arrayContaining(['chunk-billing', 'chunk-retention']));
+    expect(result.data.map((item) => item.chunk_id)).toEqual(
+      expect.arrayContaining(['chunk-billing', 'chunk-retention']),
+    );
     expect(result.data[0]?.metadata.query_plan_sources).toEqual(expect.arrayContaining(['original']));
     expect(aiCalls).toBe(0);
     expect(vectorQueries).toBe(0);
@@ -6750,7 +6921,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Sparse Ranking Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Sparse Ranking Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -6844,7 +7019,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Fuzzy Lexical Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Fuzzy Lexical Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -6852,16 +7031,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-guardrails',
-              document_id: 'doc-guardrails',
-              document_content: 'billing guardrails are documented here',
-              content: 'billing guardrails are documented here',
-              embedding: vectorFor('unrelated'),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-guardrails',
+            document_id: 'doc-guardrails',
+            document_content: 'billing guardrails are documented here',
+            content: 'billing guardrails are documented here',
+            embedding: vectorFor('unrelated'),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -6934,7 +7111,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeMetadataRepository: () => metadata,
       embed: async (_env, texts) => texts.map(vectorFor),
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
     const ingested = await app.request(
@@ -6987,12 +7169,8 @@ describe('knowledgebase RAG Worker app', () => {
     form.set('file', new File([text], 'synthetic-manual.txt', { type: 'text/plain' }));
     const imported = await app.request('/v1/kb/files/upload', { method: 'POST', headers: { Authorization: 'Bearer key-a' }, body: form }, env);
     expect(imported.status).toBe(201);
-    const { id: fileId } = (await imported.json()) as FileRecord;
-    const run = await app.request(
-      '/v1/kb/ingest/run',
-      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'synthetic-unique', file_ids: [fileId], async: false }) },
-      env,
-    );
+    const { id: fileId } = await imported.json() as FileRecord;
+    const run = await app.request('/v1/kb/ingest/run', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'synthetic-unique', file_ids: [fileId], async: false }) }, env);
     expect(run.status).toBe(200);
     const file = (await metadata.getFile('tenant-a', fileId))!;
     const artifactPath = `/v1/kb/parse-artifacts/${file.content_hash}`;
@@ -7003,7 +7181,7 @@ describe('knowledgebase RAG Worker app', () => {
     const query = { domain: 'synthetic-unique', question: 'What is the heliotrope recovery code?', mode: 'lexical', top_k: 1 };
     const answer = await app.request('/v1/kb/query', { method: 'POST', headers: auth, body: JSON.stringify(query) }, env);
     expect(answer.status).toBe(200);
-    const body = (await answer.json()) as { citations: CitationRecord[] };
+    const body = await answer.json() as { citations: CitationRecord[] };
     expect(body.citations[0]).toMatchObject({ file_id: fileId, page_start: 1, page_end: 1 });
     expect(text).toContain(body.citations[0]!.excerpt);
     expect(body.citations[0]!.excerpt).toContain('violet-lantern');
@@ -7016,12 +7194,8 @@ describe('knowledgebase RAG Worker app', () => {
     expect(await rawDocs.get(file.object_key)).toBeNull();
     expect((await reopened.request(`/v1/kb/files/${fileId}`, { headers: auth }, env)).status).toBe(404);
     expect((await reopened.request(artifactPath, { headers: auth }, env)).status).toBe(404);
-    const searched = await reopened.request(
-      '/v1/kb/search',
-      { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'synthetic-unique', query: 'heliotrope recovery', mode: 'lexical' }) },
-      env,
-    );
-    expect(((await searched.json()) as { data: SearchResult[] }).data).toEqual([]);
+    const searched = await reopened.request('/v1/kb/search', { method: 'POST', headers: auth, body: JSON.stringify({ domain: 'synthetic-unique', query: 'heliotrope recovery', mode: 'lexical' }) }, env);
+    expect((await searched.json() as { data: SearchResult[] }).data).toEqual([]);
     expect(vectorize.vectors.size).toBe(0);
   });
 
@@ -7034,13 +7208,9 @@ describe('knowledgebase RAG Worker app', () => {
     const auth = (key: string) => ({ Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' });
     const text = 'Synthetic heliotrope manual: the recovery code is violet-lantern.';
     const ingest = async (key: string) => {
-      const response = await app.request(
-        '/v1/kb/ingest/text',
-        { method: 'POST', headers: auth(key), body: JSON.stringify({ domain: 'synthetic-manual', title: 'manual', text, async: false }) },
-        env,
-      );
+      const response = await app.request('/v1/kb/ingest/text', { method: 'POST', headers: auth(key), body: JSON.stringify({ domain: 'synthetic-manual', title: 'manual', text, async: false }) }, env);
       expect(response.status).toBe(201);
-      return (await response.json()) as { file_id: string };
+      return await response.json() as { file_id: string };
     };
     const first = await ingest('key-a');
     const second = await ingest('key-b');
@@ -7064,7 +7234,12 @@ describe('knowledgebase RAG Worker app', () => {
       makeMetadataRepository: () => metadata,
       embed: async (_env, texts) => texts.map(vectorFor),
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const ingest = async (title: string, text: string) => {
       const response = await app.request(
@@ -7082,7 +7257,11 @@ describe('knowledgebase RAG Worker app', () => {
 
     const alpha = await ingest('alpha-note', 'Alpha dashboard cache data should disappear after file deletion.');
     await ingest('beta-note', 'Beta billing guardrails should remain searchable.');
-    const deleted = await app.request(`/v1/kb/files/${alpha.file_id}`, { method: 'DELETE', headers: auth }, env);
+    const deleted = await app.request(
+      `/v1/kb/files/${alpha.file_id}`,
+      { method: 'DELETE', headers: auth },
+      env,
+    );
     expect(deleted.status).toBe(200);
 
     const alphaSearch = await app.request(
@@ -7132,7 +7311,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Hybrid Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Hybrid Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -7182,7 +7365,9 @@ describe('knowledgebase RAG Worker app', () => {
       hybrid_semantic_results: 2,
       rerank: 'keyword_mmr',
     });
-    expect(result.data.map((item) => item.chunk_id)).toEqual(expect.arrayContaining(['chunk-lexical', 'chunk-semantic']));
+    expect(result.data.map((item) => item.chunk_id)).toEqual(
+      expect.arrayContaining(['chunk-lexical', 'chunk-semantic']),
+    );
     expect(result.data[0]?.metadata.hybrid_sources).toBeDefined();
     expect(result.data[0]?.metadata.rerank_score).toBeDefined();
     expect(result.data[0]?.metadata.mmr_rank).toBe(1);
@@ -7190,7 +7375,7 @@ describe('knowledgebase RAG Worker app', () => {
     expect(vectorQueries).toBe(1);
   });
 
-  it('fails over to deterministic keyword reranking when the unpriced gateway reranker is denied', async () => {
+  it('fails closed on unpriced neural reranking and falls back to keyword ranking', async () => {
     const repo = new MemoryRepository();
     const vectorize = new FakeVectorize();
     const app = createApp({
@@ -7200,7 +7385,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Neural Rerank Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Neural Rerank Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -7248,9 +7437,8 @@ describe('knowledgebase RAG Worker app', () => {
       retrieval: 'hybrid_rrf',
       rerank: 'workers_ai_error_keyword_mmr',
     });
-    expect(timing.neural_rerank_error).toContain('neuron_budget_model_unpriced');
-    expect(result.data.length).toBeGreaterThan(0);
-    expect(result.data.every((item) => !('neural_rerank_score' in item.metadata))).toBe(true);
+    expect(result.data[0]?.chunk_id).toBe('chunk-lexical');
+    expect(result.data[0]?.metadata).not.toHaveProperty('neural_rerank_score');
   });
 
   it('corrects weak semantic retrieval with lexical evidence', async () => {
@@ -7273,7 +7461,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Corrective Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Corrective Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -7281,16 +7473,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-corrective',
-              document_id: 'doc-corrective',
-              document_content: 'billing guardrails are documented here',
-              content: 'billing guardrails are documented here',
-              embedding: vectorFor('unrelated'),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-corrective',
+            document_id: 'doc-corrective',
+            document_content: 'billing guardrails are documented here',
+            content: 'billing guardrails are documented here',
+            embedding: vectorFor('unrelated'),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -7337,7 +7527,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Low Score Corrective Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Low Score Corrective Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -7368,17 +7562,15 @@ describe('knowledgebase RAG Worker app', () => {
       env,
     );
     vectorize.query = async () => ({
-      matches: [
-        {
-          id: 'chunk-semantic-low-score',
-          score: 0.46,
-          metadata: {
-            document_id: 'doc-semantic-low-score',
-            chunk_content: 'unrelated semantic neighbor',
-            chunk_metadata: '{}',
-          },
+      matches: [{
+        id: 'chunk-semantic-low-score',
+        score: 0.46,
+        metadata: {
+          document_id: 'doc-semantic-low-score',
+          chunk_content: 'unrelated semantic neighbor',
+          chunk_metadata: '{}',
         },
-      ],
+      }],
     });
 
     const query = await app.request(
@@ -7425,7 +7617,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Fast Semantic Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Fast Semantic Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -7433,16 +7629,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-fast-semantic',
-              document_id: 'doc-fast-semantic',
-              document_content: 'The user is wearing a red color t-shirt.',
-              content: 'The user is wearing a red color t-shirt.',
-              embedding: vectorFor('unrelated'),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-fast-semantic',
+            document_id: 'doc-fast-semantic',
+            document_content: 'The user is wearing a red color t-shirt.',
+            content: 'The user is wearing a red color t-shirt.',
+            embedding: vectorFor('unrelated'),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -7492,7 +7686,12 @@ describe('knowledgebase RAG Worker app', () => {
         return texts.map(vectorFor);
       },
     });
-    const env = makeEnv(vectorize, undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const env = makeEnv(
+      vectorize,
+      undefined as unknown as D1Database,
+      undefined,
+      rawDocs as unknown as R2Bucket,
+    );
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
     const ingested = await app.request(
@@ -7561,7 +7760,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Bench Docs' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Bench Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -7634,7 +7837,11 @@ describe('knowledgebase RAG Worker app', () => {
       embed,
     });
 
-    const created = await firstApp.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Shared Cache Docs' }) }, env);
+    const created = await firstApp.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Shared Cache Docs' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await firstApp.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -7642,16 +7849,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-shared-cache',
-              document_id: 'doc-shared-cache',
-              document_content: 'alpha shared cache document',
-              content: 'alpha shared cache document',
-              embedding: vectorFor('alpha'),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-shared-cache',
+            document_id: 'doc-shared-cache',
+            document_content: 'alpha shared cache document',
+            content: 'alpha shared cache document',
+            embedding: vectorFor('alpha'),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -7720,16 +7925,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-shared-embedding-cache',
-              document_id: 'doc-shared-embedding-cache',
-              document_content: 'alpha shared embedding cache document',
-              content: 'alpha shared embedding cache document',
-              embedding: vectorFor('alpha'),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-shared-embedding-cache',
+            document_id: 'doc-shared-embedding-cache',
+            document_content: 'alpha shared embedding cache document',
+            content: 'alpha shared embedding cache document',
+            embedding: vectorFor('alpha'),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -7801,7 +8004,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Dimension Guard' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Dimension Guard' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
 
     const ingest = await app.request(
@@ -7810,14 +8017,12 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'bad-dim-chunk',
-              document_id: 'bad-dim-doc',
-              content: 'bad dimension vector',
-              embedding: [1, 0, 0],
-            },
-          ],
+          chunks: [{
+            id: 'bad-dim-chunk',
+            document_id: 'bad-dim-doc',
+            content: 'bad dimension vector',
+            embedding: [1, 0, 0],
+          }],
         }),
       },
       env,
@@ -7852,12 +8057,16 @@ describe('knowledgebase RAG Worker app', () => {
     const authA = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
     const authB = { Authorization: 'Bearer key-b', 'Content-Type': 'application/json' };
 
-    const indexA = (await (
-      await app.request('/v1/indexes', { method: 'POST', headers: authA, body: JSON.stringify({ name: 'Tenant A' }) }, env)
-    ).json()) as IndexRecord;
-    const indexB = (await (
-      await app.request('/v1/indexes', { method: 'POST', headers: authB, body: JSON.stringify({ name: 'Tenant B' }) }, env)
-    ).json()) as IndexRecord;
+    const indexA = (await (await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: authA, body: JSON.stringify({ name: 'Tenant A' }) },
+      env,
+    )).json()) as IndexRecord;
+    const indexB = (await (await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: authB, body: JSON.stringify({ name: 'Tenant B' }) },
+      env,
+    )).json()) as IndexRecord;
 
     await app.request(
       `/v1/indexes/${indexA.id}/ingest-vectors`,
@@ -7865,16 +8074,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: authA,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-a',
-              document_id: 'doc-a',
-              document_content: 'tenant a document',
-              content: 'tenant a secret',
-              embedding: vectorOf(indexA.dimensions, 10),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-a',
+            document_id: 'doc-a',
+            document_content: 'tenant a document',
+            content: 'tenant a secret',
+            embedding: vectorOf(indexA.dimensions, 10),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -7885,16 +8092,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: authB,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-b',
-              document_id: 'doc-b',
-              document_content: 'tenant b document',
-              content: 'tenant b visible',
-              embedding: vectorOf(indexB.dimensions),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-b',
+            document_id: 'doc-b',
+            document_content: 'tenant b document',
+            content: 'tenant b visible',
+            embedding: vectorOf(indexB.dimensions),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -7931,7 +8136,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Cached Index' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Cached Index' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
     await app.request(
       `/v1/indexes/${index.id}/ingest-vectors`,
@@ -7939,16 +8148,14 @@ describe('knowledgebase RAG Worker app', () => {
         method: 'POST',
         headers: auth,
         body: JSON.stringify({
-          chunks: [
-            {
-              id: 'chunk-index-cache',
-              document_id: 'doc-index-cache',
-              document_content: 'alpha cache document',
-              content: 'alpha cache document',
-              embedding: vectorOf(index.dimensions),
-              chunk_index: 0,
-            },
-          ],
+          chunks: [{
+            id: 'chunk-index-cache',
+            document_id: 'doc-index-cache',
+            document_content: 'alpha cache document',
+            content: 'alpha cache document',
+            embedding: vectorOf(index.dimensions),
+            chunk_index: 0,
+          }],
         }),
       },
       env,
@@ -7983,7 +8190,11 @@ describe('knowledgebase RAG Worker app', () => {
     const env = makeEnv(vectorize);
     const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
 
-    const created = await app.request('/v1/indexes', { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Backfill' }) }, env);
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Backfill' }) },
+      env,
+    );
     const index = (await created.json()) as IndexRecord;
 
     const backfill = await app.request(

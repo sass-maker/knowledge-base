@@ -4,7 +4,7 @@
 product runtime is TypeScript/Node on Cloudflare: Hono routes, D1 metadata,
 Vectorize retrieval, R2 raw/parse artifacts, Queues/Workflows ingestion,
 the default BGE base embedding and cited synthesis paths through the private
-fleet `free-ai` gateway binding. BGE base still uses CLS pooling and the same
+fleet `free-ai` gateway binding. BGE base retains default mean pooling and the same
 768-dimensional vectors already stored by the Worker. Workers AI remains for
 document parsing/OCR. Neural reranking calls the gateway, which currently
 denies the unpriced reranker before inference; deterministic keyword reranking
@@ -46,8 +46,10 @@ The old Qdrant BM42 path is replaced by a Cloudflare-native hybrid path:
 - RRF fusion, MMR, deterministic rewrite/decompose fanout.
 - Keyword-overlap rerank by default; an unpriced gateway reranker is denied
   before inference and uses the existing deterministic fallback.
-- Extractive cited answers by default; opt-in `free-ai`/Workers AI cited
-  synthesis.
+- Extractive cited answers by default; opt-in cited synthesis uses the gateway
+  chat route with automatic model selection. The legacy request flag remains
+  `answer_mode: "workers_ai"`; successful synthesis is reported as
+  `answer_mode: "free_ai"` with `answer_model: "auto"`.
 
 ## Testing Surface
 

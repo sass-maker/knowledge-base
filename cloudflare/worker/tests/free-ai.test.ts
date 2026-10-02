@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchFreeAiEmbeddingCatalog, freeAiChatRaw, freeAiEmbed, freeAiNativeEmbed } from '../src/free-ai';
+import { defaultEmbed } from '../src/query';
 import type { Env } from '../src/types';
 
 function makeEnv(overrides: Partial<Env> = {}): Env {
@@ -60,6 +61,45 @@ afterEach(() => {
 });
 
 describe('freeAiEmbed', () => {
+  it('keeps an explicitly selected external profile on its configured endpoint even when the service binding exists', async () => {
+    const calls = captureFetch((req) => jsonResponse({ data: (req.body.input as string[]).map(() => ({ index: 0, embedding: vec(1536) })) }));
+    const env = makeEnv({
+      RAG_EMBED_PROVIDER: 'free_ai',
+      FREE_AI_API_KEY: 'explicit-provider-test-key',
+      FREE_AI_BASE_URL: 'https://explicit-provider.example/v1',
+      FREE_AI: { run: vi.fn(), fetch: vi.fn() },
+    });
+
+    await freeAiEmbed(env, ['profile input']);
+
+    expect(first(calls).url).toBe('https://explicit-provider.example/v1/embeddings');
+    expect(first(calls).headers.Authorization).toBe('Bearer explicit-provider-test-key');
+    expect(first(calls).headers).not.toHaveProperty('x-gateway-project-id');
+  });
+
+  it.each([
+    ['@cf/baai/bge-small-en-v1.5', 384],
+    ['@cf/baai/bge-base-en-v1.5', 768],
+    ['@cf/baai/bge-large-en-v1.5', 1024],
+  ] as const)('routes managed native profile %s through exact native input dimensions %i', async (model, dimensions) => {
+    const calls: Array<{ project: string; model: string; input: unknown }> = [];
+    const binding = {
+      run: vi.fn(async (projectId: string, selectedModel: string, input: unknown) => {
+        calls.push({ project: projectId, model: selectedModel, input });
+        return {
+          data: (input as { text: string[] }).text.map(() => Array.from({ length: dimensions }, () => 0.5)),
+        };
+      }),
+      fetch: vi.fn(),
+    };
+    const env = makeEnv({ FREE_AI: binding, EMBEDDING_MODEL: model });
+    const vectors = await defaultEmbed(env, ['query'], { model, provider: 'workers_ai' });
+
+    expect(calls).toEqual([{ project: 'knowledge-base', model, input: { text: ['query'] } }]);
+    expect(calls[0]?.input).not.toHaveProperty('pooling');
+    expect(vectors[0]).toHaveLength(dimensions);
+  });
+
   it('uses configured provider/model + 1536 dims when no caller model is supplied', async () => {
     const calls = captureFetch((req) => jsonResponse({ data: (req.body.input as string[]).map((_, i) => ({ index: i, embedding: vec(1536) })) }));
     const out = await freeAiEmbed(makeEnv(), ['alpha', 'beta']);
@@ -105,7 +145,7 @@ describe('freeAiEmbed', () => {
     const out = await freeAiNativeEmbed(makeEnv({ FREE_AI: binding }), '@cf/baai/bge-base-en-v1.5', texts);
     expect(calls.map((call) => (call.input as { text: string[] }).text.length)).toEqual([100, 100, 5]);
     expect(calls.every((call) => call.project === 'knowledge-base' && call.model === '@cf/baai/bge-base-en-v1.5')).toBe(true);
-    expect(calls.every((call) => (call.input as { pooling?: string }).pooling === 'cls')).toBe(true);
+    expect(calls.every((call) => !('pooling' in (call.input as object)))).toBe(true);
     expect(calls.every((call) => call.receiver === binding)).toBe(true);
     expect(out.map((row) => [row[0], row.length])).toEqual(texts.map((text) => [text.length, 768]));
   });

@@ -26,9 +26,7 @@ import {
   type SearchEvalCase,
 } from './app-types';
 import { analyticsNumber, analyticsString, elapsedMs, jsonRecord, writeAnalyticsPoint } from './app-utils';
-import { embedTexts } from './embeddings';
-import { reserveModelCall } from './shared-ai-budget';
-import { freeAiChatRaw, freeAiEmbed, freeAiNativeEmbed, freeAiSynthEnabled, freeAiSynthModel } from './free-ai';
+import { freeAiChatRaw, freeAiEmbed, freeAiNativeEmbed } from './free-ai';
 import type { EntityRecord, EntityRelationshipRecord, MetadataRepository, QueryTraceRecord } from './kb-metadata-repository';
 import type { ChunkRecord, CitationRecord, Env, JsonRecord, SearchResult } from './types';
 
@@ -625,10 +623,18 @@ function aiTextResponse(response: unknown): string {
 // drops into the createApp `embed` dependency.
 export function defaultEmbed(env: Env, texts: string[], options: EmbeddingCallOptions = {}): Promise<number[][]> {
   const model = options.model || env.EMBEDDING_MODEL || DEFAULT_BASE_EMBEDDING_MODEL;
-  if (model === '@cf/baai/bge-base-en-v1.5') {
-    return freeAiNativeEmbed(env, model, texts);
+  const nativeDimensions: Record<string, 384 | 768 | 1024> = {
+    '@cf/baai/bge-small-en-v1.5': 384,
+    '@cf/baai/bge-base-en-v1.5': 768,
+    '@cf/baai/bge-large-en-v1.5': 1024,
+  };
+  const dimensions = nativeDimensions[model];
+  if (dimensions) {
+    return freeAiNativeEmbed(env, model, texts, dimensions);
   }
-  if (env.RAG_EMBED_PROVIDER !== 'free_ai') return embedTexts(env, texts, options);
+  if (options.provider === 'workers_ai' || env.RAG_EMBED_PROVIDER !== 'free_ai') {
+    throw new Error(`Unsupported managed embedding model: ${model}`);
+  }
   return freeAiEmbed(env, texts, options);
 }
 
@@ -644,14 +650,11 @@ async function runAiChat(
     response_format?: unknown;
   },
 ): Promise<unknown> {
-  if (freeAiSynthEnabled(env)) {
-    return freeAiChatRaw(env, model, body);
-  }
+  if (!env.FREE_AI) throw new Error('Free AI gateway binding is unavailable.');
   const maxTokens =
     typeof body.max_tokens === 'number' && Number.isSafeInteger(body.max_tokens) && body.max_tokens > 0 ? Math.min(8_192, body.max_tokens) : 512;
   const boundedBody = { ...body, max_tokens: maxTokens };
-  await reserveModelCall(env, model, boundedBody, maxTokens);
-  return env.AI.run(model, boundedBody as unknown as JsonRecord);
+  return freeAiChatRaw(env, 'auto', boundedBody);
 }
 
 function parseJudgeJson(text: string): JsonRecord | null {
@@ -697,7 +700,7 @@ async function synthesizeAnswerWithAi(input: {
   retrieved: SearchResult[];
   model?: string | undefined;
 }): Promise<{ answer: string; model: string }> {
-  const model = freeAiSynthEnabled(input.env) ? freeAiSynthModel(input.env) : input.model?.trim() || input.env.RAG_ANSWER_MODEL?.trim() || DEFAULT_ANSWER_MODEL;
+  const model = 'auto';
   const evidence = boundedEvidenceText(input.citations, input.retrieved);
   const response = await runAiChat(input.env, model, {
     messages: [
@@ -763,10 +766,10 @@ export async function answerFromEvidence(input: {
       timing.synthesis_model = synthesized.model;
       if (synthesized.answer && /\[\d+\]/.test(synthesized.answer)) {
         answer = synthesized.answer;
-        answerMode = 'workers_ai';
+        answerMode = 'free_ai';
         answerModel = synthesized.model;
         aiUsed = true;
-        timing.answer_mode = 'workers_ai';
+        timing.answer_mode = 'free_ai';
       } else {
         timing.synthesis_fallback = 'empty_or_uncited_response';
       }
@@ -794,7 +797,7 @@ export async function judgeAnswerWithAi(input: {
   retrieved: SearchResult[];
   model?: string;
 }): Promise<JsonRecord> {
-  const model = freeAiSynthEnabled(input.env) ? freeAiSynthModel(input.env) : input.model?.trim() || DEFAULT_EVAL_JUDGE_MODEL;
+  const model = 'auto';
   const evidence = boundedEvidenceText(input.citations, input.retrieved);
   const response = await runAiChat(input.env, model, {
     messages: [

@@ -53,7 +53,7 @@ export function freeAiSynthModel(env: Env): string {
 }
 
 function baseUrl(env: Env): string {
-  if (env.FREE_AI) return 'https://fleet-gateway.internal/v1';
+  if (env.FREE_AI && env.RAG_EMBED_PROVIDER !== 'free_ai') return 'https://fleet-gateway.internal/v1';
   const configured = env.FREE_AI_BASE_URL?.trim();
   if (!configured) throw new Error('FREE_AI_BASE_URL is not configured');
   return configured.replace(/\/+$/, '');
@@ -66,16 +66,16 @@ export async function freeAiRun(env: Env, model: string, input: unknown): Promis
   return env.FREE_AI.run('knowledge-base', model, input);
 }
 
-export async function freeAiNativeEmbed(env: Env, model: string, texts: string[]): Promise<number[][]> {
+export async function freeAiNativeEmbed(env: Env, model: string, texts: string[], dimensions: 384 | 768 | 1024 = 768): Promise<number[][]> {
   if (texts.length === 0) return [];
   const vectors: number[][] = [];
   for (let start = 0; start < texts.length; start += EMBED_BATCH_SIZE) {
     const batch = texts.slice(start, start + EMBED_BATCH_SIZE);
-    const result = (await freeAiRun(env, model, { text: batch, pooling: 'cls' })) as { data?: unknown };
+    const result = (await freeAiRun(env, model, { text: batch })) as { data?: unknown };
     const rows = Array.isArray(result?.data) ? result.data : [];
     if (
       rows.length !== batch.length ||
-      rows.some((row) => !Array.isArray(row) || row.length !== 768 || row.some((value) => typeof value !== 'number' || !Number.isFinite(value)))
+      rows.some((row) => !Array.isArray(row) || row.length !== dimensions || row.some((value) => typeof value !== 'number' || !Number.isFinite(value)))
     ) {
       throw new Error('Free AI native embedding response shape mismatch');
     }
@@ -136,7 +136,7 @@ export function freeAiEmbeddingCatalog(
 }
 
 function authHeaders(env: Env): Record<string, string> {
-  if (env.FREE_AI) return { Authorization: 'Bearer service-binding', 'Content-Type': 'application/json' };
+  if (env.FREE_AI && env.RAG_EMBED_PROVIDER !== 'free_ai') return { Authorization: 'Bearer service-binding', 'Content-Type': 'application/json' };
   const key = env.FREE_AI_API_KEY?.trim();
   if (!key) throw new Error('FREE_AI_API_KEY is not configured');
   return { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
@@ -148,7 +148,7 @@ function optionalAuthHeaders(env: Env): Record<string, string> {
 }
 
 function directFetch(env: Env, url: string, init: RequestInit): Promise<Response> {
-  if (env.FREE_AI) {
+  if (env.FREE_AI && env.RAG_EMBED_PROVIDER !== 'free_ai') {
     const source = new Request(url, init);
     const target = new URL(url);
     const request = new Request(`https://fleet-gateway.internal${target.pathname}${target.search}`, source);
@@ -220,7 +220,7 @@ const MAX_RETRIES = 2;
 
 async function directFetchRetry(env: Env, url: string, init: RequestInit): Promise<Response> {
   let res = await directFetch(env, url, init);
-  if (env.FREE_AI) return res;
+  if (env.FREE_AI && env.RAG_EMBED_PROVIDER !== 'free_ai') return res;
   for (let attempt = 0; attempt < MAX_RETRIES && RETRY_STATUSES.has(res.status); attempt += 1) {
     const retryAfter = Number(res.headers.get('retry-after'));
     const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 4000) : 400 * 2 ** attempt;
@@ -311,6 +311,7 @@ export async function freeAiChatRaw(env: Env, model: string, body: FreeAiChatBod
     messages: body.messages,
     ...(typeof body.max_tokens === 'number' ? { max_tokens: body.max_tokens } : {}),
     ...(typeof body.temperature === 'number' ? { temperature: body.temperature } : {}),
+    ...(env.FREE_AI && body.response_format !== undefined ? { response_format: body.response_format } : {}),
     stream: false,
   });
   const headers = env.FREE_AI
