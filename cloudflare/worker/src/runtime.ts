@@ -294,7 +294,7 @@ export function createRuntime(options: AppOptions = {}) {
     const started = performance.now();
     const candidates = payload.data.slice(0, Math.min(MAX_TOP_K, Math.max(topK, payload.data.length)));
     try {
-      const runAi = env.AI.run as unknown as (model: string, input: Record<string, unknown>) => Promise<unknown>;
+      const runAi = env.AI.run.bind(env.AI) as unknown as (model: string, input: Record<string, unknown>) => Promise<unknown>;
       const input = {
         query,
         top_k: Math.min(topK, candidates.length),
@@ -669,10 +669,11 @@ export function createRuntime(options: AppOptions = {}) {
       }
       timing.semantic_lexical_fast_path = false;
     }
+    await reserveVectorizeDimensions(c.env, vectorizeProfile.dimensions * (vectorizeProfile.key === 'base' ? 2 : 1));
     const vector = await embedOne(c.env, tenant, normalizedQuery, embeddingProfile, timing);
     const widenedTopK = Math.min(MAX_TOP_K, clampTopK(body.top_k) * 2);
     const semanticBody = body.mode === 'hybrid' ? { ...body, top_k: widenedTopK } : body;
-    const semantic = await queryByVector(c, vector, semanticBody, timing, vectorizeProfile);
+    const semantic = await queryByVector(c, vector, semanticBody, timing, vectorizeProfile, true);
     const fused = body.mode === 'hybrid' ? fuseHybridResults(lexical, semantic, widenedTopK) : semantic;
     let payload = await rerankQueryPayload(c.env, fused, query, body, timing, body.mode === 'hybrid');
     if (body.mode === 'hybrid') {
@@ -1463,6 +1464,7 @@ export function createRuntime(options: AppOptions = {}) {
     body: QueryBody,
     timing?: RagTiming,
     resolvedVectorizeProfile?: ConfiguredVectorizeProfile,
+    vectorizeReserved = false,
   ): Promise<QueryPayload> {
     const tenant = c.get('tenant');
     const indexId = c.req.param('id');
@@ -1480,7 +1482,9 @@ export function createRuntime(options: AppOptions = {}) {
     const binding = vectorizeProfile.binding;
     const filter = userVectorFilter(body.filter);
     const vectorizeStarted = performance.now();
-    await reserveVectorizeDimensions(c.env, vectorizeProfile.dimensions * (vectorizeProfile.key === 'base' ? 2 : 1));
+    if (!vectorizeReserved) {
+      await reserveVectorizeDimensions(c.env, vectorizeProfile.dimensions * (vectorizeProfile.key === 'base' ? 2 : 1));
+    }
     let query = await binding.query(vector, {
       topK,
       ...(filter ? { filter } : {}),

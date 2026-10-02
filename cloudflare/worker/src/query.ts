@@ -641,9 +641,8 @@ async function runAiChat(
   if (freeAiSynthEnabled(env)) {
     return freeAiChatRaw(env, model, body);
   }
-  const maxTokens = typeof body.max_tokens === 'number' && Number.isSafeInteger(body.max_tokens) && body.max_tokens > 0
-    ? Math.min(8_192, body.max_tokens)
-    : 512;
+  const maxTokens =
+    typeof body.max_tokens === 'number' && Number.isSafeInteger(body.max_tokens) && body.max_tokens > 0 ? Math.min(8_192, body.max_tokens) : 512;
   const boundedBody = { ...body, max_tokens: maxTokens };
   await reserveModelCall(env, model, boundedBody, maxTokens);
   return env.AI.run(model, boundedBody as unknown as JsonRecord);

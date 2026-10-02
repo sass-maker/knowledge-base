@@ -59,7 +59,8 @@ export async function reserveWorkersAiNeurons(env: Env, neurons: number): Promis
     result.used < neurons ||
     !isSafeInteger(result.remaining) ||
     result.used + result.remaining !== NEURON_CAP
-  ) return deny();
+  )
+    return deny();
 }
 
 export async function reserveVectorizeDimensions(env: Env, dimensions: number): Promise<void> {
@@ -76,7 +77,8 @@ export async function reserveVectorizeDimensions(env: Env, dimensions: number): 
     result.used < dimensions ||
     !isSafeInteger(result.remaining) ||
     result.used + result.remaining !== VECTORIZE_CAP
-  ) return deny();
+  )
+    return deny();
 }
 
 const INPUT_NEURONS_PER_MILLION: Record<string, number> = {
