@@ -66,9 +66,10 @@ cosine; confidence is downgraded proportionally to per-claim verify pass rate.
 **Decision:** The hybrid path is D1 exact structured routes + D1 relationship
 graph expansion + Vectorize dense search + an in-Worker BM25 sparse lexical
 scorer over D1 chunks + RRF fusion + local MMR + deterministic
-rewrite/decompose fanout + optional Workers AI neural rerank. Extractive cited
-answers by default; opt-in Workers AI cited synthesis via
-`answer_mode: "workers_ai"`.
+rewrite/decompose fanout + optional neural rerank. Extractive cited answers by
+default; the legacy `answer_mode: "workers_ai"` request opt-in uses the
+gateway's automatic chat model and reports `answer_mode: "free_ai"` and
+`answer_model: "auto"` on success.
 
 **Why:** Cloudflare Vectorize does dense search and metadata filtering but not
 sparse vectors. Building the sparse side over D1 chunks keeps everything

@@ -23,7 +23,10 @@ function findBinding(entries, binding) {
 }
 
 function hasServiceBinding(entries, binding) {
-  return Array.isArray(entries) && entries.some((entry) => entry?.binding === binding);
+  return (
+    Array.isArray(entries) &&
+    entries.some((entry) => entry?.binding === binding && entry?.service === 'free-ai-gateway' && entry?.entrypoint === 'FleetGateway')
+  );
 }
 
 function hasQueueProducer(queues, binding) {
@@ -36,8 +39,6 @@ function freeAiEmbedConfigProblems(vars = {}) {
   const model = typeof vars.FREE_AI_EMBED_MODEL === 'string' ? vars.FREE_AI_EMBED_MODEL.trim() : '';
   const provider = typeof vars.FREE_AI_EMBED_PROVIDER === 'string' ? vars.FREE_AI_EMBED_PROVIDER.trim() : '';
   const dimensions = Number(vars.FREE_AI_EMBED_DIMENSIONS);
-  const baseUrl = typeof vars.FREE_AI_BASE_URL === 'string' ? vars.FREE_AI_BASE_URL.trim() : '';
-  if (!baseUrl) problems.push('FREE_AI_BASE_URL is missing');
   if (!model) problems.push('FREE_AI_EMBED_MODEL is missing');
   if (!provider) problems.push('FREE_AI_EMBED_PROVIDER is missing');
   if (!Number.isInteger(dimensions) || dimensions <= 0) problems.push('FREE_AI_EMBED_DIMENSIONS must be a positive integer');
@@ -125,14 +126,22 @@ export async function runWorkerPreflight({ configPath = DEFAULT_CONFIG_PATH } = 
 
   checks.push(
     check(
-      'free_ai_direct_endpoint',
-      config?.vars?.RAG_EMBED_PROVIDER === 'free_ai' ? (config?.vars?.FREE_AI_BASE_URL?.trim() ? 'ok' : 'error') : 'ok',
-      config?.vars?.RAG_EMBED_PROVIDER === 'free_ai'
-        ? config?.vars?.FREE_AI_BASE_URL?.trim()
-          ? 'free-ai embedding calls use the configured direct provider endpoint'
-          : 'RAG_EMBED_PROVIDER=free_ai requires FREE_AI_BASE_URL'
+      'free_ai_gateway_binding',
+      config?.vars?.RAG_EMBED_PROVIDER === 'free_ai' ||
+        config?.vars?.RAG_SYNTH_PROVIDER === 'free_ai' ||
+        config?.vars?.EMBEDDING_MODEL === '@cf/baai/bge-base-en-v1.5'
+        ? hasServiceBinding(config?.services, 'FREE_AI')
+          ? 'ok'
+          : 'error'
+        : 'ok',
+      config?.vars?.RAG_EMBED_PROVIDER === 'free_ai' ||
+        config?.vars?.RAG_SYNTH_PROVIDER === 'free_ai' ||
+        config?.vars?.EMBEDDING_MODEL === '@cf/baai/bge-base-en-v1.5'
+        ? hasServiceBinding(config?.services, 'FREE_AI')
+          ? 'free-ai managed embeddings use the private gateway service binding'
+          : 'managed Free AI inference requires the FREE_AI service binding'
         : 'free-ai embedding provider is not selected',
-      'Configure the project-owned direct provider endpoint; gateway hosts are retired.',
+      'The private binding must target the FleetGateway entrypoint.',
     ),
   );
 

@@ -9,9 +9,9 @@ deployment remain independent; it is not a public standalone product.
 
 This repo owns the Cloudflare-native shared RAG Worker in
 `cloudflare/worker`. That Worker is the SaaS Maker `RAG_SERVICE`: service-key
-authenticated ingestion/query APIs backed by the fleet `free-ai` gateway
-(embeddings + synthesis), Workers AI (fallback + rerank/OCR), Vectorize, D1, and
-R2.
+authenticated ingestion/query APIs backed by the private fleet `free-ai`
+gateway (managed BGE base embeddings at unchanged mean-pooled 768-vector coordinates
+plus synthesis), Workers AI (document parsing/OCR), Vectorize, D1, and R2.
 
 Each child project receives an isolated scope for its private information and
 uses the cited search API (`/search`) or grounded answer API (`/query`). The
@@ -130,11 +130,11 @@ flowchart LR
         S2 --> S3[rewrite + decompose fanout]
         S3 --> S4[Vectorize + D1 fuzzy lexical RRF]
         S4 --> S5[MMR + local rerank]
-        S5 --> S6[optional Workers AI rerank]
+        S5 --> S6[optional budgeted neural rerank]
         S6 --> S7[MMR diversity]
         S7 --> S8[corrective lexical retry]
         S8 --> SearchOut[ranked cited evidence]
-        S8 --> S9[extractive or Workers AI cited answer]
+        S8 --> S9[extractive or gateway cited answer]
         S9 --> S10[answer support checks]
         S10 --> S11[span_cite]
     end
@@ -146,7 +146,7 @@ flowchart LR
     Pipeline --> Vectorize[(Vectorize<br/>dense indexes)]
     Worker --> R2[(R2<br/>raw + parse artifacts)]
     Worker --> FreeAI[(free-ai gateway<br/>embeddings + synthesis)]
-    Worker --> AI[(Workers AI<br/>fallback + rerank/OCR)]
+    Worker --> AI[(Workers AI<br/>document parsing and OCR)]
 
     classDef store fill:#e8f4f8,stroke:#0288d1,color:#01579b
     class D1,Vectorize,R2,FreeAI,AI store
@@ -252,7 +252,7 @@ curl -s -X POST "$RAG_BASE_URL/v1/kb/query" \
 | `GET /readyz` | Public compatibility readiness probe for D1, Vectorize, and R2 |
 | `GET /metrics` | Public Prometheus-compatible compatibility scrape endpoint |
 | `GET /ui` | Worker-hosted testing UI |
-| `POST /v1/kb/query` | Cited answer path over D1, Vectorize, R2 artifacts, and optional Workers AI |
+| `POST /v1/kb/query` | Cited answer path over D1, Vectorize, R2 artifacts, with managed synthesis through the private Free AI binding |
 | `POST /v1/kb/query/stream` | SSE query lifecycle stream with `started`, `stage`, and final `answer`/`error` events |
 | `POST /v1/kb/files/upload` | Upload a file into R2/D1 and queue ingest |
 | `POST /v1/kb/ingest/record` | Direct structured JSON ingestion with schema inference for new domains |
@@ -319,8 +319,8 @@ End-to-end p50 was about **30 s warm**, **80 s cold** in the retired Python
 path. Current Worker benchmark scripts live under `cloudflare/worker/scripts`.
 
 For sub-second response on Cloudflare, use the Worker defaults: extractive
-answers, D1 lexical/entity fast paths, cached popular queries, and optional
-Workers AI synthesis only when the caller needs generated prose.
+answers, D1 lexical/entity fast paths, and cached popular queries. When the
+caller needs generated prose, cited synthesis uses the private Free AI binding.
 
 ## Worker Domain Onboarding
 

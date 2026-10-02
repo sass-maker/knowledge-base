@@ -20,7 +20,7 @@ describe('worker preflight', () => {
     expect(result.checks).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'ai_binding', severity: 'ok' }),
       expect.objectContaining({ name: 'vector_store', severity: 'ok' }),
-      expect.objectContaining({ name: 'free_ai_direct_endpoint', severity: 'ok' }),
+      expect.objectContaining({ name: 'free_ai_gateway_binding', severity: 'ok' }),
       expect.objectContaining({ name: 'free_ai_default_embedding_config', severity: 'ok' }),
       expect.objectContaining({ name: 'vector_store_default_dimension', severity: 'ok' }),
       expect.objectContaining({ name: 'relational_store', severity: 'ok' }),
@@ -52,7 +52,7 @@ describe('worker preflight', () => {
     ]));
   });
 
-  it('fails when free-ai embeddings are selected without a direct endpoint or complete default model config', async () => {
+  it('fails when managed Free AI inference is selected without the gateway binding or complete default model config', async () => {
     const configPath = await writeConfig({
       ai: { binding: 'AI' },
       vectorize: [{ binding: 'VECTORIZE' }],
@@ -71,9 +71,9 @@ describe('worker preflight', () => {
     expect(result.ok).toBe(false);
     expect(result.checks).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        name: 'free_ai_direct_endpoint',
+        name: 'free_ai_gateway_binding',
         severity: 'error',
-        message: 'RAG_EMBED_PROVIDER=free_ai requires FREE_AI_BASE_URL',
+        message: 'managed Free AI inference requires the FREE_AI service binding',
       }),
       expect.objectContaining({
         name: 'free_ai_default_embedding_config',
@@ -95,7 +95,6 @@ describe('worker preflight', () => {
       r2_buckets: [{ binding: 'RAW_DOCS' }],
       vars: {
         RAG_EMBED_PROVIDER: 'free_ai',
-        FREE_AI_BASE_URL: 'https://provider.example/v1',
         FREE_AI_EMBED_MODEL: 'voyage-3.5-lite',
         FREE_AI_EMBED_PROVIDER: 'voyage_ai',
         FREE_AI_EMBED_DIMENSIONS: '1024',
@@ -107,8 +106,8 @@ describe('worker preflight', () => {
     expect(result.ok).toBe(false);
     expect(result.checks).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        name: 'free_ai_direct_endpoint',
-        severity: 'ok',
+        name: 'free_ai_gateway_binding',
+        severity: 'error',
       }),
       expect.objectContaining({
         name: 'free_ai_default_embedding_config',

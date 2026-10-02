@@ -1,6 +1,3 @@
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { generateText } from 'ai';
-
 import type { Env } from './types';
 
 // OpenAI-compatible client for an explicitly configured free-provider endpoint.
@@ -10,7 +7,6 @@ import type { Env } from './types';
 // where voyage's ~3 rpm does not.
 const DEFAULT_EMBED_MODEL = 'gemini-embedding-001';
 const DEFAULT_EMBED_PROVIDER = 'gemini';
-const DEFAULT_SYNTH_MODEL = 'gemini-2.5-flash';
 const DEFAULT_DIMENSIONS = 1536;
 const EMBED_BATCH_SIZE = 100;
 type SemanticProfile = 'base' | 'small';
@@ -47,18 +43,36 @@ export interface FreeAiChatBody {
   response_format?: unknown;
 }
 
-export function freeAiSynthEnabled(env: Env): boolean {
-  return env.RAG_SYNTH_PROVIDER === 'free_ai';
-}
-
-export function freeAiSynthModel(env: Env): string {
-  return env.FREE_AI_SYNTH_MODEL?.trim() || DEFAULT_SYNTH_MODEL;
-}
-
 function baseUrl(env: Env): string {
+  if (env.FREE_AI && env.RAG_EMBED_PROVIDER !== 'free_ai') return 'https://fleet-gateway.internal/v1';
   const configured = env.FREE_AI_BASE_URL?.trim();
   if (!configured) throw new Error('FREE_AI_BASE_URL is not configured');
   return configured.replace(/\/+$/, '');
+}
+
+export async function freeAiRun(env: Env, model: string, input: unknown): Promise<unknown> {
+  if (!env.FREE_AI || typeof env.FREE_AI.run !== 'function') {
+    throw new Error('Free AI gateway binding is unavailable.');
+  }
+  return env.FREE_AI.run('knowledge-base', model, input);
+}
+
+export async function freeAiNativeEmbed(env: Env, model: string, texts: string[], dimensions: 384 | 768 | 1024 = 768): Promise<number[][]> {
+  if (texts.length === 0) return [];
+  const vectors: number[][] = [];
+  for (let start = 0; start < texts.length; start += EMBED_BATCH_SIZE) {
+    const batch = texts.slice(start, start + EMBED_BATCH_SIZE);
+    const result = (await freeAiRun(env, model, { text: batch })) as { data?: unknown };
+    const rows = Array.isArray(result?.data) ? result.data : [];
+    if (
+      rows.length !== batch.length ||
+      rows.some((row) => !Array.isArray(row) || row.length !== dimensions || row.some((value) => typeof value !== 'number' || !Number.isFinite(value)))
+    ) {
+      throw new Error('Free AI native embedding response shape mismatch');
+    }
+    vectors.push(...(rows as number[][]));
+  }
+  return vectors;
 }
 
 function catalogModel(model: string): FreeAiEmbeddingModel | null {
@@ -113,6 +127,7 @@ export function freeAiEmbeddingCatalog(
 }
 
 function authHeaders(env: Env): Record<string, string> {
+  if (env.FREE_AI && env.RAG_EMBED_PROVIDER !== 'free_ai') return { Authorization: 'Bearer service-binding', 'Content-Type': 'application/json' };
   const key = env.FREE_AI_API_KEY?.trim();
   if (!key) throw new Error('FREE_AI_API_KEY is not configured');
   return { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
@@ -124,6 +139,14 @@ function optionalAuthHeaders(env: Env): Record<string, string> {
 }
 
 function directFetch(env: Env, url: string, init: RequestInit): Promise<Response> {
+  if (env.FREE_AI && env.RAG_EMBED_PROVIDER !== 'free_ai') {
+    const source = new Request(url, init);
+    const target = new URL(url);
+    const request = new Request(`https://fleet-gateway.internal${target.pathname}${target.search}`, source);
+    request.headers.set('Authorization', 'Bearer service-binding');
+    request.headers.set('x-gateway-project-id', 'knowledge-base');
+    return env.FREE_AI.fetch(request);
+  }
   return env.AI_HTTP?.fetch(url, init) ?? fetch(url, init);
 }
 
@@ -188,6 +211,7 @@ const MAX_RETRIES = 2;
 
 async function directFetchRetry(env: Env, url: string, init: RequestInit): Promise<Response> {
   let res = await directFetch(env, url, init);
+  if (env.FREE_AI && env.RAG_EMBED_PROVIDER !== 'free_ai') return res;
   for (let attempt = 0; attempt < MAX_RETRIES && RETRY_STATUSES.has(res.status); attempt += 1) {
     const retryAfter = Number(res.headers.get('retry-after'));
     const backoffMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 4000) : 400 * 2 ** attempt;
@@ -237,6 +261,7 @@ export async function freeAiEmbed(
       body: JSON.stringify({
         model,
         input: batch,
+        project_id: 'knowledge-base',
         ...(supportsDimensionOverride(model) ? { dimensions } : {}),
         encoding_format: 'float',
       }),
@@ -269,20 +294,46 @@ export async function freeAiEmbed(
 // Returns a Workers-AI-shaped { response } object so existing aiTextResponse()
 // parsing works unchanged for both providers.
 export async function freeAiChatRaw(env: Env, model: string, body: FreeAiChatBody): Promise<{ response: string }> {
-  const key = env.FREE_AI_API_KEY?.trim();
-  if (!key) throw new Error('FREE_AI_API_KEY is not configured');
-  const provider = createOpenAICompatible({
-    name: 'knowledgebase-direct',
-    baseURL: baseUrl(env),
-    apiKey: key,
-    ...(env.AI_HTTP ? { fetch: env.AI_HTTP.fetch.bind(env.AI_HTTP) as typeof fetch } : {}),
-  });
-  const result = await generateText({
-    model: provider.chatModel(model),
-    messages: body.messages as Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-    ...(typeof body.max_tokens === 'number' ? { maxOutputTokens: body.max_tokens } : {}),
+  if (env.RAG_SYNTH_PROVIDER === 'free_ai' && !env.FREE_AI) {
+    throw new Error('Free AI gateway binding is unavailable.');
+  }
+  const requestBody = JSON.stringify({
+    model,
+    messages: body.messages,
+    ...(typeof body.max_tokens === 'number' ? { max_tokens: body.max_tokens } : {}),
     ...(typeof body.temperature === 'number' ? { temperature: body.temperature } : {}),
-    maxRetries: 0,
+    ...(env.FREE_AI && body.response_format !== undefined ? { response_format: body.response_format } : {}),
+    stream: false,
   });
-  return { response: result.text };
+  const headers = env.FREE_AI
+    ? new Headers({ Authorization: 'Bearer service-binding', 'Content-Type': 'application/json', 'x-gateway-project-id': 'knowledge-base' })
+    : new Headers({ ...authHeaders(env), Accept: 'application/json' });
+  const url = env.FREE_AI ? 'https://fleet-gateway.internal/v1/chat/completions' : `${baseUrl(env)}/chat/completions`;
+  const request = new Request(url, {
+    method: 'POST',
+    headers,
+    body: requestBody,
+  });
+  const result = env.FREE_AI
+    ? await env.FREE_AI.fetch(request)
+    : await directFetch(env, url, {
+        method: request.method,
+        headers: request.headers,
+        body: requestBody,
+      });
+  if (!result.ok) throw new Error(`free-ai chat failed ${result.status}`);
+  const payload = (await result.json()) as { choices?: Array<{ message?: { content?: unknown } }> };
+  const content = payload.choices?.[0]?.message?.content;
+  const response =
+    typeof content === 'string'
+      ? content
+      : Array.isArray(content)
+        ? content
+            .flatMap((part) =>
+              part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string' ? [(part as { text: string }).text] : [],
+            )
+            .join('')
+        : '';
+  if (!response) throw new Error('free-ai chat returned no text content');
+  return { response };
 }

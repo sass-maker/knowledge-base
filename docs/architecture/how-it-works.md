@@ -39,18 +39,15 @@ replacing any one is bounded.
 
 ### Embeddings: which model actually runs
 
-Despite `EMBEDDING_MODEL` defaulting to a Workers AI `bge` model in
-`wrangler.jsonc`, the live config sets `RAG_EMBED_PROVIDER: "free_ai"`, so the
-active path is `freeAiEmbed` in
-[`free-ai.ts`](../../cloudflare/worker/src/free-ai.ts): it calls the fleet
-`free-ai-gateway` Worker (via the `FREE_AI` service binding — a plain fetch to
-`*.workers.dev` is blocked same-zone, hence the binding) and requests
-`gemini-embedding-001` at **1536 dimensions**. That maps to the default
-`VECTORIZE` index (`rag-gemini-1536`). Workers AI `bge` (768/384) remains the
-fallback in [`embeddings.ts`](../../cloudflare/worker/src/embeddings.ts). The
-model/provider are pinned with `x-gateway-force-*` headers and the returned
-vector length is validated — a wrong-dimension response **fails closed** rather
-than corrupting the index.
+The managed default is `@cf/baai/bge-base-en-v1.5`, called through the private
+`FREE_AI` service binding using native `run('knowledge-base', model, {text})`.
+The exact model, default mean pooling, and 768 coordinates match the existing
+768-dimensional Vectorize profile; the migration does not rewrite stored
+vectors or alter index dimensions. The admission check for Vectorize query and
+storage growth remains in the Worker; the gateway owns inference neuron
+reservation. Other explicitly selected Free AI embedding profiles keep their
+existing model and dimension checks. If the binding is absent, the managed BGE
+path fails closed rather than falling back to direct Workers AI.
 
 ## Diagram
 
@@ -175,8 +172,10 @@ happen* is enforced structurally, not left to a prompt (**A3**).
    result set triggers a corrective re-run that folds in lexical results
    (`corrective_hybrid`).
 6. **Answer + verify.** By default the answer is **extractive** — sentences
-   pulled straight from the top chunks with `[n]` citations. Workers-AI/free-ai
-   cited *synthesis* is opt-in via `answer_mode: "workers_ai"`
+   pulled straight from the top chunks with `[n]` citations. Gateway-backed
+   cited *synthesis* is opt-in via the compatibility request flag
+   `answer_mode: "workers_ai"`; successful gateway synthesis is reported as
+   `answer_mode: "free_ai"` with model `auto`
    (`synthesizeAnswerWithAi`, and the synthesized answer is only accepted if it
    actually contains `[n]` markers). Either way, `answerFromEvidence` builds the
    citation list from chunk/entity/provenance metadata and verifies it

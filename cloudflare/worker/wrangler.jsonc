@@ -13,6 +13,13 @@
 	"ai": {
 		"binding": "AI"
 	},
+	"services": [
+		{
+			"binding": "FREE_AI",
+			"service": "free-ai-gateway",
+			"entrypoint": "FleetGateway"
+		}
+	],
 	"durable_objects": {
 		"bindings": [
 			{
@@ -91,6 +98,6 @@
 		"RAG_SHARED_QUERY_CACHE_ENABLED": "true",
 		"RAG_SHARED_EMBEDDING_CACHE_ENABLED": "true",
 		"RAG_EMBED_PROVIDER": "workers_ai",
-		"RAG_SYNTH_PROVIDER": "workers_ai"
+		"RAG_SYNTH_PROVIDER": "free_ai"
 	}
 }

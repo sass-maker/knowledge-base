@@ -2,6 +2,10 @@ export type JsonRecord = Record<string, unknown>;
 
 export interface Env {
   AI: Ai;
+  FREE_AI?: {
+    run(projectId: string, model: string, input: unknown): Promise<unknown>;
+    fetch(request: Request): Promise<Response>;
+  };
   NEURON_BUDGET?: DurableObjectNamespace;
   DB: D1Database;
   VECTORIZE: VectorizeBinding;

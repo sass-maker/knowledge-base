@@ -1229,7 +1229,7 @@ class FakeAnalyticsDataset implements AnalyticsEngineDataset {
 function makeEnv(vectorize: FakeVectorize, db: D1Database = {
   prepare: () => ({ first: async () => ({ ok: 1 }) }),
 } as unknown as D1Database, vectorizeSmall?: FakeVectorize, rawDocs?: R2Bucket, ingestQueue?: Queue<KbIngestQueueMessage>, ingestWorkflow?: Workflow<KbIngestQueueMessage>, analytics?: AnalyticsEngineDataset): Env {
-  return {
+  const env: Env = {
     RAG_SERVICE_KEYS: JSON.stringify({ 'key-a': 'tenant-a', 'key-b': 'tenant-b' }),
     FREE_AI_BASE_URL: 'https://provider.example/v1',
     EMBEDDING_MODEL: '@cf/baai/bge-base-en-v1.5',
@@ -1273,12 +1273,29 @@ function makeEnv(vectorize: FakeVectorize, db: D1Database = {
         };
       },
     } as unknown as Ai,
+    FREE_AI: {
+      run: async (_project: string, model: string, input: unknown) => {
+        if (Array.isArray((input as { contexts?: unknown }).contexts)) throw new Error('neuron_budget_model_unpriced');
+        const texts = (input as { text?: unknown }).text;
+        if (!Array.isArray(texts)) throw new Error('unexpected native gateway input');
+        const dimensions = model.includes('small') ? 384 : model.includes('large') ? 1024 : 768;
+        return { data: texts.map((text) => Array.from({ length: dimensions }, (_, i) => vectorFor(String(text))[i] ?? 0)) };
+      },
+      fetch: async (request: Request) => {
+        const body = await request.clone().json() as { messages?: Array<{ content?: string }> };
+        const isJudge = body.messages?.some((message) => message.content?.includes('judge retrieval-augmented answers'));
+        return Response.json({ choices: [{ message: { content: isJudge
+          ? JSON.stringify({ status: 'supported', score: 0.92, rationale: 'Supported by evidence.' })
+          : 'gateway synthesized alpha exact wording with citations [1].' } }] });
+      },
+    },
     DB: db,
     ...(rawDocs ? { RAW_DOCS: rawDocs } : {}),
     ...(ingestQueue ? { INGEST_QUEUE: ingestQueue } : {}),
     ...(ingestWorkflow ? { KB_INGEST_WORKFLOW: ingestWorkflow } : {}),
     ...(analytics ? { RAG_ANALYTICS: analytics } : {}),
   };
+  return env;
 }
 
 function configureStaleFreeAiDefault(env: Env): void {
@@ -2193,7 +2210,7 @@ describe('knowledgebase RAG Worker app', () => {
     const vectorize = new FakeVectorize();
     const vectorize384 = new FakeVectorize();
     const env = makeEnv(vectorize);
-    const embeddingCalls: Array<{ headers: Record<string, string>; body: { model?: string; dimensions?: number; input?: string[] } }> = [];
+    const embeddingCalls: Array<{ project?: string; model?: string; input?: unknown; headers?: Record<string, string>; body?: { model?: string; dimensions?: number; input?: string[] } }> = [];
     env.VECTORIZE_384 = vectorize384;
     env.RAG_EMBED_PROVIDER = 'free_ai';
     env.FREE_AI_EMBED_MODEL = 'gemini-embedding-001';
@@ -2227,6 +2244,11 @@ describe('knowledgebase RAG Worker app', () => {
         return new Response('not found', { status: 404 });
       },
     } as unknown as Fetcher;
+    env.FREE_AI!.run = async (project, model, input) => {
+      embeddingCalls.push({ project, model, input });
+      const texts = (input as { text: string[] }).text;
+      return { data: texts.map(() => vectorOf(384, 1)) };
+    };
 
     const models = await app.request('/v1/embedding-models', { headers: { Authorization: 'Bearer key-a' } }, env);
     const created = await app.request('/v1/indexes', {
@@ -2269,11 +2291,11 @@ describe('knowledgebase RAG Worker app', () => {
     expect(ingested.status).toBe(201);
     expect(queried.status).toBe(200);
     expect(embeddingCalls[0]).toMatchObject({
-      body: {
-        model: '@cf/baai/bge-small-en-v1.5',
-      },
+      project: 'knowledge-base',
+      model: '@cf/baai/bge-small-en-v1.5',
+      input: { text: expect.any(Array) },
     });
-    expect(embeddingCalls[0]?.body).not.toHaveProperty('dimensions');
+    expect(embeddingCalls[0]?.input).not.toHaveProperty('pooling');
     expect(vectorize.vectors.size).toBe(0);
     expect(vectorize.queries).toHaveLength(0);
     expect(vectorize384.vectors.size).toBeGreaterThan(0);
@@ -6017,7 +6039,7 @@ describe('knowledgebase RAG Worker app', () => {
     expect(tracesBody.traces).toHaveLength(1);
   });
 
-  it('can synthesize cited domain answers with Workers AI', async () => {
+  it('can synthesize cited domain answers through the Free AI gateway', async () => {
     const repo = new MemoryRepository();
     const metadata = new MemoryMetadataRepository();
     const vectorize = new FakeVectorize();
@@ -6088,9 +6110,9 @@ describe('knowledgebase RAG Worker app', () => {
 
     expect(answer.status).toBe(200);
     expect(body.ai_used).toBe(true);
-    expect(body.answer_mode).toBe('workers_ai');
-    expect(body.answer_model).toBe('@cf/meta/llama-3.1-8b-instruct');
-    expect(body.answer).toContain('Workers AI synthesized alpha exact wording');
+    expect(body.answer_mode).toBe('free_ai');
+    expect(body.answer_model).toBe('auto');
+    expect(body.answer).toContain('gateway synthesized alpha exact wording');
     expect(body.answer).toContain('[1]');
     expect(body.citations[0]).toMatchObject({ index: 1, filename: 'alpha.txt' });
     expect(body.confidence).toMatchObject({
@@ -6099,8 +6121,8 @@ describe('knowledgebase RAG Worker app', () => {
     });
     expect(timing).toMatchObject({
       answer_requested_mode: 'workers_ai',
-      answer_mode: 'workers_ai',
-      synthesis_model: '@cf/meta/llama-3.1-8b-instruct',
+      answer_mode: 'free_ai',
+      synthesis_model: 'auto',
     });
     expect(typeof timing.synthesis_ms).toBe('number');
   });
@@ -7353,7 +7375,7 @@ describe('knowledgebase RAG Worker app', () => {
     expect(vectorQueries).toBe(1);
   });
 
-  it('can rerank hybrid candidates with Workers AI', async () => {
+  it('fails closed on unpriced neural reranking and falls back to keyword ranking', async () => {
     const repo = new MemoryRepository();
     const vectorize = new FakeVectorize();
     const app = createApp({
@@ -7413,14 +7435,10 @@ describe('knowledgebase RAG Worker app', () => {
     expect(query.status).toBe(200);
     expect(timing).toMatchObject({
       retrieval: 'hybrid_rrf',
-      rerank: 'workers_ai_mmr',
-      neural_rerank_model: '@cf/baai/bge-reranker-base',
-      neural_rerank_candidates: 2,
+      rerank: 'workers_ai_error_keyword_mmr',
     });
-    expect(result.data[0]?.chunk_id).toBe('chunk-semantic');
-    expect(result.data[0]?.score).toBe(0.96);
-    expect(result.data[0]?.metadata.neural_rerank_score).toBe(0.96);
-    expect(result.data[0]?.metadata.retrieval_score).toBeDefined();
+    expect(result.data[0]?.chunk_id).toBe('chunk-lexical');
+    expect(result.data[0]?.metadata).not.toHaveProperty('neural_rerank_score');
   });
 
   it('corrects weak semantic retrieval with lexical evidence', async () => {
