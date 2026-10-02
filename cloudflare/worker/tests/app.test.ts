@@ -1298,6 +1298,14 @@ function makeEnv(vectorize: FakeVectorize, db: D1Database = {
   return env;
 }
 
+function routeVisionThroughTestGateway(env: Env): void {
+  if (!env.FREE_AI) throw new Error('test Free AI binding is required');
+  env.FREE_AI.run = async (projectId, model, input) => {
+    if (projectId !== 'knowledge-base') throw new Error('unexpected Free AI project');
+    return (env.AI as unknown as { run: (model: string, input: unknown) => Promise<unknown> }).run(model, input);
+  };
+}
+
 function configureStaleFreeAiDefault(env: Env): void {
   env.RAG_EMBED_PROVIDER = 'free_ai';
   env.FREE_AI_EMBED_MODEL = 'gemini-embedding-001';
@@ -5727,6 +5735,7 @@ describe('knowledgebase RAG Worker app', () => {
       undefined,
       rawDocs as unknown as R2Bucket,
     );
+    routeVisionThroughTestGateway(env);
     const seenVisionModels: string[] = [];
     (env.AI as unknown as {
       run: (model: string, input: { image?: number[]; text?: string[] }) => Promise<unknown>;
@@ -6475,6 +6484,7 @@ describe('knowledgebase RAG Worker app', () => {
     const vectorize = new FakeVectorize();
     const app = createApp({ makeMetadataRepository: () => metadata });
     const env = makeEnv(vectorize);
+    routeVisionThroughTestGateway(env);
     (env.AI as unknown as {
       toMarkdown: (file: MarkdownDocument) => Promise<ConversionResponse>;
       run: (model: string, input: { image?: number[] }) => Promise<unknown>;
@@ -6578,6 +6588,7 @@ describe('knowledgebase RAG Worker app', () => {
     const vectorize = new FakeVectorize();
     const app = createApp({ makeMetadataRepository: () => metadata });
     const env = makeEnv(vectorize);
+    routeVisionThroughTestGateway(env);
     const calls: string[] = [];
     (env.AI as unknown as {
       toMarkdown: (file: MarkdownDocument) => Promise<ConversionResponse>;

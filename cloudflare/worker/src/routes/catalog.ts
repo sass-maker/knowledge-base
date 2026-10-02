@@ -424,6 +424,7 @@ export function registerCatalogRoutes(app: App, rt: AppRuntime): void {
       c.env.AI,
       typeof body.markdown_conversion === 'string' ? body.markdown_conversion : (c.env.RAG_MARKDOWN_CONVERSION ?? 'auto'),
       typeof body.vision_ocr_model === 'string' ? body.vision_ocr_model : (c.env.RAG_VISION_OCR_MODEL ?? ''),
+      c.env.FREE_AI,
     );
     if (parsed.documents.length === 0 || !parsed.text) {
       return c.json({ error: 'uploaded file has no parseable text content', file, parser: parsed.parser }, 400);
