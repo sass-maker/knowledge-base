@@ -43,3 +43,6 @@ dist/
 # Local agent logs / scratch (never commit agent session artifacts)
 .agent-logs/
 *.agent.log
+
+# Private agent qualification evidence
+.fleet-local/

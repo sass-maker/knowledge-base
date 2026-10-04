@@ -12,7 +12,7 @@ STORY: Understand the fleet role, see how cited retrieval behaves, inspect opera
 FIRST VIEWPORT: Wordmark and quiet source link above a large two-line promise, exact audience and boundary copy, and one primary action.
 FORM: Preserve the recovered evidence-console landing structure; no direction seed because the incumbent live page is authoritative.
 -->
-<Layout title={home.title} description={home.description}>
+<Layout hasProductFooter title={home.title} description={home.description}>
   <header class="shell nav">
     <a class="brand" href="/">
       <span aria-hidden="true">KB</span>
@@ -134,8 +134,32 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
       This site explains the system. It does not publish indexed material,
       search history, operator settings, authenticated routes, or retrieval access.
     </aside>
+  </main>
 
-    <section class="final-cta" aria-labelledby="final-cta-title">
+  <fleet-footer-extension
+    product-name="Knowledge Base"
+    art-src="https://sassmaker.com/footer-art/knowledge-base.webp"
+    class="precise-footer"
+    signature-name="Knowledge Base"
+    font-base="https://sassmaker.com/fonts/fleet-footer-precise-v1/"
+    theme="dark"
+    surface="landing"
+    art-alt="Knowledge Base: A private reading vault centers an index drawer retrieving one page while its provenance ribbon stays attached to the source volume. Closed specialist books sit behind a modest privacy partition in the wings."
+    art-width="2169"
+    art-height="725"
+    art-position="50% 50%"
+    art-credit="Original illustration for Knowledge Base"
+  >
+<saas-maker-newsletter-capture slot="capture"
+      product-name="Knowledge Base"
+      catalog-id="knowledge-base"
+      source="footer"
+      privacy-url="https://sassmaker.com/privacy"
+      theme="dark"
+      layout="compact"
+      integrated
+    ></saas-maker-newsletter-capture>
+<section slot="cta" data-fleet-footer-cta class="final-cta" aria-labelledby="final-cta-title">
       <div>
         <p>For a concrete Fleet need</p>
         <h2 id="final-cta-title">Start with the cited query contract, not a generic chat box.</h2>
@@ -145,15 +169,8 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
         Review integration examples <span aria-hidden="true">→</span>
       </a>
     </section>
-  </main>
+<footer slot="navigation" data-fleet-footer-navigation class="shell product-footer">
 
-  <footer class="shell product-footer">
-    <saas-maker-newsletter-capture
-      product-name="Knowledge Base"
-      catalog-id="knowledge-base"
-      source="footer"
-      privacy-url="https://sassmaker.com/privacy"
-    ></saas-maker-newsletter-capture>
     <div>
       <span class="footer-label">Knowledge Base</span>
       <strong>Private, cited retrieval for Fleet products and agents.</strong>
@@ -186,6 +203,7 @@ FORM: Preserve the recovered evidence-console landing structure; no direction se
       </a>
     </nav>
   </footer>
+</fleet-footer-extension>
 
   <script is:inline>
     document.addEventListener('click', (event) => {
