@@ -122,8 +122,11 @@ export async function onRequest(context: { request: Request; next: () => Promise
     });
   }
 
-  // JSON errors for unknown /api/* paths (except /api/ai which has its own function).
-  if (path.startsWith('/api/') && path !== '/api/ai' && !path.startsWith('/api/session')) {
+  // JSON errors for unknown /api/* paths. Excluded paths have their own
+  // functions: /api/ai, /api/session, and /api/v1* (the Access-verified Worker
+  // proxy in api/[[path]].ts, which only forwards v1/* upstream).
+  const isWorkerProxyPath = path === '/api/v1' || path.startsWith('/api/v1/');
+  if (path.startsWith('/api/') && path !== '/api/ai' && !path.startsWith('/api/session') && !isWorkerProxyPath) {
     return jsonError(404, 'not_found', `Unknown API path: ${path}`, path);
   }
 
