@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { qualifyTemporaryAdvisory, TEMPORARY_STATIC_ASTRO_ADVISORY } from './quality/temporary-static-astro-qualification.mjs';
+import { verifyStaticAstroEvidence } from './quality/temporary-static-astro-evidence.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const productionPaths = [
@@ -141,10 +143,11 @@ function checkDuplication() {
 function audit(directory) {
   const report = JSON.parse(run('pnpm', ['--dir', directory, 'audit', '--json'], { allowFailure: true }).stdout);
   const advisories = Object.values(report.advisories ?? {});
+  const criticalHigh = advisories.filter((item) => ['critical', 'high'].includes(item.severity));
   return {
     critical: advisories.filter((item) => item.severity === 'critical').length,
     high: advisories.filter((item) => item.severity === 'high').length,
-    ids: advisories.filter((item) => ['critical', 'high'].includes(item.severity)).map((item) => item.github_advisory_id),
+    advisories: criticalHigh,
   };
 }
 
@@ -173,7 +176,28 @@ function checkDependencies() {
     landing: new Set(['GHSA-2v37-7h3g-55p8', 'GHSA-7p8r-x3mc-p8w7']),
   };
   for (const [scope, report] of Object.entries(reports)) {
-    const unexpected = report.ids.filter((id) => !acceptedIds[scope].has(id));
+    const unexpected = [];
+    for (const advisory of report.advisories) {
+      const id = advisory.github_advisory_id;
+      if (acceptedIds[scope].has(id)) continue;
+      if (scope === 'landing' && id === TEMPORARY_STATIC_ASTRO_ADVISORY.id) {
+        const advisoryResult = qualifyTemporaryAdvisory(advisory);
+        if (!advisoryResult.qualified) {
+          unexpected.push(`${id} (${advisoryResult.reason})`);
+          continue;
+        }
+        const evidenceResult = verifyStaticAstroEvidence();
+        if (!evidenceResult.qualified) {
+          unexpected.push(`${id} (${evidenceResult.reason})`);
+          continue;
+        }
+        console.log(
+          `Dependencies: ${id} remains unpatched and reported; temporary static landing qualification is valid until ${TEMPORARY_STATIC_ASTRO_ADVISORY.expiresAt}.`,
+        );
+        continue;
+      }
+      unexpected.push(id);
+    }
     if (unexpected.length > 0) {
       throw new Error(`Unaccepted ${scope} critical/high advisories: ${unexpected.join(', ')}`);
     }
