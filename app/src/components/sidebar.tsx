@@ -29,18 +29,18 @@ export function Sidebar() {
           className="flex size-8 items-center justify-center rounded-lg font-mono text-sm font-bold"
           style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
         >
-          SM
+          KB
         </span>
         <div className="hidden flex-col sm:flex">
-          <span className="text-sm font-semibold text-foreground">SaaS Maker</span>
-          <span className="text-xs text-muted-foreground">Knowledgebase</span>
+          <span className="text-sm font-semibold text-foreground">Knowledge Base</span>
+          <span className="text-xs text-muted-foreground">Private Agent Search</span>
         </div>
       </div>
       <div className="hidden border-b border-border px-3 py-3 sm:block">
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-medium text-muted-foreground">Project</span>
           <select
-            aria-label="SaaS Maker project"
+            aria-label="Knowledge Base project"
             value={selectedProject}
             onChange={(event) => setSelectedProject(event.target.value)}
             className="h-9 w-full rounded-md border border-input bg-background px-2 font-mono text-xs text-foreground"

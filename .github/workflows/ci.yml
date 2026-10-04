@@ -41,10 +41,17 @@ jobs:
         working-directory: cloudflare/worker
       - run: pnpm check
         working-directory: landing-astro
+      - name: Test temporary static Astro qualification
+        run: node --test scripts/quality/temporary-static-astro-qualification.test.mjs
       - run: pnpm quality:unused
       - run: pnpm quality:complexity
       - run: pnpm quality:duplication
-      - run: pnpm quality:dependencies
+      - name: Capture same-build static landing qualification
+        run: node scripts/quality/temporary-static-astro-evidence.mjs capture "$RUNNER_TEMP/knowledge-base-static-astro-qualification.json"
+      - name: Audit dependencies
+        run: pnpm quality:dependencies
+        env:
+          KNOWLEDGE_BASE_STATIC_ASTRO_EVIDENCE: ${{ runner.temp }}/knowledge-base-static-astro-qualification.json
       - run: pnpm quality:cycles
       - run: pnpm quality:suppressions
       - run: pnpm quality:hygiene

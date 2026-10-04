@@ -39,7 +39,7 @@ export const homeMarkdown = `---
 title: "Knowledge Base — Private cited retrieval for Fleet agents"
 description: "A maintained retrieval layer that gives approved Fleet products and agents cited answers from private, specialized corpora."
 canonical: "${SITE_ORIGIN}/"
-last_updated: "2026-08-31"
+last_updated: "2026-10-04"
 ---
 
 # Knowledge Base — Private cited retrieval for Fleet agents
@@ -50,9 +50,12 @@ Knowledge Base is the shared retrieval layer behind approved Fleet products and
 agents. It searches private, specialized corpora by exact terms or meaning,
 ranks the evidence, and returns answers tied to a file, page, and excerpt.
 
-Current consumers include Karte, Research Papers, and Starboard. This is
-maintained internal infrastructure, not a public document-chat product or a
-self-serve RAG service.
+Public source contains Knowledge Base integrations in [Karte](https://github.com/Significant-Hobbies/karte/blob/main/src/lib/knowledgebase.ts),
+[Research Papers](https://github.com/High-Signal-App/research-papers/blob/main/src/researchpapers/api.py),
+and [Starboard](https://github.com/Codevetter/starboard/blob/main/src/lib/knowledgebase.ts).
+These links verify integration code, not live traffic or current production
+configuration. Knowledge Base is maintained internal infrastructure, not a
+public document-chat product or a self-serve RAG service.
 
 ## What it does
 
@@ -63,9 +66,8 @@ self-serve RAG service.
 
 ## Operating rule
 
-Knowledge Base already serves real Fleet consumers. Change it for a concrete
-consumer need, a retrieval regression, or a new corpus—not to expand the
-infrastructure for its own sake.
+Maintain the shared service for concrete consumer needs, retrieval regressions,
+or new corpora—not to expand the infrastructure for its own sake.
 
 ## Product boundaries
 
