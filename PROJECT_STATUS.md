@@ -25,8 +25,10 @@ the non-negotiable product invariant.
 - **2026-10-07** — Deployed a separate Modal embedding experiment with
   EmbeddingGemma 2's text encoder and a BGE-small comparison endpoint. Exact
   source-digest SDK/ASGI inference checks passed with real weights; both HTTP
-  endpoints reject unauthenticated requests. This experiment is outside the RAG
-  runtime and is not integrated with stored indexes. The Free AI gateway rollout
+  endpoints reject unauthenticated requests; protected public HTTPS inference
+  also passed for both models. Source and runbook are published in PR #65.
+  This experiment is outside the RAG runtime and is not integrated with stored
+  indexes. Both names are published in Free AI's catalog; the gateway rollout
   is tracked in [Free AI #100](https://github.com/sass-maker/free-ai/issues/100).
   See the [trial runbook](docs/operations/embedding-model-trial.md)
   and [issue #64](https://github.com/sass-maker/knowledge-base/issues/64).
