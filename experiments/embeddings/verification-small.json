@@ -1,0 +1,56 @@
+{
+  "round_trip_ms": 59291.86,
+  "result": {
+    "ok": true,
+    "runtime": {
+      "id": "BAAI/bge-small-en-v1.5",
+      "object": "model",
+      "owned_by": "trial",
+      "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+      "source_sha256": "67fef780ef6fc734c28960ed169c6c2a629303b7194065d4867f9ad31b975777",
+      "modalities": [
+        "text",
+        "code"
+      ],
+      "dimensions": [
+        384
+      ],
+      "max_input_tokens": 512,
+      "max_batch_size": 8,
+      "max_total_tokens": 8192,
+      "dtype": "float32",
+      "device": "cpu",
+      "parameters": 33360000,
+      "load_ms": 1035.74,
+      "peak_rss_mib": 1004.1
+    },
+    "samples_ms": [
+      36.82,
+      30.15,
+      29.72
+    ],
+    "median_inference_ms": 30.15,
+    "chunk_tokens": 214,
+    "chunk_samples_ms": [
+      613.17,
+      163.75,
+      148.0
+    ],
+    "chunk_median_inference_ms": 163.75,
+    "retrieval_scores": {
+      "relevant": 0.7646375214517698,
+      "unrelated": 0.35604784251548943
+    },
+    "checks": [
+      "real-weights",
+      "query-document-ranking",
+      "all-dimensions-normalized",
+      "token-budget",
+      "batch-budget",
+      "wrong-model",
+      "blank-input",
+      "readiness"
+    ],
+    "scope": "deployed-container ASGI application; public proxy authentication verified separately"
+  }
+}

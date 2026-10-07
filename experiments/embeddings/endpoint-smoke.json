@@ -1,0 +1,38 @@
+{
+  "EmbeddingGemma2": {
+    "initial_stats": "FunctionCurrentStats(backlog=0, num_total_runners=0, num_running_inputs=0, input_headroom=0)",
+    "round_trip_ms": [
+      35152.03,
+      632.79,
+      568.68,
+      570.95
+    ],
+    "inference_ms": [
+      242.29,
+      211.97,
+      191.25,
+      218.79
+    ],
+    "warm_round_trip_median_ms": 570.95,
+    "dimensions": 768,
+    "ok": true
+  },
+  "BgeSmall": {
+    "initial_stats": "FunctionCurrentStats(backlog=0, num_total_runners=0, num_running_inputs=0, input_headroom=0)",
+    "round_trip_ms": [
+      26579.77,
+      505.04,
+      495.35,
+      508.88
+    ],
+    "inference_ms": [
+      466.15,
+      35.15,
+      33.66,
+      36.3
+    ],
+    "warm_round_trip_median_ms": 505.04,
+    "dimensions": 384,
+    "ok": true
+  }
+}

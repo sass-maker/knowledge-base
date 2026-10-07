@@ -5,7 +5,7 @@
 > Update this file when durable current or shipped product truth changes. Do
 > not let deploy-version snapshots accumulate here — put those in the archive.
 
-Last updated: 2026-10-02
+Last updated: 2026-10-07
 
 ## Why / What
 
@@ -21,6 +21,15 @@ the non-negotiable product invariant.
 - Fleet consumers currently include Karte, Research Papers, and Starboard.
 
 ## Timeline
+
+- **2026-10-07** — Deployed a separate Modal embedding experiment with
+  EmbeddingGemma 2's text encoder and a BGE-small comparison endpoint. Exact
+  source-digest SDK/ASGI inference checks passed with real weights; both HTTP
+  endpoints reject unauthenticated requests. This experiment is outside the RAG
+  runtime and is not integrated with stored indexes. The Free AI gateway rollout
+  is tracked in [Free AI #100](https://github.com/sass-maker/free-ai/issues/100).
+  See the [trial runbook](docs/operations/embedding-model-trial.md)
+  and [issue #64](https://github.com/sass-maker/knowledge-base/issues/64).
 
 - **2026-10-02** — Prepared the Free AI Issue [#83](https://github.com/sass-maker/free-ai/issues/83)
   consumer integration in a clean branch: default BGE base inference and
@@ -74,6 +83,11 @@ Historical milestones live in
 
 ## Features (shipped)
 
+- **Embedding experiment:** independent CPU-only Modal endpoints for
+  EmbeddingGemma 2 text/code and BGE-small English embeddings, with built-in
+  proxy authentication, bounded input, and scale-to-zero after 30 idle seconds.
+  Usage and verification boundaries are in the
+  [trial runbook](docs/operations/embedding-model-trial.md).
 - **Public discovery source:** the independently built landing keeps public
   product truth separate from authenticated operator and retrieval surfaces.
   Its one route has a substantive Markdown counterpart plus shared

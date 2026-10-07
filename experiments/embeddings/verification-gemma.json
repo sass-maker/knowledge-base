@@ -1,0 +1,59 @@
+{
+  "round_trip_ms": 42267.34,
+  "result": {
+    "ok": true,
+    "runtime": {
+      "id": "google/embeddinggemma-2",
+      "object": "model",
+      "owned_by": "trial",
+      "revision": "914f7f89142e33e77833254d9c9b90c3cef7303b",
+      "source_sha256": "67fef780ef6fc734c28960ed169c6c2a629303b7194065d4867f9ad31b975777",
+      "modalities": [
+        "text",
+        "code"
+      ],
+      "dimensions": [
+        128,
+        256,
+        512,
+        768
+      ],
+      "max_input_tokens": 2048,
+      "max_batch_size": 8,
+      "max_total_tokens": 8192,
+      "dtype": "float32",
+      "device": "cpu",
+      "parameters": 271002624,
+      "load_ms": 4007.69,
+      "peak_rss_mib": 2319.56
+    },
+    "samples_ms": [
+      479.31,
+      227.39,
+      653.71
+    ],
+    "median_inference_ms": 479.31,
+    "chunk_tokens": 189,
+    "chunk_samples_ms": [
+      1763.27,
+      1266.64,
+      1764.69
+    ],
+    "chunk_median_inference_ms": 1763.27,
+    "retrieval_scores": {
+      "relevant": 0.8759170583842313,
+      "unrelated": 0.5679069553197186
+    },
+    "checks": [
+      "real-weights",
+      "query-document-ranking",
+      "all-dimensions-normalized",
+      "token-budget",
+      "batch-budget",
+      "wrong-model",
+      "blank-input",
+      "readiness"
+    ],
+    "scope": "deployed-container ASGI application; public proxy authentication verified separately"
+  }
+}

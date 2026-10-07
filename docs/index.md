@@ -62,6 +62,7 @@ retains `(file, page, excerpt)` provenance for agents.
 - [`operations/runbook.md`](operations/runbook.md) — worker checks, deployed smoke, parse eval, failure modes
 - [`operations/dashboard-access.md`](operations/dashboard-access.md) — Cloudflare Access, Pages proxy, local preview, and release order
 - [`operations/hosting-personal.md`](operations/hosting-personal.md) — personal hosting checklist
+- [`operations/embedding-model-trial.md`](operations/embedding-model-trial.md) — standalone Modal model endpoints, verification, and cost comparison
 - [`operations/jobs.md`](operations/jobs.md) — async ingestion (Queues + Workflows); no scheduled jobs
 - [`operations/automation-inventory.md`](operations/automation-inventory.md) — automation inventory and Foundry evidence contract (auth-safe health, sanitized evidence, storage ownership, maintenance-only authority)
 
