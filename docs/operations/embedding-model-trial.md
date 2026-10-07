@@ -9,8 +9,11 @@ Tracking: [issue 64](https://github.com/sass-maker/knowledge-base/issues/64).
 Source: [Modal deployment](../../experiments/embeddings/modal_app.py),
 [API](../../experiments/embeddings/embedding_api.py),
 [authenticated SDK client](../../experiments/embeddings/client.py).
-This is an independent experiment; the Cloudflare RAG runtime, stored embeddings,
-and Free AI catalog are unchanged. No UI or retrieval/answer route is added.
+This is an independent experiment; the Cloudflare RAG runtime and stored
+embeddings are unchanged. Both model names are also published in Free AI's
+catalog; gateway release qualification is tracked in
+[Free AI #100](https://github.com/sass-maker/free-ai/issues/100).
+No UI or retrieval/answer route is added.
 
 ## Runtime and scope
 
@@ -29,8 +32,10 @@ seconds. EmbeddingGemma 2 requests one physical CPU core and 2 GiB memory, with 
 of 0.5 cores and 1.5 GiB. Actual usage above requests affects billing.
 
 The endpoint requires Modal Proxy Token authentication before compute starts.
-No existing secrets are read or modified by this experiment. Modal CLI/SDK use
-the existing authenticated profile. Requests are not logged by the application;
+Under explicit owner authorization, a dedicated Modal Proxy Token was created
+for the Free AI adapter and its pair stored as Worker secrets. Clients use their
+existing gateway authentication; they do not need the Modal token. Modal CLI/SDK
+use the existing authenticated profile. Requests are not logged by the application;
 validation errors do not echo private inputs. The inference route rejects batches
 above eight, blank inputs, unknown fields, mismatched models, unsupported
 output dimensions, and inputs above 2,048 tokens (Gemma) or 512 tokens (BGE-small).
@@ -55,7 +60,11 @@ uv tool run --from modal==1.6.1 python client.py --model gemma --verify
 ```
 
 The SDK client works with the current Modal login and does not require creating
-an HTTP Proxy Token. To integrate from another service, obtain a Proxy Token
+an HTTP Proxy Token. The Free AI API accepts the exact model names
+`google/embeddinggemma-2` and `BAAI/bge-small-en-v1.5` at
+`https://ai-gateway.sassmaker.com/v1/embeddings`; see its
+[request examples and shared trial allowance](https://ai-gateway.sassmaker.com/docs/embeddings/).
+To call Modal directly from another service, obtain a Proxy Token
 through your Modal dashboard and supply it as `Authorization: Bearer <id>.<secret>`;
 never commit it or paste it into chat. The combined bearer value is compatible
 with OpenAI clients. Each model exposes `POST /v1/embeddings`, `GET /v1/models`,
@@ -125,7 +134,10 @@ Gemma took 35.15 seconds cold and a 571 ms warm round-trip median. BGE-small too
 26.58 seconds cold and a 505 ms warm round-trip median. Those end-to-end SDK
 timings include platform startup and transport; model loading alone is much
 shorter. Aggressive scale-to-zero therefore trades cost for a noticeable wait
-after inactivity. Public HTTP timing remains unmeasured. Both classes also
+after inactivity. A separate protected public HTTPS BGE request took 58.34 seconds
+and returned a finite normalized 384-dimensional vector; an authenticated Gemma
+HTTPS request also returned a valid 256-dimensional vector. These separate samples
+are not directly comparable to the SDK medians. Both classes also
 reported zero runners, running inputs, and backlog after the earlier idle period.
 
 | Measured deployed CPU smoke (3 samples) | Gemma text encoder | BGE-small |
@@ -160,5 +172,6 @@ ranking fixture. It also reports cold model loading, peak process RSS, and
 three warm inference samples for a short query and a document chunk. This is a
 small correctness/performance smoke, not a general retrieval-quality evaluation.
 Public unauthenticated HTTP requests are checked separately for rejection by
-Modal's proxy. Authenticated public HTTP inference requires an owner-supplied
-Proxy Token; it is a separate qualification step from SDK/ASGI verification.
+Modal's proxy. Authenticated public HTTPS inference for both models passed with
+the dedicated Proxy Token. SDK/ASGI, direct Modal HTTPS and gateway qualification
+are distinct evidence; gateway release receipts live in Free AI's tracking issue.
