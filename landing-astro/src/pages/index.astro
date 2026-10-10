@@ -5,29 +5,68 @@ import { baseProps } from '@saas-maker/templates/page';
 import { workbenchContent } from '@saas-maker/templates/schema';
 import { studioFromProjects, studioProjectsFeed } from '@saas-maker/ui/blocks/footer';
 import json from '../content/home.json';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 const content = workbenchContent.parse(json);
 const projects = await fetch(studioProjectsFeed, { signal: AbortSignal.timeout(1000) })
   .then((response) => (response.ok ? response.json() : []))
   .catch(() => []);
 if (content.footer) content.footer.studio = studioFromProjects(projects, { current: 'knowledge-base' });
+const widths = [360, 720, 1152, 1600];
+const images = widths.map((width) => ({ src: `/images/evidence-console-${width}.webp` }));
+// WindowFrame does not forward responsive-image props. Enhance its static HTML
+// at build time, preserving the shared frame and its intrinsic dimensions.
+const pageHtml = renderToStaticMarkup(createElement(WorkbenchPage, { content }))
+  .replace(/<img\b[^>]*src="\/images\/evidence-console\.webp"[^>]*>/, (image) =>
+    image
+      .replace(
+        'src="/images/evidence-console.webp"',
+        `src="${images[1].src}" srcset="${images.map((image, index) => `${image.src} ${widths[index]}w`).join(', ')}" sizes="(min-width: 1216px) 1024px, (min-width: 1024px) calc(95vw - 130px), (min-width: 640px) calc(95vw - 98px), calc(95vw - 50px)"`,
+      )
+      .replace('loading="eager"', 'loading="lazy"')
+      .replace(' fetchPriority="high"', '')
+      .replace(' fetchpriority="high"', ''),
+  )
+  .replace(/<link\b[^>]*rel="preload"[^>]*href="\/images\/evidence-console\.webp"[^>]*\/>/, '');
+const props = baseProps(content);
 ---
 
-<Base {...baseProps(content)}>
+<!-- Base couples its preload to the display face. Select the LCP body font for
+     delivery, then preserve Ink's existing heading and accent tokens. -->
+<Base {...props} fonts={{ display: 'geist' }} tokens={{ ...props.tokens, '--font-display': '"Figtree Variable", ui-sans-serif, system-ui, sans-serif', '--display-weight': '750', '--font-accent': '"Instrument Serif", Georgia, serif' }}>
   <Fragment slot="head">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate" type="text/markdown" href={`${content.url}/index.md`} />
     <link rel="ai-catalog" type="application/json" href={`${content.url}/.well-known/ai-catalog.json`} />
 <script is:inline type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Person","@id":"https://sarthakagrawal.dev/#person","name":"Sarthak Agrawal","jobTitle":"AI Infrastructure & Product Engineer","url":"https://sarthakagrawal.dev","image":"https://avatars.githubusercontent.com/u/43884471?v=4","sameAs":["https://sarthakagrawal.dev","https://www.linkedin.com/in/sarthakagrawal927","https://github.com/sarthakagrawal927","https://x.com/sarthakcodes","https://huggingface.co/sarthakagrawal927"],"knowsAbout":["AI infrastructure","Local-first software","Post-training language models","AI code review","Cloudflare Workers","TypeScript","Rust"],"affiliation":{"@type":"Organization","@id":"https://sassmaker.com/#app","name":"SaaS Maker","url":"https://sassmaker.com"}},{"@type":"WebSite","@id":"https://knowledgebase.sassmaker.com/#app","name":"Knowledge Base","url":"https://knowledgebase.sassmaker.com","description":"Cited search + grounded answers over private, specialized document collections (RAG).","publisher":{"@id":"https://sarthakagrawal.dev/#person"},"sameAs":["https://github.com/sass-maker/knowledge-base"]}]}</script>
     <script is:inline>
+      (function(){
+      var done=0,timer,events=["pointerdown","keydown","touchstart","scroll"];
+      function loadPosthog(){
+      if(done)return;
+      done=1;clearTimeout(timer);
+      events.forEach(function(event){window.removeEventListener(event,loadPosthog)});
       !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagResult isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
       posthog.init("phc_qgiAarw4Co4pw9fz3Fxj4UJaHmqzFetqs4JrXhGc35Nd",{api_host:"https://us.i.posthog.com",person_profiles:"always",capture_pageview:!1,autocapture:!1,loaded:function(posthog){posthog.capture("page_view",{project_id:"knowledge-base"})}});
+      }
+      events.forEach(function(event){window.addEventListener(event,loadPosthog,{passive:true,once:true})});
+      timer=setTimeout(loadPosthog,30000);
+      })();
     </script>
     <script is:inline>
-      (function(c,l,a,r,i,t,y){
+      (function(c,l,a,r,i){
         c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        var done=0,timer,ev=["pointerdown","keydown","touchstart","scroll"];
+        function go(){
+          if(done)return;
+          done=1;clearTimeout(timer);
+          ev.forEach(function(e){c.removeEventListener(e,go)});
+          var t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+          var y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        }
+        ev.forEach(function(e){c.addEventListener(e,go,{passive:true,once:true})});
+        timer=setTimeout(go,90000);
       })(window,document,"clarity","script","y6btv19tqf");
       window.clarity("set","project_id","knowledge-base");
     </script>
@@ -97,5 +136,10 @@ if (content.footer) content.footer.studio = studioFromProjects(projects, { curre
     }, true);
   </script>
   </Fragment>
-  <WorkbenchPage content={content} />
+  <Fragment set:html={pageHtml} />
 </Base>
+
+<style is:global>
+  /* Paint the LCP text immediately; keep its final styling and position. */
+  main > section:first-child .lede.hero-in { animation: none; }
+</style>

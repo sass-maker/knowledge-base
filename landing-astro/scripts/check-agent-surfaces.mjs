@@ -66,6 +66,22 @@ for (const forbiddenPattern of forbiddenPatterns) {
 }
 
 const indexHtml = await read('index.html');
+const consoleImage = indexHtml.match(/<img\b[^>]*evidence-console[^>]*>/u)?.[0];
+if (
+  !consoleImage?.includes('srcset=') ||
+  !consoleImage.includes('sizes=') ||
+  !consoleImage.includes('loading="lazy"') ||
+  !consoleImage.includes('width="1600" height="537"')
+) {
+  throw new Error('console artwork must be responsive, lazy, and retain its intrinsic dimensions');
+}
+if (indexHtml.includes('href="/images/evidence-console.webp"') || consoleImage.includes('fetchPriority="high"')) {
+  throw new Error('below-fold console artwork must not be preloaded or prioritized');
+}
+const fontPreloads = indexHtml.match(/<link\b[^>]*as="font"[^>]*>/gu) ?? [];
+if (fontPreloads.length !== 1 || !fontPreloads[0].includes('geist-latin-normal')) {
+  throw new Error('preload only the LCP paragraph font');
+}
 if (indexHtml.includes('us.i.posthog.com/array.js') || indexHtml.includes('_phq')) {
   throw new Error('PostHog loader uses the retired ingestion-path array.js');
 }
