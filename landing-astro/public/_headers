@@ -1,9 +1,4 @@
-# Public landing HTML only (this Pages project has no dashboard or API routes;
-# the Access-protected dashboard is a separate Pages project). Browsers always
-# revalidate; the edge may serve a copy for 5 minutes plus 1 minute of
-# stale-while-revalidate.
 /
-  Cache-Control: public, max-age=0, s-maxage=300, stale-while-revalidate=60
   Link: <https://knowledgebase.sassmaker.com/index.md>; rel="alternate"; type="text/markdown", <https://knowledgebase.sassmaker.com/api/ai>; rel="alternate"; type="application/json", <https://knowledgebase.sassmaker.com/.well-known/ai-catalog.json>; rel="ai-catalog"; type="application/json"
 
 /api/ai
@@ -13,9 +8,6 @@
 /.well-known/ai-catalog.json
   Content-Type: application/json; charset=utf-8
   X-Content-Type-Options: nosniff
-
-/index.html
-  Cache-Control: public, max-age=0, s-maxage=300, stale-while-revalidate=60
 
 /*
   X-Content-Type-Options: nosniff
