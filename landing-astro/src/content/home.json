@@ -1,0 +1,218 @@
+{
+  "template": "workbench",
+  "page": {
+    "title": "Knowledge Base \u2014 Private cited retrieval for Fleet agents",
+    "description": "A maintained retrieval layer that gives approved Fleet products and agents cited answers from private, specialized corpora.",
+    "theme": "ink",
+    "mode": "dark",
+    "motion": false,
+    "canonical": "https://knowledgebase.sassmaker.com/",
+    "robots": "index, follow, max-image-preview:large, max-snippet:-1",
+    "og": {
+      "type": "website",
+      "siteName": "Knowledge Base",
+      "image": "https://raw.githubusercontent.com/sass-maker/knowledge-base/main/.fleet/evidence/landing-audit/og-1200x630.png",
+      "twitterCard": "summary_large_image"
+    },
+    "jsonLd": {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://knowledgebase.sassmaker.com/#website",
+          "name": "Knowledge Base",
+          "url": "https://knowledgebase.sassmaker.com",
+          "description": "A maintained retrieval layer that gives approved Fleet products and agents cited answers from private, specialized corpora."
+        }
+      ]
+    },
+    "tokens": {
+      "--brand": "#08cbb6",
+      "--brand-foreground": "#001b17",
+      "--brand-soft": "#08cbb61f",
+      "--brand-ink": "#08cbb6",
+      "--background": "#000000",
+      "--surface": "#101211",
+      "--card": "#101211",
+      "--foreground": "#f5f7f6",
+      "--muted-foreground": "#a5aaa8"
+    }
+  },
+  "product": "Knowledge Base",
+  "url": "https://knowledgebase.sassmaker.com",
+  "mark": "/favicon.svg",
+  "nav": [
+    {
+      "label": "evidence",
+      "href": "#evidence"
+    },
+    {
+      "label": "how it works",
+      "href": "#how"
+    },
+    {
+      "label": "proof",
+      "href": "#proof"
+    }
+  ],
+  "header": {
+    "primary": {
+      "label": "read the integration contract",
+      "href": "https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md"
+    }
+  },
+  "hero": {
+    "eyebrow": "Fleet retrieval layer \u00b7 cited by default",
+    "title": "private sources in. cited answers out.",
+    "lede": "Knowledge Base gives Fleet products and agents grounded answers from approved, specialized corpora. It searches by exact terms or meaning, ranks the evidence, and keeps every useful answer tied to a file, page, and excerpt.",
+    "primary": {
+      "label": "read the integration contract",
+      "href": "https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md"
+    },
+    "secondary": {
+      "label": "read the public product brief",
+      "href": "/index.md"
+    },
+    "note": "Internal infrastructure, not a public document-chat product. The operator workspace is Access-protected, and retrieval is limited to approved Fleet consumers.",
+    "window": {
+      "title": "Illustrative interface",
+      "src": "/images/evidence-console.webp",
+      "alt": "Illustrative interface: a renewal-terms query, an answer about the 45-day renewal window, and Agreement.pdf page 12 and Amendment.docx section 4 citations.",
+      "width": 1600,
+      "height": 537,
+      "chrome": "none"
+    },
+    "caption": "Illustrative interface \u2014 the answer stays attached to its proof."
+  },
+  "sections": [
+    {
+      "id": "how",
+      "blocks": [
+        {
+          "type": "statement",
+          "eyebrow": "how it works",
+          "title": "one question, three inspectable stages.",
+          "points": [
+            {
+              "title": "scope the corpus",
+              "body": "A tenant credential limits the query to one approved project and domain."
+            },
+            {
+              "title": "search and rank",
+              "body": "Lexical and semantic retrieval find the most relevant source passages."
+            },
+            {
+              "title": "return the trail",
+              "body": "The answer arrives with ranked citations, provenance, confidence, and trace data."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "proof",
+      "blocks": [
+        {
+          "type": "statement",
+          "eyebrow": "operating proof",
+          "title": "fleet products integrate with the same retrieval service.",
+          "points": [
+            {
+              "title": "source integrations",
+              "body": "Karte \u00b7 Research Papers \u00b7 Starboard"
+            },
+            {
+              "title": "evidence invariant",
+              "body": "file_id \u00b7 page \u00b7 excerpt"
+            },
+            {
+              "title": "active runtime",
+              "body": "One Cloudflare Worker"
+            },
+            {
+              "title": "maintenance rule",
+              "body": "Change it for a consumer need or retrieval failure."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "boundary",
+      "blocks": [
+        {
+          "type": "cta",
+          "title": "the public boundary stays small.",
+          "lede": "This site explains the system. It does not publish indexed material, search history, operator settings, authenticated routes, or retrieval access.",
+          "primary": {
+            "label": "review integration examples",
+            "href": "https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-integration-examples.md"
+          },
+          "secondary": {
+            "label": "open the operator workspace \u00b7 Fleet Access required",
+            "href": "https://search.sassmaker.com"
+          }
+        }
+      ]
+    }
+  ],
+  "footer": {
+    "catalogId": "knowledge-base",
+    "capture": "newsletter",
+    "summary": "Private, cited retrieval for Fleet products and agents. Maintained internal infrastructure with no public service signup or checkout. You can opt in to occasional product-update newsletter notes.",
+    "privacyUrl": "https://sassmaker.com/privacy",
+    "groups": [
+      {
+        "title": "product",
+        "links": [
+          {
+            "label": "public brief",
+            "href": "/index.md"
+          },
+          {
+            "label": "agent contract",
+            "href": "https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md"
+          },
+          {
+            "label": "integration examples",
+            "href": "https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-integration-examples.md"
+          }
+        ]
+      },
+      {
+        "title": "source integrations",
+        "links": [
+          {
+            "label": "Karte",
+            "href": "https://github.com/Significant-Hobbies/karte/blob/main/src/lib/knowledgebase.ts"
+          },
+          {
+            "label": "Research Papers",
+            "href": "https://github.com/High-Signal-App/research-papers/blob/main/src/researchpapers/api.py"
+          },
+          {
+            "label": "Starboard",
+            "href": "https://github.com/Codevetter/starboard/blob/main/src/lib/knowledgebase.ts"
+          }
+        ]
+      },
+      {
+        "title": "support and source",
+        "links": [
+          {
+            "label": "source and roadmap",
+            "href": "https://github.com/sass-maker/knowledge-base"
+          },
+          {
+            "label": "support",
+            "href": "https://github.com/sass-maker/knowledge-base/issues"
+          },
+          {
+            "label": "privacy",
+            "href": "https://sassmaker.com/privacy"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -56,7 +56,8 @@ if (aiCatalog.host?.identifier !== 'https://knowledgebase.sassmaker.com' || aiCa
   throw new Error('AI catalog must describe exactly the public Knowledge Base catalog');
 }
 
-const publicOutput = (await Promise.all(requiredFiles.map((requiredFile) => read(requiredFile)))).join('\n');
+// The shared StudioFooter script reads its own `api_key` config field; that expression is not a leaked credential.
+const publicOutput = (await Promise.all(requiredFiles.map((requiredFile) => read(requiredFile)))).join('\n').replaceAll('c?.api_key', '');
 const forbiddenPatterns = [/workers\.dev/i, /\/v1\/kb\//i, /service[_ -]?key/i, /api[_ -]?key/i, /bearer\s+[a-z0-9]/i];
 for (const forbiddenPattern of forbiddenPatterns) {
   if (forbiddenPattern.test(publicOutput)) {
