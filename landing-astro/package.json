@@ -34,9 +34,9 @@
   },
   "dependencies": {
     "@astrojs/react": "7.0.0",
-    "@saas-maker/motion": "github:sass-maker/ui-library#v0.1.11&path:/packages/motion",
-    "@saas-maker/templates": "github:sass-maker/ui-library#v0.1.11&path:/packages/templates",
-    "@saas-maker/ui": "github:sass-maker/ui-library#v0.1.11&path:/packages/ui",
+    "@saas-maker/motion": "github:sass-maker/ui-library#v0.1.14&path:/packages/motion",
+    "@saas-maker/templates": "github:sass-maker/ui-library#v0.1.14&path:/packages/templates",
+    "@saas-maker/ui": "github:sass-maker/ui-library#v0.1.14&path:/packages/ui",
     "@tailwindcss/vite": "4.3.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
