@@ -5,10 +5,8 @@ import { baseProps } from '@saas-maker/templates/page';
 import { workbenchContent } from '@saas-maker/templates/schema';
 import { studioFromProjects, studioProjectsFeed } from '@saas-maker/ui/blocks/footer';
 import json from '../content/home.json';
-import { getImage } from 'astro:assets';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import consoleImage from '../../public/images/evidence-console.webp';
 
 const content = workbenchContent.parse(json);
 const projects = await fetch(studioProjectsFeed, { signal: AbortSignal.timeout(1000) })
@@ -16,7 +14,7 @@ const projects = await fetch(studioProjectsFeed, { signal: AbortSignal.timeout(1
   .catch(() => []);
 if (content.footer) content.footer.studio = studioFromProjects(projects, { current: 'knowledge-base' });
 const widths = [360, 720, 1152, 1600];
-const images = await Promise.all(widths.map((width) => getImage({ src: consoleImage, width, format: 'webp', quality: 85 })));
+const images = widths.map((width) => ({ src: `/images/evidence-console-${width}.webp` }));
 // WindowFrame does not forward responsive-image props. Enhance its static HTML
 // at build time, preserving the shared frame and its intrinsic dimensions.
 const pageHtml = renderToStaticMarkup(createElement(WorkbenchPage, { content }))
