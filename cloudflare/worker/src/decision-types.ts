@@ -38,6 +38,9 @@ export interface DecisionEngineResult {
   raw: unknown;
   result?: DecisionResult;
   error?: string;
+  error_code?: string;
+  gateway_input_hash?: string;
+  decision_backend?: 'free_ai_decisions';
 }
 interface ChoiceQuestion {
   type: 'choice';

@@ -28,6 +28,8 @@ export interface Env {
   RAG_ANSWER_MODEL?: string;
   // Jev is a paid third-party model. Enable only after explicit owner approval.
   RAG_JEV_ENABLED?: string;
+  // Opt into the shared typed decision API only after its gateway release.
+  RAG_GATEWAY_DECISIONS_ENABLED?: string;
   // Route inference to an explicitly configured direct provider when set.
   RAG_EMBED_PROVIDER?: string;
   RAG_SYNTH_PROVIDER?: string;

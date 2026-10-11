@@ -127,6 +127,20 @@ Free AI uses gateway model `auto` and project ID `knowledge-base`. Jev uses the
 through the existing AI binding and is disabled unless `RAG_JEV_ENABLED=true`.
 Jev is paid; enabling it requires explicit owner approval. No production
 configuration enables it as part of this change.
+An optional `RAG_GATEWAY_DECISIONS_ENABLED=true` adapter uses Free AI's generic
+`/v1/decide` and `/v1/compare` endpoints after that API is released. The default
+keeps the existing production path. The adapter sends typed choice questions
+with their option meanings; comparison uses one request with identical state
+and questions. Knowledgebase still freezes sources, validates every selected
+quote and candidate, and persists the run. Provider prose remains raw output;
+displayed reasons and benefits come from the selected source quotes.
+The generic gateway owns model routing and the Jev availability/budget gate;
+the adapter does not invoke native AI or retry a failed call with another model.
+It preserves explicit errors and disabled results, verifies response project,
+engine identity, and canonical `gateway_input_hash`, and records actual model,
+provider, latency, usage, and raw output. The existing `input_hash` continues to
+identify the complete Knowledgebase frozen evidence record. No configuration
+enables this adapter as part of the source change.
 Requests have a 30-second model deadline; cancellation of native AI work after
 the request deadline depends on the binding's cancellation support.
 

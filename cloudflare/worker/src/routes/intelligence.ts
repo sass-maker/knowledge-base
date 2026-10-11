@@ -4,7 +4,7 @@ import { jsonRecord } from '../app-utils';
 import type { Variables } from '../auth';
 import { type EnrichInput, enrichCatalog } from '../catalog-enrichment';
 import { contentHash } from '../catalog-ingest';
-import { runDecisionEngine } from '../decision-engine';
+import { compareKnowledgeDecisions, runKnowledgeDecision } from '../gateway-decisions';
 import { freezeDecision } from '../decision-evidence';
 import type { DecisionEngineResult, DecisionInput, FrozenDecision } from '../decision-types';
 import { readRequestJson } from '../request-json';
@@ -94,7 +94,7 @@ export function registerIntelligenceRoutes(app: App, rt: AppRuntime): void {
     await requireDecisionStorage(c.env);
     const frozen = await freezeDecision(repo, tenant, indexId, body);
     const engineName = body.engine ?? 'free_ai';
-    const engine = await runDecisionEngine(c.env, frozen, engineName);
+    const engine = await runKnowledgeDecision(c.env, frozen, engineName);
     const stored = await storeDecision(c.env, tenant, indexId, frozen, { [engineName]: engine });
     return c.json({ decision_id: stored.id, input_hash: stored.hash, coverage: frozen.coverage, ...engine });
   });
@@ -108,10 +108,15 @@ export function registerIntelligenceRoutes(app: App, rt: AppRuntime): void {
     if (!(await repo.getIndex(tenant, indexId))) return c.json({ error: 'Index not found' }, 404);
     await requireDecisionStorage(c.env);
     const frozen = await freezeDecision(repo, tenant, indexId, body);
-    const [freeAi, jev] = await Promise.all([runDecisionEngine(c.env, frozen, 'free_ai'), runDecisionEngine(c.env, frozen, 'jev')]);
-    const engines = { free_ai: freeAi, jev };
+    const engines = await compareKnowledgeDecisions(c.env, frozen);
     const stored = await storeDecision(c.env, tenant, indexId, frozen, engines);
-    return c.json({ comparison_id: stored.id, input_hash: stored.hash, coverage: frozen.coverage, engines, agreement: agreement(freeAi, jev) });
+    return c.json({
+      comparison_id: stored.id,
+      input_hash: stored.hash,
+      coverage: frozen.coverage,
+      engines,
+      agreement: agreement(engines.free_ai, engines.jev),
+    });
   });
 
   app.get('/v1/indexes/:id/decisions/:decision_id', async (c) => {

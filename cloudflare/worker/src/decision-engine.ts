@@ -92,7 +92,7 @@ function validateProbabilities(probabilities: unknown, criteria: Record<string, 
   }
 }
 
-function validateAnswers(frozen: FrozenDecision, answers: JsonRecord): DecisionResult {
+export function validateDecisionAnswers(frozen: FrozenDecision, answers: JsonRecord): DecisionResult {
   const keys = Object.keys(frozen.questions);
   if (Object.keys(answers).length !== keys.length || Object.keys(answers).some((key) => !frozen.questions[key]))
     throw new Error('Decision answer ids do not match frozen questions');
@@ -145,7 +145,7 @@ export async function runDecisionEngine(env: Env, frozen: FrozenDecision, engine
       result.provider = response.provider;
       result.usage = Object.keys(jsonRecord(response.raw.usage)).length ? jsonRecord(response.raw.usage) : null;
     }
-    result.result = validateAnswers(frozen, answerMap(jsonRecord(result.raw), engine));
+    result.result = validateDecisionAnswers(frozen, answerMap(jsonRecord(result.raw), engine));
     result.status = 'ok';
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
