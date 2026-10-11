@@ -6996,13 +6996,13 @@ describe('knowledgebase RAG Worker app', () => {
     expect(query.status).toBe(200);
     expect(timing).toMatchObject({
       retrieval: 'lexical',
-      lexical_scoring: 'bm25_fuzzy_sparse_v3',
+      lexical_scoring: 'fts_corpus_bm25_sparse_v4',
       lexical_corpus_chunks: 3,
-      lexical_prefilter: 'chunk_cache_full_scan',
+      lexical_prefilter: 'corpus_sql_fts',
     });
     expect(result.data[0]?.chunk_id).toBe('chunk-rare');
     expect(result.data[0]?.metadata).toMatchObject({
-      lexical_scoring: 'bm25_fuzzy_sparse_v3',
+      lexical_scoring: 'fts_corpus_bm25_sparse_v4',
       lexical_matched_terms: ['ultrarare'],
     });
     expect(aiCalls).toBe(0);
@@ -7076,8 +7076,8 @@ describe('knowledgebase RAG Worker app', () => {
     expect(query.status).toBe(200);
     expect(timing).toMatchObject({
       retrieval: 'lexical',
-      lexical_prefilter: 'chunk_cache_full_scan',
-      lexical_scoring: 'bm25_fuzzy_sparse_v3',
+      lexical_prefilter: 'corpus_sql_fts',
+      lexical_scoring: 'fts_corpus_bm25_sparse_v4',
     });
     expect(result.data[0]?.chunk_id).toBe('chunk-guardrails');
     expect(result.data[0]?.metadata.lexical_matched_terms).toEqual(['guadrails~guardrails']);
@@ -7105,8 +7105,7 @@ describe('knowledgebase RAG Worker app', () => {
     expect(secondQuery.status).toBe(200);
     expect(secondTiming).toMatchObject({
       retrieval: 'lexical',
-      lexical_chunk_cache: 'hit',
-      lexical_prefilter: 'chunk_cache_full_scan',
+      lexical_prefilter: 'corpus_sql_fts',
     });
     expect(secondTiming.lexical_prepare_ms).toBeUndefined();
     expect(repo.listChunksForIndexCalls).toBe(1);

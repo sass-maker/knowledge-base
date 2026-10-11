@@ -25,7 +25,7 @@ export const DEFAULT_RERANKER_MODEL = '@cf/baai/bge-reranker-base';
 export const DEFAULT_ANSWER_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 export const WORKER_VERSION = '0.1.0';
 export const WORKER_DEPLOY_FINGERPRINT = 'knowledgebase-a-plus-evidence-2026-06-23';
-export const LEXICAL_SCORING_VERSION = 'bm25_fuzzy_sparse_v3';
+export const LEXICAL_SCORING_VERSION = 'fts_corpus_bm25_sparse_v4';
 export const MAX_RERANK_CONTEXT_CHARS = 1200;
 export const INGEST_JOB_LEASE_MS = 5 * 60 * 1000;
 export const INGEST_PARSE_TIMEOUT_MS = 45 * 1000;
@@ -302,6 +302,7 @@ export interface KbSearchBody {
   query?: string;
   top_k?: number;
   min_score?: number;
+  filter?: JsonRecord;
   mode?: 'auto' | 'semantic' | 'lexical' | 'hybrid';
   semantic_model?: SemanticModel;
   rerank?: boolean;

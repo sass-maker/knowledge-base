@@ -1,17 +1,18 @@
 import { Hono } from 'hono';
 import { knowledgeBaseAppHealthMiddleware } from './app-health';
-import { requireServiceKey, type Variables } from './auth';
-import { type AppOptions, type KbIngestRunBody, type QueueCapableApp } from './app-types';
+import type { AppOptions, KbIngestRunBody, QueueCapableApp } from './app-types';
 import { forwardLegacyRoute, legacyRouteTarget } from './app-utils';
+import { requireServiceKey, type Variables } from './auth';
 import { classifyIngestFailure, INGEST_QUEUE_MAX_ATTEMPTS, KbIngestWorkflow } from './ingest';
-import { createRuntime } from './runtime';
 import { registerCatalogRoutes } from './routes/catalog';
 import { registerEntityRoutes } from './routes/entities';
 import { registerEvalRoutes } from './routes/evals';
 import { registerIndexRoutes } from './routes/indexes';
 import { registerIngestRoutes } from './routes/ingest';
+import { registerIntelligenceRoutes } from './routes/intelligence';
 import { registerSearchRoutes } from './routes/search';
 import { registerSystemRoutes } from './routes/system';
+import { createRuntime } from './runtime';
 import type { Env, KbIngestQueueMessage } from './types';
 
 export { KbIngestWorkflow };
@@ -39,6 +40,7 @@ export function createApp(options: AppOptions = {}) {
   registerEntityRoutes(app, rt);
   registerSearchRoutes(app, rt);
   registerIndexRoutes(app, rt);
+  registerIntelligenceRoutes(app, rt);
   registerEvalRoutes(app, rt);
 
   (app as QueueCapableApp).processIngestQueue = async (batch: MessageBatch<KbIngestQueueMessage>, env: Env) => {

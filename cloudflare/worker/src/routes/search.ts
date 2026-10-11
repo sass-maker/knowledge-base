@@ -25,6 +25,7 @@ export function registerSearchRoutes(app: App, rt: AppRuntime): void {
     if (body.top_k !== undefined) queryBody.top_k = body.top_k;
     if (body.mode !== undefined) queryBody.mode = body.mode;
     if (body.min_score !== undefined) queryBody.min_score = body.min_score;
+    if (body.filter !== undefined) queryBody.filter = body.filter;
     if (body.semantic_model !== undefined) queryBody.semantic_model = body.semantic_model;
     if (body.rerank !== undefined) queryBody.rerank = body.rerank;
     if (body.rerank_model !== undefined) queryBody.rerank_model = body.rerank_model;
