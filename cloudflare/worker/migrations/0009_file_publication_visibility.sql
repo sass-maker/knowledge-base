@@ -16,14 +16,14 @@ CREATE TABLE kb_file_publications (
 );
 CREATE TRIGGER kb_file_publication_guard BEFORE INSERT ON kb_file_publications
 BEGIN
-  SELECT CASE WHEN NOT EXISTS (
+  SELECT (CASE WHEN NOT EXISTS (
     SELECT 1 FROM kb_file_operations o JOIN kb_file_lifecycle l
       ON l.project = o.project AND l.file_id = o.file_id
     WHERE o.operation_id = NEW.operation_id AND o.state = 'running'
       AND l.state IN ('uploading', 'active') AND l.generation = o.generation
       AND l.active_operation_id = o.operation_id
       AND NOT EXISTS (SELECT 1 FROM kb_file_artifacts a WHERE a.operation_id = o.operation_id AND a.write_state = 'intent')
-  ) THEN RAISE(ABORT, 'file_operation_not_publishable') END;
+  ) THEN RAISE(ABORT, 'file_operation_not_publishable') END);
 END;
 CREATE TRIGGER kb_file_visibility_revision AFTER UPDATE OF state, published_generation ON kb_file_lifecycle
 WHEN OLD.state != NEW.state OR OLD.published_generation IS NOT NEW.published_generation
