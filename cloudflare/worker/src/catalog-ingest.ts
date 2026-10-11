@@ -8,6 +8,7 @@ import {
   jsonRecord,
   vectorizeProfileForIndex,
 } from './app-utils';
+import { reserveCatalogStorage, upsertCatalogVectors } from './catalog-storage';
 import { chunkText } from './chunk';
 import type { CreateChunkInput, Repository } from './repository';
 import type { AppRuntime } from './runtime';
@@ -84,7 +85,7 @@ export async function ingestCatalogDocument(
     return { document_id: previous.id, external_id: externalId, chunks_created: 0, idempotent: true, content_hash: fingerprint };
   if (externalId && (!repo.publishDocumentSnapshot || !repo.getDocumentByExternalId))
     throw new HTTPException(503, { message: 'Snapshot publication is unavailable' });
-  denyVectorizeStorageGrowth();
+  await requireCatalogStorageReady(env, externalId, sourceMetadata);
   const profile = vectorizeProfileForIndex(env, index);
   const embedding = embeddingProfileForIndex(env, index, profile);
   const small = embedding.vectorizeProfile === 'base' ? configuredVectorizeProfiles(env).find((item) => item.key === 'small') : undefined;
@@ -100,11 +101,15 @@ export async function ingestCatalogDocument(
     chunkIndex: i,
     metadata,
   }));
+  const admission = await reserveCatalogStorage(env, { tenant: index.tenant, indexId: index.id, chunkIds: chunks.map((chunk) => chunk.id) }, [
+    profile,
+    ...(small ? [small] : []),
+  ]);
   const vectors = await rt.embed(env, contents, embeddingOptionsForProfile(embedding));
   const smallVectors = small ? await rt.embed(env, contents, { model: embeddingModel(env, 'small') }) : [];
   try {
-    await rt.upsertChunkVectors(env, index.tenant, index.id, chunks, vectors, profile);
-    if (small && smallVectors.length) await rt.upsertChunkVectors(env, index.tenant, index.id, chunks, smallVectors, small);
+    await upsertCatalogVectors(env, admission.get(profile), profile, chunks, vectors);
+    if (small) await upsertCatalogVectors(env, admission.get(small), small, chunks, smallVectors);
     const document = { id, tenant: index.tenant, indexId: index.id, externalId, content, metadata };
     if (repo.publishDocumentSnapshot) await repo.publishDocumentSnapshot(document, chunks, previous?.id ?? null);
     else {
@@ -121,6 +126,13 @@ export async function ingestCatalogDocument(
   }
   if (previous) await cleanPreviousVectors(repo, index.tenant, previous.id, profile, small);
   return { document_id: id, external_id: externalId, chunks_created: chunks.length, idempotent: false, content_hash: fingerprint };
+}
+
+async function requireCatalogStorageReady(env: Env, externalId: string | null, metadata: JsonRecord): Promise<void> {
+  if (!externalId || typeof metadata.kind !== 'string' || !metadata.kind.trim() || !['public', 'private'].includes(String(metadata.visibility)))
+    denyVectorizeStorageGrowth();
+  if (!(await env.DB.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_document_current_external'").first()))
+    throw new HTTPException(503, { message: 'Catalog snapshot migration 0011 is required before storage reservation' });
 }
 
 function snapshotMetadata(sourceMetadata: JsonRecord, id: string, externalId: string | null): JsonRecord {

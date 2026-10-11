@@ -4,6 +4,7 @@ import type { Env } from './types';
 
 const NEURON_CAP = 9_500;
 const VECTORIZE_CAP = 45_000_000;
+const VECTORIZE_STORED_CAP = 200_000_000;
 
 function deny(): never {
   throw new HTTPException(503, { message: 'Shared AI budget is unavailable or exhausted.' });
@@ -79,6 +80,36 @@ export async function reserveVectorizeDimensions(env: Env, dimensions: number): 
     result.used + result.remaining !== VECTORIZE_CAP
   )
     return deny();
+}
+
+export async function reserveVectorizeStorage(env: Env, dimensions: number): Promise<void> {
+  if (!Number.isSafeInteger(dimensions) || dimensions <= 0 || dimensions > VECTORIZE_CAP) return deny();
+  const payload = await postReservation(env, 'try-debit-vectorize-storage', { dimensions });
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return deny();
+  const result = payload as Record<string, unknown>;
+  validateStorageQueryReceipt(result, dimensions);
+  if (
+    result.storedCap !== VECTORIZE_STORED_CAP ||
+    !isSafeInteger(result.storedUsed) ||
+    result.storedUsed < dimensions ||
+    !isSafeInteger(result.storedRemaining) ||
+    result.storedUsed + result.storedRemaining !== VECTORIZE_STORED_CAP
+  )
+    return deny();
+}
+
+function validateStorageQueryReceipt(result: Record<string, unknown>, dimensions: number): void {
+  if (
+    result.allowed !== true ||
+    result.monthKey !== utcMonth() ||
+    result.baselineVerified !== true ||
+    result.retryAfter !== 0 ||
+    !isSafeInteger(result.used) ||
+    result.used < dimensions ||
+    !isSafeInteger(result.remaining) ||
+    result.used + result.remaining !== VECTORIZE_CAP
+  )
+    deny();
 }
 
 const INPUT_NEURONS_PER_MILLION: Record<string, number> = {

@@ -69,7 +69,15 @@ metadata returns `idempotent:true`; a changed snapshot publishes new document an
 chunk IDs after embedding succeeds. D1 publication is atomic and concurrent
 writers cannot overwrite the same previous snapshot. Older documents remain
 retrievable for historical citations and are excluded from current search.
-Storage growth remains guarded; an idempotent replay needs no new vectors.
+Catalog snapshots require a stable external ID plus `kind` and `visibility`
+metadata. Before inference, they reserve the exact chunk count times all target
+profile dimensions (including the small index) through the shared storage
+ledger. Admission requires a verified current-month baseline and receipts for
+both the 45M queried-dimension cap and 200M stored-dimension cap. Each raw upsert
+consumes an opaque token bound to its tenant/index/chunks/profile, valid once
+for five minutes within the current month. Failed or ambiguous work receives no
+credit refund. Other ingestion paths retain their existing storage-growth guard;
+an idempotent replay needs no new reservation or vectors.
 
 `GET /v1/indexes/:id/documents/by-external-id?external_id=...` and
 `GET /v1/documents/:id` return `{document,chunks}`. Catalog citation `file_id`
@@ -138,8 +146,9 @@ existing vectors need republishing before those source filters can match them.
 
 Migration `0011_catalog_snapshots_fts_decisions.sql` prepares snapshot uniqueness,
 FTS, durable revisions, and decision storage. It must be approved and applied
-before publishing catalog snapshots or running saved decisions; this source
-change does not apply migrations or lift the Vectorize storage-growth guard.
+before publishing catalog snapshots or running saved decisions. This source
+change applies no migrations or configuration changes; catalog admission stays
+closed when the shared ledger cannot verify storage headroom.
 
 ## Curl Example
 
