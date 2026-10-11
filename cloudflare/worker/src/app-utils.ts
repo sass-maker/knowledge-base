@@ -347,6 +347,7 @@ export function vectorMetadata(tenant: string, indexId: string, documentId: stri
   if (jsonByteLength(compact) <= VECTOR_METADATA_SAFE_BYTES) return compact;
 
   return {
+    ...vectorFilterMetadata(metadata),
     tenant,
     index_id: indexId,
     document_id: documentId,
@@ -359,6 +360,7 @@ const VECTOR_METADATA_SAFE_BYTES = 9_500;
 
 function buildVectorMetadata(tenant: string, indexId: string, documentId: string, chunkIndex: number, content: string, metadata: JsonRecord): JsonRecord {
   return {
+    ...vectorFilterMetadata(metadata),
     tenant,
     index_id: indexId,
     document_id: documentId,
@@ -366,6 +368,16 @@ function buildVectorMetadata(tenant: string, indexId: string, documentId: string
     chunk_content: content,
     chunk_metadata: JSON.stringify(metadata),
   };
+}
+
+function vectorFilterMetadata(metadata: JsonRecord): JsonRecord {
+  return Object.fromEntries(
+    Object.entries(metadata).filter(
+      ([key, value]) =>
+        ['kind', 'repo_id', 'user_id', 'subject_id', 'category', 'visibility'].includes(key) &&
+        (typeof value === 'number' || typeof value === 'boolean' || (typeof value === 'string' && value.length <= 256)),
+    ),
+  );
 }
 
 function jsonByteLength(value: unknown): number {
@@ -418,27 +430,6 @@ function compactVectorMetadataValue(value: unknown, key: string): unknown {
   if (Array.isArray(value)) return value.slice(0, key === 'author_names' ? 12 : 8);
   if (typeof value === 'string' && value.length > 1_000) return `${value.slice(0, 997)}...`;
   return value;
-}
-
-export function searchResultFromVectorMetadata(match: { id: string; score: number; metadata?: JsonRecord }): SearchResult | null {
-  const metadata = match.metadata ?? {};
-  if (metadata.metadata_hydrate === true) return null;
-  if (typeof metadata.document_id !== 'string' || typeof metadata.chunk_content !== 'string') return null;
-  let parsedMetadata: unknown = {};
-  if (typeof metadata.chunk_metadata === 'string') {
-    try {
-      parsedMetadata = JSON.parse(metadata.chunk_metadata) as unknown;
-    } catch {
-      parsedMetadata = {};
-    }
-  }
-  return {
-    document_id: metadata.document_id,
-    chunk_id: match.id,
-    chunk_content: metadata.chunk_content,
-    score: match.score,
-    metadata: jsonRecord(parsedMetadata),
-  };
 }
 
 export function elapsedMs(started: number): number {

@@ -1,19 +1,16 @@
 import {
-  CORRECTIVE_SEMANTIC_MIN_SCORE,
-  DEFAULT_ANSWER_MODEL,
-  DEFAULT_BASE_EMBEDDING_MODEL,
-  LEXICAL_SCORING_VERSION,
-  MAX_RERANK_CONTEXT_CHARS,
-  MAX_TOP_K,
-  SEMANTIC_LEXICAL_FAST_PATH_MIN_OVERLAP,
-  SEMANTIC_LEXICAL_FAST_PATH_MIN_SCORE,
-  STOP_WORDS,
   type AnswerMode,
   type AppContext,
   type CacheStatus,
+  CORRECTIVE_SEMANTIC_MIN_SCORE,
+  DEFAULT_ANSWER_MODEL,
+  DEFAULT_BASE_EMBEDDING_MODEL,
   type EmbeddingCallOptions,
   type KbAnswerPayload,
   type KbQueryBody,
+  LEXICAL_SCORING_VERSION,
+  MAX_RERANK_CONTEXT_CHARS,
+  MAX_TOP_K,
   type ParseEvalCase,
   type QueryBody,
   type QueryEvalCase,
@@ -23,7 +20,10 @@ import {
   type QueryPlanVariantKind,
   type RagTiming,
   type RerankModel,
+  SEMANTIC_LEXICAL_FAST_PATH_MIN_OVERLAP,
+  SEMANTIC_LEXICAL_FAST_PATH_MIN_SCORE,
   type SearchEvalCase,
+  STOP_WORDS,
 } from './app-types';
 import { analyticsNumber, analyticsString, elapsedMs, jsonRecord, writeAnalyticsPoint } from './app-utils';
 import { freeAiChatRaw, freeAiEmbed, freeAiNativeEmbed } from './free-ai';
@@ -72,14 +72,19 @@ export function fuseHybridResults(lexical: QueryPayload | null, semantic: QueryP
     const sources = Array.isArray(existing.metadata.hybrid_sources) ? existing.metadata.hybrid_sources : [];
     existing.metadata = {
       ...existing.metadata,
+      score_kind: 'rrf',
       hybrid_sources: sources.includes(source) ? sources : [...sources, source],
       ...(existing.lexical_score !== undefined ? { lexical_score: existing.lexical_score } : {}),
       ...(existing.semantic_score !== undefined ? { semantic_score: existing.semantic_score } : {}),
     };
     fused.set(result.chunk_id, existing);
   };
-  lexical?.data.forEach((result, rank) => add(result, rank, 'lexical'));
-  semantic.data.forEach((result, rank) => add(result, rank, 'semantic'));
+  lexical?.data.forEach((result, rank) => {
+    add(result, rank, 'lexical');
+  });
+  semantic.data.forEach((result, rank) => {
+    add(result, rank, 'semantic');
+  });
   return {
     data: [...fused.values()]
       .sort((a, b) => b.score - a.score)
@@ -281,6 +286,7 @@ export function rerankAndDiversifyResults(payload: QueryPayload, query: string, 
           score: rerankScore,
           metadata: {
             ...result.metadata,
+            score_kind: 'keyword_reranked',
             rerank_score: rerankScore,
             rerank_overlap: overlap,
           } as JsonRecord,

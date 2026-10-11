@@ -1,32 +1,22 @@
-import { buildParseArtifact } from './parse-artifact';
-import { parseCacheOptions, TtlCache } from './cache';
-import { chunkText } from './chunk';
-import { denyVectorizeStorageGrowth, reserveModelCall, reserveVectorizeDimensions } from './shared-ai-budget';
-import { D1Repository } from './d1-repository';
-import { storeFileBytes, registerOwnedObject, persistParseArtifact, deleteOwnedFile, UnsettledFileWrite } from './owned-storage';
-import { D1FileOwnership, type FileOperation } from './file-ownership';
 import { HTTPException } from 'hono/http-exception';
-import { parseUploadBytesWithCloudflare } from './document-parser';
-import { freeAiRun } from './free-ai';
-import { D1MetadataRepository } from './kb-metadata-repository';
 import {
-  INGEST_JOB_LEASE_MS,
-  INGEST_PARSE_TIMEOUT_MS,
-  LEXICAL_SCORING_VERSION,
-  MAX_DOC_SIZE,
-  MAX_LEXICAL_CHUNKS,
-  MAX_RERANK_CONTEXT_CHARS,
-  MAX_TOP_K,
-  DEFAULT_RERANKER_MODEL,
   type AppContext,
   type AppOptions,
   type CacheStatus,
   type ConfiguredVectorizeProfile,
   type CreateIndexBody,
+  DEFAULT_RERANKER_MODEL,
   type EmbeddingCallOptions,
+  INGEST_JOB_LEASE_MS,
+  INGEST_PARSE_TIMEOUT_MS,
   type KbAnswerPayload,
   type KbIngestRunBody,
   type KbQueryBody,
+  LEXICAL_SCORING_VERSION,
+  MAX_DOC_SIZE,
+  MAX_LEXICAL_CHUNKS,
+  MAX_RERANK_CONTEXT_CHARS,
+  MAX_TOP_K,
   type QueryBody,
   type QueryPayload,
   type QueryPlan,
@@ -37,8 +27,8 @@ import {
 import {
   buildCacheKey,
   configuredVectorizeProfiles,
-  deleteVectorsFromAllProfiles,
   deleteVectorsForIndex,
+  deleteVectorsFromAllProfiles,
   deterministicId,
   elapsedMs,
   embeddingModel,
@@ -47,14 +37,33 @@ import {
   isEmbeddingReadinessError,
   jsonRecord,
   resolveCreateEmbeddingProfile,
-  searchResultFromVectorMetadata,
   sharedEmbeddingCacheEnabled,
   sharedQueryCacheEnabled,
-  vectorizeProfileForIndex,
   userVectorFilter,
+  vectorizeProfileForIndex,
   vectorMetadata,
   vectorNamespace,
 } from './app-utils';
+import { parseCacheOptions, TtlCache } from './cache';
+import { chunkText } from './chunk';
+import { D1Repository } from './d1-repository';
+import { parseUploadBytesWithCloudflare } from './document-parser';
+import { D1FileOwnership, type FileOperation } from './file-ownership';
+import { freeAiRun } from './free-ai';
+import {
+  chunkPreviewFromChunks,
+  classifyIngestFailure,
+  ingestSafetyEvidence,
+  isIngestJobLeaseActive,
+  parseArtifactKey,
+  recordFromDocumentMetadata,
+  withParseTimeout,
+} from './ingest';
+import type { FileRecord, MetadataRepository } from './kb-metadata-repository';
+import { D1MetadataRepository } from './kb-metadata-repository';
+import { matchesMetadataFilter, metadataFilterSql } from './metadata-filter';
+import { deleteOwnedFile, persistParseArtifact, registerOwnedObject, storeFileBytes, UnsettledFileWrite } from './owned-storage';
+import { buildParseArtifact } from './parse-artifact';
 import {
   answerFromCitations,
   answerFromEvidence,
@@ -66,6 +75,7 @@ import {
   confidenceFromResults,
   confidenceWithTiming,
   contextWithIndex,
+  defaultEmbed,
   diversifyRankedResults,
   fuseHybridResults,
   fuseQueryPlanResults,
@@ -77,26 +87,16 @@ import {
   rerankModelFromBody,
   rerankResponseRows,
   searchResultFromEntity,
+  sortResultsByVectorOrder,
   sparseLexicalScore,
   strongLexicalFastPath,
   structuredFieldQueryResults,
   tokenizeLexicalQuery,
   weakSemanticReason,
-  defaultEmbed,
-  sortResultsByVectorOrder,
   writeTraceAnalytics,
 } from './query';
-import {
-  chunkPreviewFromChunks,
-  classifyIngestFailure,
-  ingestSafetyEvidence,
-  isIngestJobLeaseActive,
-  parseArtifactKey,
-  recordFromDocumentMetadata,
-  withParseTimeout,
-} from './ingest';
-import type { FileRecord, MetadataRepository } from './kb-metadata-repository';
 import type { CreateChunkInput, Repository } from './repository';
+import { denyVectorizeStorageGrowth, reserveModelCall, reserveVectorizeDimensions } from './shared-ai-budget';
 import type { ChunkRecord, Env, IndexRecord, JsonRecord, SearchResult, VectorizeVector } from './types';
 
 export function createRuntime(options: AppOptions = {}) {
@@ -316,6 +316,7 @@ export function createRuntime(options: AppOptions = {}) {
               score: row.score,
               metadata: {
                 ...result.metadata,
+                score_kind: 'neural_reranked',
                 retrieval_score: result.score,
                 neural_rerank_model: DEFAULT_RERANKER_MODEL,
                 neural_rerank_score: row.score,
@@ -596,9 +597,11 @@ export function createRuntime(options: AppOptions = {}) {
     const vectorizeProfile = vectorizeProfileForIndex(c.env, index, body);
     const embeddingProfile = embeddingProfileForIndex(c.env, index, vectorizeProfile);
     const normalizedQuery = normalizeSemanticQuery(query);
+    metadataFilterSql(body.filter);
     const queryPlan = body.mode === 'lexical' && body.query_rewrite !== true && body.query_decompose !== true ? { variants: [] } : buildQueryPlan(query, body);
     const cacheKey = buildCacheKey({
       revision: await durableRevision(c.env, tenant),
+      indexRevision: repo.getIndexRevision ? await repo.getIndexRevision(tenant, indexId) : 0,
       tenant,
       indexId,
       query: normalizedQuery,
@@ -1208,6 +1211,8 @@ export function createRuntime(options: AppOptions = {}) {
       if (!existingSession) await metadataRepo.createSession(tenant, domain, requestedSessionId);
     }
     const queryBody: QueryBody = {};
+    metadataFilterSql(body.filter);
+    if (body.filter !== undefined) queryBody.filter = body.filter;
     if (body.top_k !== undefined) queryBody.top_k = body.top_k;
     if (body.mode !== undefined) queryBody.mode = body.mode;
     if (body.min_score !== undefined) queryBody.min_score = body.min_score;
@@ -1217,7 +1222,7 @@ export function createRuntime(options: AppOptions = {}) {
     if (body.mmr !== undefined) queryBody.mmr = body.mmr;
     if (body.query_rewrite !== undefined) queryBody.query_rewrite = body.query_rewrite;
     if (body.query_decompose !== undefined) queryBody.query_decompose = body.query_decompose;
-    if (body.mode !== 'semantic') {
+    if (body.mode !== 'semantic' && !Object.keys(userVectorFilter(body.filter) ?? {}).length) {
       const structuredStarted = performance.now();
       const topK = clampTopK(body.top_k ?? 5);
       const fieldQuery = await structuredFieldQueryResults(metadataRepo, tenant, domain, question, topK);
@@ -1466,6 +1471,7 @@ export function createRuntime(options: AppOptions = {}) {
     resolvedVectorizeProfile?: ConfiguredVectorizeProfile,
     vectorizeReserved = false,
   ): Promise<QueryPayload> {
+    metadataFilterSql(body.filter);
     const tenant = c.get('tenant');
     const indexId = c.req.param('id');
     if (!indexId) throw new Error('Index not found');
@@ -1517,22 +1523,20 @@ export function createRuntime(options: AppOptions = {}) {
       if (timing) timing.index_ms = elapsedMs(indexStarted);
       return { data: [] };
     }
-    const metadataResults = matches.map(searchResultFromVectorMetadata);
-    if (!options.ownedFileProtocol && metadataResults.every(Boolean)) {
-      if (timing) timing.hydrate_ms = 0;
-      return { data: metadataResults.filter((result): result is SearchResult => Boolean(result)) };
-    }
+    // Hydration verifies publication and scope; staged/stale vectors are never evidence.
     const hydrateStarted = performance.now();
     const chunkIds = matches.map((match) => match.id);
     const chunks = sortResultsByVectorOrder(chunkIds, await repo.getChunksByIds(tenant, chunkIds));
     const scoreById = new Map(matches.map((match) => [match.id, match.score]));
-    const data: SearchResult[] = chunks.map((chunk) => ({
-      document_id: chunk.document_id,
-      chunk_id: chunk.id,
-      chunk_content: chunk.content,
-      score: scoreById.get(chunk.id) ?? 0,
-      metadata: chunk.metadata,
-    }));
+    const data: SearchResult[] = chunks
+      .filter((chunk) => chunk.index_id === indexId && matchesMetadataFilter(chunk.metadata, body.filter))
+      .map((chunk) => ({
+        document_id: chunk.document_id,
+        chunk_id: chunk.id,
+        chunk_content: chunk.content,
+        score: scoreById.get(chunk.id) ?? 0,
+        metadata: { ...chunk.metadata, score_kind: 'cosine', semantic_score: scoreById.get(chunk.id) ?? 0 },
+      }));
     if (timing) timing.hydrate_ms = elapsedMs(hydrateStarted);
     return { data };
   }
@@ -1547,7 +1551,8 @@ export function createRuntime(options: AppOptions = {}) {
     const topK = clampTopK(body.top_k);
     const repo = makeRepository(c.env);
     const prefilterStarted = performance.now();
-    const candidateChunks = await getCachedLexicalChunks(c.env, repo, tenant, indexId, timing);
+    const lexicalRows = await repo.searchLexicalChunks(tenant, indexId, tokens, Math.min(500, Math.max(100, topK * 4)), body.filter);
+    const candidateChunks = lexicalRows.filter((chunk) => matchesMetadataFilter(chunk.metadata, body.filter));
     if (candidateChunks.length === 0) {
       const indexStarted = performance.now();
       if (!(await indexExists(c.env, repo, tenant, indexId))) throw new Error('Index not found');
@@ -1557,11 +1562,11 @@ export function createRuntime(options: AppOptions = {}) {
     if (timing) {
       timing.lexical_ms = elapsedMs(started);
       timing.lexical_prefilter_ms = elapsedMs(prefilterStarted);
-      timing.lexical_prefilter = 'chunk_cache_full_scan';
+      timing.lexical_prefilter = 'corpus_sql_fts';
       timing.lexical_tokens = tokens.length;
       timing.lexical_scoring = LEXICAL_SCORING_VERSION;
       timing.lexical_corpus_chunks = candidateChunks.length;
-      timing.lexical_candidate_limit = MAX_LEXICAL_CHUNKS;
+      timing.lexical_candidate_limit = Math.min(500, Math.max(100, topK * 4));
       timing.retrieval = ranked.length > 0 ? 'lexical' : 'semantic_fallback';
     }
     return {
@@ -1572,6 +1577,7 @@ export function createRuntime(options: AppOptions = {}) {
         score: entry.score,
         metadata: {
           ...entry.chunk.metadata,
+          score_kind: 'lexical_bm25',
           lexical_score: entry.score,
           lexical_overlap: entry.overlap,
           lexical_scoring: LEXICAL_SCORING_VERSION,

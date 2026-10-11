@@ -7,20 +7,14 @@ import {
   MAX_BENCHMARK_QUERIES,
   MAX_BENCHMARK_REPEAT,
   MAX_BENCHMARK_WARMUP,
-  MAX_DOC_SIZE,
   type QueryBody,
   type RagTiming,
 } from '../app-types';
 import {
   buildCacheKey,
-  configuredVectorizeProfiles,
   deleteVectorsForIndex,
   deleteVectorsFromAllProfiles,
-  deterministicId,
   elapsedMs,
-  embeddingModel,
-  embeddingOptionsForProfile,
-  embeddingProfileForIndex,
   jsonRecord,
   vectorDimensionError,
   vectorizeProfileForDimensions,
@@ -29,14 +23,16 @@ import {
   vectorNamespace,
 } from '../app-utils';
 import type { Variables } from '../auth';
-import { percentile, summarizeLatencies } from '../bench-utils';
+import { summarizeLatencies } from '../bench-utils';
 import { parseCacheOptions } from '../cache';
-import { chunkText } from '../chunk';
-import { denyVectorizeStorageGrowth } from '../shared-ai-budget';
+import { ingestCatalogDocument } from '../catalog-ingest';
+import { metadataFilterSql } from '../metadata-filter';
 import { clampTopK, withTimingHeaders } from '../query';
 import type { CreateChunkInput } from '../repository';
+import { readRequestJson } from '../request-json';
 import type { AppRuntime } from '../runtime';
-import type { Env, JsonRecord, VectorizeVector } from '../types';
+import { denyVectorizeStorageGrowth } from '../shared-ai-budget';
+import type { Env, VectorizeVector } from '../types';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
@@ -45,7 +41,6 @@ export function registerIndexRoutes(app: App, rt: AppRuntime): void {
     makeRepository,
     genericOwnershipConflict,
     ownedIndexHasFiles,
-    embed,
     queryCache,
     indexCache,
     indexRecordCache,
@@ -56,7 +51,6 @@ export function registerIndexRoutes(app: App, rt: AppRuntime): void {
     clearLexicalChunkCache,
     primeLexicalChunkCache,
     runTextQuery,
-    upsertChunkVectors,
     queryByVector,
   } = rt;
 
@@ -83,67 +77,53 @@ export function registerIndexRoutes(app: App, rt: AppRuntime): void {
   app.post('/v1/indexes/:id/ingest', async (c) => {
     const tenant = c.get('tenant');
     const indexId = c.req.param('id');
-    const body = (await c.req.json().catch(() => ({}))) as IngestBody;
+    const body = jsonRecord(await readRequestJson(c.req.raw, 4_000_000)) as unknown as IngestBody;
     const documents = body.documents ?? [];
     if (!Array.isArray(documents) || documents.length === 0) {
       return c.json({ error: 'documents array is required' }, 400);
     }
-    denyVectorizeStorageGrowth();
+    if (documents.length > 50) return c.json({ error: 'At most 50 documents per request' }, 400);
     const repo = makeRepository(c.env);
     const index = await getIndexRecord(c.env, repo, tenant, indexId);
     if (!index) return c.json({ error: 'Index not found' }, 404);
-    let vectorizeProfile: ConfiguredVectorizeProfile;
-    try {
-      vectorizeProfile = vectorizeProfileForIndex(c.env, index);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('embedding profile is not configured')) {
-        return c.json({ error: error.message }, 400);
-      }
-      throw error;
-    }
-    const embeddingProfile = embeddingProfileForIndex(c.env, index, vectorizeProfile);
-    const smallProfile =
-      embeddingProfile.vectorizeProfile === 'base' ? configuredVectorizeProfiles(c.env).find((profile) => profile.key === 'small') : undefined;
-
-    const out: Array<{ document_id: string; chunks_created: number }> = [];
+    const out: Awaited<ReturnType<typeof ingestCatalogDocument>>[] = [];
     for (const input of documents) {
+      if (!input || typeof input !== 'object' || Array.isArray(input)) return c.json({ error: 'Each document must be an object' }, 400);
       if (await genericOwnershipConflict(c.env, tenant, jsonRecord(input.metadata)))
         return c.json({ error: 'Owned file metadata must be written through KB ingestion.' }, 409);
-      const content = input.content?.trim();
-      if (!content) return c.json({ error: 'document content is required' }, 400);
-      if (content.length > MAX_DOC_SIZE) return c.json({ error: 'document content too large' }, 413);
-
-      const document = await repo.createDocument({
-        id: crypto.randomUUID(),
-        tenant,
-        indexId,
-        externalId: input.external_id ?? null,
-        content,
-        metadata: jsonRecord(input.metadata),
-      });
-      const chunkContents = chunkText(content, body.chunking);
-      const vectors = await embed(c.env, chunkContents, embeddingOptionsForProfile(embeddingProfile));
-      const smallVectors = smallProfile ? await embed(c.env, chunkContents, { model: embeddingModel(c.env, 'small') }) : [];
-      const chunkRows: CreateChunkInput[] = chunkContents.map((chunk, i) => ({
-        id: crypto.randomUUID(),
-        tenant,
-        indexId,
-        documentId: document.id,
-        content: chunk,
-        chunkIndex: i,
-        metadata: jsonRecord(input.metadata),
-      }));
-      await repo.insertChunks(chunkRows);
-      await upsertChunkVectors(c.env, tenant, indexId, chunkRows, vectors, vectorizeProfile);
-      if (smallProfile && smallVectors.length > 0) {
-        await upsertChunkVectors(c.env, tenant, indexId, chunkRows, smallVectors, smallProfile);
+      const result = await ingestCatalogDocument(c.env, rt, repo, index, input, body.chunking);
+      out.push(result);
+      if (!result.idempotent) {
+        clearAnswerAndQueryCaches();
+        clearLexicalChunkCache(tenant, indexId);
+        await clearSharedQueryCache(c.env, tenant, indexId);
       }
-      clearAnswerAndQueryCaches();
-      clearLexicalChunkCache(tenant, indexId);
-      await clearSharedQueryCache(c.env, tenant, indexId);
-      out.push({ document_id: document.id, chunks_created: chunkRows.length });
     }
     return c.json({ documents: out }, 201);
+  });
+
+  app.get('/v1/indexes/:id/documents/by-external-id', async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const tenant = c.get('tenant');
+    const repo = makeRepository(c.env);
+    const externalId = c.req.query('external_id')?.trim();
+    if (!externalId) return c.json({ error: 'external_id is required' }, 400);
+    if (!repo.getDocumentByExternalId || !repo.getDocumentChunks) return c.json({ error: 'Document lookup unavailable' }, 503);
+    const document = await repo.getDocumentByExternalId(tenant, c.req.param('id'), externalId);
+    if (!document) return c.json({ error: 'Not found' }, 404);
+    return c.json({ document, chunks: await repo.getDocumentChunks(tenant, document.id) });
+  });
+
+  app.get('/v1/documents/:id', async (c) => {
+    c.header('Cache-Control', 'private, no-store');
+    const tenant = c.get('tenant');
+    const repo = makeRepository(c.env);
+    const document = await repo.getDocument(tenant, c.req.param('id'));
+    if (!document) return c.json({ error: 'Not found' }, 404);
+    const chunks = repo.getDocumentChunks
+      ? await repo.getDocumentChunks(tenant, document.id)
+      : await repo.getChunksByIds(tenant, await repo.getChunkIdsForDocument(tenant, document.id));
+    return c.json({ document, chunks });
   });
 
   app.get('/v1/indexes/:id/documents', async (c) => {
@@ -364,6 +344,7 @@ export function registerIndexRoutes(app: App, rt: AppRuntime): void {
     if (!Array.isArray(body.vector) || body.vector.length === 0) {
       return c.json({ error: 'vector is required' }, 400);
     }
+    metadataFilterSql(body.filter);
     const tenant = c.get('tenant');
     const indexId = c.req.param('id');
     const repo = makeRepository(c.env);
@@ -383,6 +364,7 @@ export function registerIndexRoutes(app: App, rt: AppRuntime): void {
     const cacheKey = buildCacheKey({
       tenant,
       indexId,
+      indexRevision: repo.getIndexRevision ? await repo.getIndexRevision(tenant, indexId) : 0,
       vector: body.vector,
       topK: clampTopK(body.top_k),
       filter: jsonRecord(body.filter),

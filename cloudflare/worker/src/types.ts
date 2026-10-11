@@ -26,6 +26,8 @@ export interface Env {
   EMBEDDING_MODEL?: string;
   EMBEDDING_MODEL_SMALL?: string;
   RAG_ANSWER_MODEL?: string;
+  // Jev is a paid third-party model. Enable only after explicit owner approval.
+  RAG_JEV_ENABLED?: string;
   // Route inference to an explicitly configured direct provider when set.
   RAG_EMBED_PROVIDER?: string;
   RAG_SYNTH_PROVIDER?: string;
