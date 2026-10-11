@@ -1,10 +1,5 @@
--- Derived catalog snapshots retain historical documents for citation retrieval.
--- Publication replaces only the current external-id snapshot in a D1 batch.
-UPDATE documents SET metadata = json_set(metadata, '$._kb_snapshot_state',
-  CASE WHEN rowid = (SELECT MAX(d.rowid) FROM documents d
-    WHERE d.tenant=documents.tenant AND d.index_id=documents.index_id AND d.external_id=documents.external_id)
-  THEN 'current' ELSE 'superseded' END)
-WHERE external_id IS NOT NULL;
+-- Catalog snapshots opt into the protocol with explicit current state.
+-- Preserve legacy documents and duplicate external IDs without backfill.
 
 CREATE UNIQUE INDEX idx_document_current_external
 ON documents(tenant,index_id,external_id)

@@ -1551,7 +1551,8 @@ export function createRuntime(options: AppOptions = {}) {
     const topK = clampTopK(body.top_k);
     const repo = makeRepository(c.env);
     const prefilterStarted = performance.now();
-    const lexicalRows = await repo.searchLexicalChunks(tenant, indexId, tokens, Math.min(500, Math.max(100, topK * 4)), body.filter);
+    const candidateTokens = [...new Set(tokens.flatMap((token) => (token.length >= 5 ? [token, token.slice(0, 3)] : [token])))];
+    const lexicalRows = await repo.searchLexicalChunks(tenant, indexId, candidateTokens, Math.min(500, Math.max(100, topK * 4)), body.filter);
     const candidateChunks = lexicalRows.filter((chunk) => matchesMetadataFilter(chunk.metadata, body.filter));
     if (candidateChunks.length === 0) {
       const indexStarted = performance.now();

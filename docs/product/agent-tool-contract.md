@@ -149,6 +149,9 @@ FTS, durable revisions, and decision storage. It must be approved and applied
 before publishing catalog snapshots or running saved decisions. This source
 change applies no migrations or configuration changes; catalog admission stays
 closed when the shared ledger cannot verify storage headroom.
+Legacy documents retain their metadata and visibility, including duplicate
+external IDs. Snapshot lookup/uniqueness applies only to explicit protocol
+snapshots; this migration does not backfill or reinterpret the legacy corpus.
 
 ## Curl Example
 

@@ -159,7 +159,7 @@ export class D1Repository implements Repository {
   async getDocumentByExternalId(tenant: string, indexId: string, externalId: string): Promise<DocumentRecord | null> {
     const row = await this.db
       .prepare(`SELECT * FROM ${this.documentsTable}
-      WHERE tenant = ? AND index_id = ? AND external_id = ? AND ${currentDocument}
+      WHERE tenant = ? AND index_id = ? AND external_id = ? AND json_extract(metadata,'$._kb_snapshot_state')='current'
       ORDER BY created_at DESC, id DESC LIMIT 1`)
       .bind(tenant, indexId, externalId)
       .first<StoredDocument>();

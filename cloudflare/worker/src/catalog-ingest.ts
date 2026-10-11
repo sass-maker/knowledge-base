@@ -79,6 +79,7 @@ export async function ingestCatalogDocument(
 ) {
   const { content, externalId, sourceMetadata } = validateCatalogInput(input);
   validateChunking(chunking);
+  if (!isCatalogSnapshot(externalId, sourceMetadata)) return ingestLegacyDocument(env, rt, repo, index, { content, externalId, sourceMetadata }, chunking);
   const fingerprint = await contentHash({ content, metadata: sourceMetadata, chunking: chunking ?? null });
   const previous = externalId && repo.getDocumentByExternalId ? await repo.getDocumentByExternalId(index.tenant, index.id, externalId) : null;
   if (previous?.metadata._kb_input_hash === fingerprint)
@@ -128,11 +129,34 @@ export async function ingestCatalogDocument(
   return { document_id: id, external_id: externalId, chunks_created: chunks.length, idempotent: false, content_hash: fingerprint };
 }
 
+async function ingestLegacyDocument(
+  env: Env,
+  rt: AppRuntime,
+  repo: Repository,
+  index: IndexRecord,
+  input: ReturnType<typeof validateCatalogInput>,
+  chunking: IngestBody['chunking'],
+) {
+  const [legacy] = await rt.ingestDocumentsToIndex(
+    env,
+    repo,
+    index.tenant,
+    index.id,
+    [{ external_id: input.externalId ?? '', content: input.content, metadata: input.sourceMetadata }],
+    chunking,
+  );
+  if (!legacy) throw new Error('Legacy ingestion produced no document');
+  return { document_id: legacy.document_id, external_id: input.externalId, chunks_created: legacy.chunks.length, idempotent: false };
+}
+
 async function requireCatalogStorageReady(env: Env, externalId: string | null, metadata: JsonRecord): Promise<void> {
-  if (!externalId || typeof metadata.kind !== 'string' || !metadata.kind.trim() || !['public', 'private'].includes(String(metadata.visibility)))
-    denyVectorizeStorageGrowth();
+  if (!isCatalogSnapshot(externalId, metadata)) denyVectorizeStorageGrowth();
   if (!(await env.DB.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_document_current_external'").first()))
     throw new HTTPException(503, { message: 'Catalog snapshot migration 0011 is required before storage reservation' });
+}
+
+function isCatalogSnapshot(externalId: string | null, metadata: JsonRecord): boolean {
+  return !!externalId && typeof metadata.kind === 'string' && !!metadata.kind.trim() && ['public', 'private'].includes(String(metadata.visibility));
 }
 
 function snapshotMetadata(sourceMetadata: JsonRecord, id: string, externalId: string | null): JsonRecord {
