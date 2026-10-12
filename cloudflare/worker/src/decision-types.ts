@@ -14,6 +14,8 @@ export interface DecisionInput {
   context_document_ids: string[];
   candidates: DecisionCandidate[];
   explicit_gaps?: EvidenceRef[];
+  feature_evidence?: EvidenceRef[];
+  feature_description?: string;
   engine?: 'free_ai' | 'jev';
 }
 export interface DecisionItem {

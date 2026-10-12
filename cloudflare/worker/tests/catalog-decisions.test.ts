@@ -42,6 +42,32 @@ function answers(frozen: Awaited<ReturnType<typeof freezeDecision>>, verdict = '
 }
 
 describe('source-grounded decisions', () => {
+  it('focuses feature review on exact project evidence and does not create an integration gap', async () => {
+    const { repo, sqlite, input, context } = await decisionFixture(20);
+    const evidence = { document_id: context.id, chunk_id: `chunk:${context.id}`, excerpt: 'Project supports repository discovery.' };
+    const frozen = await freezeDecision(repo, 'tenant-a', 'catalog', { ...input, feature_evidence: [evidence], feature_description: 'Repository discovery with source citations.' });
+    expect(frozen.state.target_feature_evidence).toEqual(['f1']);
+    expect(frozen.state.target_feature_description).toBe('Repository discovery with source citations.');
+    expect(frozen.questions.c1_project?.criteria).toEqual({ f1: 'f1', none: 'Insufficient source evidence.' });
+    expect(frozen.questions.c1_fit?.criteria).not.toHaveProperty('integration');
+    expect(frozen.candidates.every((candidate) => candidate.project_options.f1?.excerpt === evidence.excerpt)).toBe(true);
+    expect(frozen.coverage.packed_bytes).toBeLessThanOrEqual(24000);
+    sqlite.close();
+  });
+
+  it('rejects an ungrounded or unbounded feature descriptor', async () => {
+    const { repo, sqlite, input } = await decisionFixture();
+    for (const description of ['', 'x'.repeat(241), 'An ungrounded feature'])
+      await expect(freezeDecision(repo, 'tenant-a', 'catalog', { ...input, feature_description: description })).rejects.toMatchObject({ status: 400 });
+    sqlite.close();
+  });
+
+  it('rejects target evidence from a candidate document before inference', async () => {
+    const { repo, sqlite, input } = await decisionFixture();
+    await expect(freezeDecision(repo, 'tenant-a', 'catalog', { ...input, feature_evidence: [{ document_id: 'candidate0', chunk_id: 'chunk:candidate0', excerpt: 'Candidate 0 capability 0 supports repository citations and evidence.' }] })).rejects.toMatchObject({ status: 400 });
+    sqlite.close();
+  });
+
   it('packs every candidate within the shared model budget and retains exact evidence', async () => {
     const { repo, sqlite, input } = await decisionFixture(20);
     const frozen = await freezeDecision(repo, 'tenant-a', 'catalog', input);

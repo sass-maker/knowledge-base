@@ -29,6 +29,7 @@ export async function gatewayDecision(
   env: Env,
   frozen: unknown,
   instruction?: string,
+  responseSchema?: JsonRecord,
 ): Promise<{ raw: JsonRecord; model: string | null; provider: string | null }> {
   if (!env.FREE_AI) throw new Error('Free AI gateway binding is unavailable');
   const response = await env.FREE_AI.fetch(
@@ -50,7 +51,9 @@ export async function gatewayDecision(
         ],
         max_tokens: 4096,
         temperature: 0,
-        response_format: { type: 'json_object' },
+        response_format: responseSchema
+          ? { type: 'json_schema', json_schema: { name: 'catalog_feature_profile', strict: true, schema: responseSchema } }
+          : { type: 'json_object' },
         stream: false,
       }),
     }),
