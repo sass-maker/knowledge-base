@@ -19,7 +19,7 @@ async function fixture() {
   const input = { question: 'Compare article extraction.', context_document_ids: ['project'], candidates: [{ id: '42', document_ids: ['candidate'], capability_evidence: [candidate] }], feature_evidence: [project], feature_description: project.excerpt, feature_operation: operation };
   return { repo, input, frozen: await freezeDecision(repo, 'tenant', 'catalog', input) };
 }
-const proposal = { c1: { supported: true, project_key: 'f1', candidate_key: 'k1', input: 'HTML pages', action: 'Extract main text', output: 'Article text', comparison_action: 'Compare article extraction on the same HTML fixtures.', differences: 'Python rules and fallbacks versus JavaScript Readability.' } };
+const proposal = { c1: { supported: true, project_key: 'f1', candidate_key: 'k1', input: 'HTML pages', action: 'Extract main text', output: 'Article text', shared_input: 'HTML', shared_action: 'Extract article text', shared_output: 'Readable article text', project_method: 'Readability', candidate_method: 'Rules and readability-lxml fallback' } };
 describe('operation comparisons', () => {
   it('protects operation and exact candidate proof', async () => {
     const { frozen } = await fixture();
@@ -34,10 +34,10 @@ describe('operation comparisons', () => {
   });
   it('forces unsupported comparisons to abstain', async () => {
     const prepared = freezeOperationComparisons((await fixture()).frozen, { c1: { supported: false, project_key: 'none', candidate_key: 'none' } });
-    expect(prepared.questions.c1_utility!.criteria).toEqual({ reject: expect.any(String) });
+    expect(prepared.questions.c1_utility!.criteria).toEqual({ reject: expect.any(String), low: expect.any(String) });
     expect(() => validateDecisionAnswers(prepared, { c1_utility: { type: 'choice', choice: 'high' } })).toThrow('Invalid choice');
   });
-  it.each([{ c1: { ...proposal.c1, project_key: 'e1' } }, { c1: { ...proposal.c1, candidate_key: 'invented' } }, { c1: { ...proposal.c1, comparison_action: '' } }, { c1: { ...proposal.c1, differences: 'x'.repeat(141) } }, { c2: proposal.c1 }])('rejects unsupported or malformed proposals', async (payload) => {
+  it.each([{ c1: { ...proposal.c1, project_key: 'e1' } }, { c1: { ...proposal.c1, candidate_key: 'invented' } }, { c1: { ...proposal.c1, project_method: '' } }, { c1: { ...proposal.c1, candidate_method: 'x'.repeat(81) } }, { c1: { ...proposal.c1, shared_action: '' } }, { c2: proposal.c1 }])('rejects unsupported or malformed proposals', async (payload) => {
     const { frozen } = await fixture();
     expect(() => freezeOperationComparisons(frozen, payload)).toThrow();
   });
@@ -57,4 +57,14 @@ describe('operation comparisons', () => {
     expect(fetch).toHaveBeenCalledOnce();
     expect(prepared.state.comparison_preparation).toMatchObject({ model: 'local', human_validated: false });
   });
+  it('discards citations on an explicit negative without poisoning a supported peer', async () => {
+    const { frozen } = await fixture();
+    const second = { ...frozen.candidates[0]!, id: '43' };
+    const batch = { ...frozen, candidates: [...frozen.candidates, second] };
+    const prepared = freezeOperationComparisons(batch, { ...proposal, c2: { ...proposal.c1, supported: false } });
+    expect(prepared.comparisons).toHaveProperty('c1');
+    expect(prepared.comparisons).not.toHaveProperty('c2');
+    expect(validateDecisionAnswers(prepared, { c1_utility: { type: 'choice', choice: 'high' }, c2_utility: { type: 'choice', choice: 'reject' } }).items.map((item) => item.verdict)).toEqual(['reference', 'reject']);
+  });
+
 });

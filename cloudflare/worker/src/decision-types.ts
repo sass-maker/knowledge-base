@@ -29,7 +29,7 @@ export interface DecisionItem {
   project_evidence: EvidenceRef[];
   candidate_evidence: EvidenceRef[];
   utility?: 'high' | 'medium' | 'low' | 'reject';
-  comparison?: { action: string; differences: string; candidate_operation: { input: string; action: string; output: string } };
+  comparison?: { action: string; differences: string; shared_operation?: { input: string; action: string; output: string }; candidate_operation: { input: string; action: string; output: string } };
 }
 export interface DecisionResult {
   abstained: boolean;
@@ -61,7 +61,7 @@ export interface FrozenDecision {
   state: JsonRecord;
   questions: Record<string, ChoiceQuestion>;
   candidates: Array<{ id: string; project_options: Record<string, EvidenceRef>; candidate_options: Record<string, EvidenceRef>; gaps: string[] }>;
-  comparisons?: Record<string, { project_key: string; candidate_key: string; action: string; differences: string; candidate_operation: { input: string; action: string; output: string } }>;
+  comparisons?: Record<string, { project_key: string; candidate_key: string; action: string; differences: string; shared_operation?: { input: string; action: string; output: string }; candidate_operation: { input: string; action: string; output: string } }>;
   coverage: {
     candidates: number;
     omitted_candidates: 0;

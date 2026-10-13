@@ -14,6 +14,14 @@ import type { Env } from '../types';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
+async function prepareDecision(env: Env, frozen: FrozenDecision): Promise<FrozenDecision> {
+  try { return await prepareOperationComparison(env, frozen); }
+  catch (error) {
+    console.error('knowledgebase comparison preparation failed', { error: String(error) });
+    throw new HTTPException(502, { message: 'Source-backed comparison preparation failed' });
+  }
+}
+
 async function requireDecisionStorage(env: Env) {
   if (!(await env.DB.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='kb_decision_runs'").first())) {
     throw new HTTPException(503, { message: 'Decision storage migration 0011 is required' });
@@ -93,7 +101,7 @@ export function registerIntelligenceRoutes(app: App, rt: AppRuntime): void {
     const repo = rt.makeRepository(c.env);
     if (!(await repo.getIndex(tenant, indexId))) return c.json({ error: 'Index not found' }, 404);
     await requireDecisionStorage(c.env);
-    const frozen = await prepareOperationComparison(c.env, await freezeDecision(repo, tenant, indexId, body));
+    const frozen = await prepareDecision(c.env, await freezeDecision(repo, tenant, indexId, body));
     const engineName = body.engine ?? 'free_ai';
     const engine = await runKnowledgeDecision(c.env, frozen, engineName);
     const stored = await storeDecision(c.env, tenant, indexId, frozen, { [engineName]: engine });
@@ -108,7 +116,7 @@ export function registerIntelligenceRoutes(app: App, rt: AppRuntime): void {
     const repo = rt.makeRepository(c.env);
     if (!(await repo.getIndex(tenant, indexId))) return c.json({ error: 'Index not found' }, 404);
     await requireDecisionStorage(c.env);
-    const frozen = await prepareOperationComparison(c.env, await freezeDecision(repo, tenant, indexId, body));
+    const frozen = await prepareDecision(c.env, await freezeDecision(repo, tenant, indexId, body));
     const engines = await compareKnowledgeDecisions(c.env, frozen);
     const stored = await storeDecision(c.env, tenant, indexId, frozen, engines);
     return c.json({

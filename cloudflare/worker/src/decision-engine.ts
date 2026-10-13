@@ -113,7 +113,7 @@ export function validateDecisionAnswers(frozen: FrozenDecision, answers: JsonRec
         benefit: comparison?.differences ?? 'No supporting candidate evidence selected.',
         project_evidence: comparison ? [candidate.project_options[comparison.project_key]!] : [],
         candidate_evidence: comparison ? [candidate.candidate_options[comparison.candidate_key]!] : [],
-        ...(comparison ? { comparison: { action: comparison.action, differences: comparison.differences, candidate_operation: comparison.candidate_operation } } : {}),
+        ...(comparison ? { comparison: { action: comparison.action, differences: comparison.differences, candidate_operation: comparison.candidate_operation, ...(comparison.shared_operation ? { shared_operation: comparison.shared_operation } : {}) } } : {}),
       };
     }
     const verdict = String(jsonRecord(answers[`${key}_fit`]).choice) as DecisionItem['verdict'];
