@@ -4,10 +4,10 @@ import { jsonRecord } from '../app-utils';
 import type { Variables } from '../auth';
 import { type EnrichInput, enrichCatalog } from '../catalog-enrichment';
 import { contentHash } from '../catalog-ingest';
-import { compareKnowledgeDecisions, runKnowledgeDecision } from '../gateway-decisions';
 import { freezeDecision } from '../decision-evidence';
-import { prepareOperationComparison } from '../operation-comparison';
 import type { DecisionEngineResult, DecisionInput, FrozenDecision } from '../decision-types';
+import { compareKnowledgeDecisions, runKnowledgeDecision } from '../gateway-decisions';
+import { prepareOperationComparison } from '../operation-comparison';
 import { readRequestJson } from '../request-json';
 import type { AppRuntime } from '../runtime';
 import type { Env } from '../types';
@@ -15,8 +15,9 @@ import type { Env } from '../types';
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
 
 async function prepareDecision(env: Env, frozen: FrozenDecision): Promise<FrozenDecision> {
-  try { return await prepareOperationComparison(env, frozen); }
-  catch (error) {
+  try {
+    return await prepareOperationComparison(env, frozen);
+  } catch (error) {
     console.error('knowledgebase comparison preparation failed', { error: String(error) });
     throw new HTTPException(502, { message: 'Source-backed comparison preparation failed' });
   }
