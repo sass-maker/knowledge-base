@@ -149,7 +149,7 @@
             "href": "https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-integration-examples.md"
           },
           "secondary": {
-            "label": "open the operator workspace \u00b7 Fleet Access required",
+            "label": "operator only \u00b7 Fleet Access required",
             "href": "https://search.sassmaker.com"
           }
         }
