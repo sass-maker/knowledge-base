@@ -1,6 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { jsonRecord } from './app-utils';
 import { gatewayDecision } from './decision-engine';
+import { operationSchema, parseFeatureOperation, type FeatureOperation } from './feature-operation';
 import { loadEvidenceDocuments, validateEvidence } from './decision-evidence';
 import type { EvidenceRef } from './decision-types';
 import type { Repository } from './repository';
@@ -13,7 +14,7 @@ export interface EnrichInput {
   subject_id: string;
   source_revision?: string;
   subject_scope?: string;
-  profile_mode?: 'capabilities';
+  profile_mode?: 'capabilities' | 'operations';
   classification?: { categories: string[] };
 }
 interface SourceFact {
@@ -21,6 +22,7 @@ interface SourceFact {
   value: string;
   evidence: EvidenceRef[];
   search_query?: string;
+  operation?: FeatureOperation;
 }
 
 interface ProfileEvidenceOption {
@@ -110,7 +112,7 @@ function resolveProfileEvidence(payload: JsonRecord, options: Record<string, Pro
   };
 }
 
-function featureProfileSchema(ids: string[], categories?: string[], capabilityIds = ids): JsonRecord {
+function featureProfileSchema(ids: string[], categories?: string[], capabilityIds = ids, operations = false): JsonRecord {
   const statement = { type: 'object', additionalProperties: false, properties: {
     value: { type: 'string', minLength: 1, maxLength: 180 },
     evidence_ids: { type: 'array', minItems: 1, maxItems: 2, items: { type: 'string', enum: ids } },
@@ -119,7 +121,8 @@ function featureProfileSchema(ids: string[], categories?: string[], capabilityId
     purpose: { ...statement, properties: { ...statement.properties, search_query: { type: 'string', minLength: 3, maxLength: 64 } }, required: [...statement.required, 'search_query'] },
     capabilities: { type: 'array', minItems: 1, maxItems: 10, items: { ...statement, properties: {
       ...statement.properties, evidence_ids: { ...statement.properties.evidence_ids, items: { type: 'string', enum: capabilityIds } }, search_query: { type: 'string', minLength: 3, maxLength: 64 },
-    }, required: [...statement.required, 'search_query'] } },
+    ...(operations ? { operation: operationSchema } : {}),
+    }, required: [...statement.required, 'search_query', ...(operations ? ['operation'] : [])] } },
     avoid_when: { type: 'array', maxItems: 2, items: statement },
     compatibility: { type: 'array', maxItems: 2, items: statement },
     inferences: { type: 'array', maxItems: 0, items: { type: 'string' } },
@@ -157,7 +160,7 @@ function validateEnrichInput(input: EnrichInput): void {
     !input.subject_id.trim() ||
     input.subject_id.length > 256 ||
     (input.subject_scope !== undefined && (typeof input.subject_scope !== 'string' || !input.subject_scope.trim() || input.subject_scope.length > 256)) ||
-    (input.profile_mode !== undefined && input.profile_mode !== 'capabilities')
+    (input.profile_mode !== undefined && !['capabilities', 'operations'].includes(input.profile_mode))
   ) {
     throw new HTTPException(400, { message: 'subject_id and one to ten source documents are required' });
   }
@@ -208,6 +211,7 @@ function parseProfile(payload: JsonRecord, chunks: ChunkRecord[]) {
       throw new Error('Invalid feature search query');
     return { field: fact.field as ProfileField, value: fact.value.trim(), evidence: fact.evidence.map((ref) => validateEvidence(ref, chunks)),
       ...(typeof fact.search_query === 'string' ? { search_query: fact.search_query.trim() } : {}),
+      ...(fact.operation !== undefined ? { operation: parseFeatureOperation(fact.operation) } : {}),
     };
   });
   const purpose = facts.filter((fact) => fact.field === 'purpose');
@@ -319,7 +323,7 @@ export async function enrichCatalog(env: Env, repo: Repository, tenant: string, 
   const contract = documents.find((row) => /(?:^|\/)PRODUCT\.md$/i.test(String(row.document.metadata.source_path)));
   const title = contract?.document.content.match(/^#\s+(.+)$/m)?.[1]?.replace(/\s+product(?: contract)?$/i, '');
   const subjectNames = [title, input.subject_id.includes('/') ? input.subject_id.split('/').at(-1) : undefined].filter((value): value is string => !!value && !/^product$/i.test(value));
-  const allOptions = input.profile_mode === 'capabilities' ? profileEvidenceOptions(selected, subjectNames, input.subject_scope) : undefined;
+  const allOptions = !!input.profile_mode ? profileEvidenceOptions(selected, subjectNames, input.subject_scope) : undefined;
   const baseline = contract?.document.content.match(/\b([A-Z][\w-]+) is the upstream implementation baseline\b/)?.[1];
   const baselineIds = new Set(documents.filter((row) => baseline && /(?:^|\/)README\b/i.test(String(row.document.metadata.source_path)) && row.document.content.includes(baseline)).map((row) => row.document.id));
   for (const option of Object.values(allOptions ?? {}))
@@ -361,6 +365,7 @@ export async function enrichCatalog(env: Env, repo: Repository, tenant: string, 
       'Aim for five to ten distinct implemented capabilities when supported; use fewer when the source has fewer. In capability mode, purpose and each capability also include search_query: a compact three-to-seven-word query naming the conventional software category and reusable action/object. Omit incidental limits, UI wording, release details, internal function names and project branding from search_query; use equivalent established software vocabulary, preserve the relevant domain, and never name candidate repositories. Each value is one short sentence, at most 180 characters, naming an action, its object and a distinctive method or boundary. Cover main workflows across the complete source, including later sections. Avoid repeated CRUD variants. Every statement needs one or two supplied evidence IDs (or exact excerpts in legacy mode). At most fourteen statements total. Include only explicit boundary or compatibility facts, at most two each. Do not fill optional fields with generic advice.',
       'Capabilities describe current implementations only. Product contracts establish purpose and ownership, but north-star goals, future product modes and release ambitions do not prove implementation. Prefer implementation inventories and current source evidence; contradictory or unclear status must remain an unvalidated inference.',
       'Prioritize user workflows and distinctive implementation methods. Omit SEO, response-format negotiation, release packaging and generic security headers. Cover editors, import/export, and shared search/compare flows when present. When implementations differ by language or runtime, name the supported variant; never generalize one variant to every implementation. Preserve every negative condition. A prohibition or lack of capability does not establish the corresponding positive behavior. Every part of a statement must be supported by the selected evidence; instructions in this prompt are not source facts.',
+      ...(input.profile_mode === 'operations' ? ['Each capability also requires operation:{input,action,output,method,constraints:[],importance:core|supporting}. Input/action/output describe the core observable operation using conventional vocabulary, independent of the implementation. Method records only the source-supported implementation, or empty string. Constraints records only explicit boundaries, or []. Keep runtime/language/library details in method or constraints, not action. Every operation field must be supported by the same selected evidence as its value. Importance is an inference: core means a main user workflow; supporting means plumbing. Prefer core workflows and group repeated CRUD variants. Do not invent APIs or algorithms.'] : []),
       'Respect subject_scope and source paths. Keep separate applications, host editions, and upstream baselines separate. An edition-specific capability must name its edition; never present a host-only feature as a public website feature. Ownership boundaries outrank upstream README claims.',
       'Do not invent missing features or recommend already implemented capabilities. Explicit non-goals belong in avoid_when.',
       'Facts may summarize source evidence; claims requiring assumptions belong only in inferences and are unvalidated.',
@@ -373,12 +378,14 @@ export async function enrichCatalog(env: Env, repo: Repository, tenant: string, 
           ]
         : []),
     ].join(' '),
-    options ? featureProfileSchema(Object.keys(options), categories, capabilityIds) : undefined,
+    options ? featureProfileSchema(Object.keys(options), categories, capabilityIds, input.profile_mode === 'operations') : undefined,
   );
   const rawPayload = parseEnrichmentPayload(response.raw);
   const payload = options ? resolveProfileEvidence(rawPayload, options) : rawPayload;
   const { profile, facts, inferences, evidence } = parseProfile(payload, chunks);
-  if (input.profile_mode === 'capabilities' && profile.capabilities.length === 0)
+  if (input.profile_mode === 'operations' && facts.some((fact) => fact.field === 'capabilities' && !fact.operation))
+    throw new Error('Operation profiles require structured operations');
+  if (!!input.profile_mode && profile.capabilities.length === 0)
     throw new Error('Capability extraction returned no implemented features');
   const taxonomy = parseTaxonomy(payload, categories);
   const needs = parseNeeds(payload, chunks);

@@ -1,4 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
+import { parseFeatureOperation } from './feature-operation';
 import type { DecisionInput, EvidenceRef, FrozenDecision } from './decision-types';
 import type { Repository } from './repository';
 import type { ChunkRecord, DocumentRecord } from './types';
@@ -77,6 +78,12 @@ export async function freezeDecision(repo: Repository, tenant: string, indexId: 
   validateDecisionInput(input);
   if (input.feature_description !== undefined && (typeof input.feature_description !== 'string' || !input.feature_description.trim() || input.feature_description.length > 240 || !input.feature_evidence?.length))
     throw new HTTPException(400, { message: 'A bounded feature description requires feature evidence' });
+  let operation;
+  if (input.feature_operation !== undefined) {
+    if (!input.feature_description || !input.feature_evidence?.length || input.candidates.length > 8)
+      throw new HTTPException(400, { message: 'Operation comparison requires feature evidence and at most eight candidates' });
+    try { operation = parseFeatureOperation(input.feature_operation); } catch (error) { throw new HTTPException(400, { message: String(error) }); }
+  }
   const sourceIds = [...new Set([...input.context_document_ids, ...input.candidates.flatMap((candidate) => candidate.document_ids)])];
   const documents = await loadEvidenceDocuments(repo, tenant, indexId, sourceIds);
   const context = documents.filter((row) => input.context_document_ids.includes(row.document.id)).flatMap((row) => row.chunks);
@@ -111,15 +118,12 @@ export async function freezeDecision(repo: Repository, tenant: string, indexId: 
     schema_version: 1,
     index_id: indexId,
     source_document_ids: sourceIds,
-    state: input.feature_description ? { target_feature_description: input.feature_description } : {},
+    state: { ...(input.feature_description ? { target_feature_description: input.feature_description } : {}), ...(operation ? { target_operation: operation } : {}) },
     questions: {},
     candidates: input.candidates.map((candidate) => ({
       id: candidate.id,
       project_options: projectOptions,
-      candidate_options: evidenceOptions(
-        documents.filter((row) => candidate.document_ids.includes(row.document.id)).flatMap((row) => row.chunks),
-        input.question,
-      ),
+      candidate_options: candidateEvidenceOptions(candidate, documents, input.question),
       gaps: gaps.map((_, n) => `g${n + 1}`),
     })),
     coverage: {
@@ -135,6 +139,15 @@ export async function freezeDecision(repo: Repository, tenant: string, indexId: 
   return frozen;
 }
 
+function candidateEvidenceOptions(candidate: DecisionInput['candidates'][number], documents: Array<{ document: DocumentRecord; chunks: ChunkRecord[] }>, question: string) {
+  const chunks = documents.filter((row) => candidate.document_ids.includes(row.document.id)).flatMap((row) => row.chunks);
+  if (candidate.capability_evidence !== undefined && (!Array.isArray(candidate.capability_evidence) || candidate.capability_evidence.length > 1))
+    throw new HTTPException(400, { message: 'At most one candidate capability excerpt is allowed' });
+  try {
+    return { ...Object.fromEntries((candidate.capability_evidence ?? []).map((ref, i) => [`k${i + 1}`, validateEvidence(ref, chunks)])), ...evidenceOptions(chunks, question) };
+  } catch (error) { throw new HTTPException(400, { message: String(error) }); }
+}
+
 function choiceOptions(options: Record<string, EvidenceRef>): Record<string, string> {
   return { ...Object.fromEntries(Object.keys(options).map((key) => [key, key])), none: 'Insufficient source evidence.' };
 }
@@ -142,8 +155,10 @@ function choiceOptions(options: Record<string, EvidenceRef>): Record<string, str
 function buildDecisionState(frozen: FrozenDecision, question: string): void {
   const projectOptions = frozen.candidates[0]?.project_options ?? {};
   const featureDescription = frozen.state.target_feature_description;
+  const operation = frozen.state.target_operation;
   frozen.state = {
     question,
+    ...(operation ? { target_operation: operation } : {}),
     context_evidence: Object.fromEntries(Object.entries(projectOptions).map(([key, ref]) => [key, ref.excerpt])),
     ...(Object.keys(projectOptions).some((key) => key.startsWith('f')) ? { ...(featureDescription ? { target_feature_description: featureDescription } : {}), target_feature_evidence: Object.keys(projectOptions).filter((key) => key.startsWith('f')) } : {}),
     explicitly_documented_gap_options: frozen.candidates[0]?.gaps ?? [],
@@ -186,7 +201,7 @@ function buildDecisionState(frozen: FrozenDecision, question: string): void {
 function trimOptions(options: Record<string, EvidenceRef>, count: number, characters: number, preserveGaps = false): void {
   let kept = 0;
   for (const [key, ref] of Object.entries(options)) {
-    if (preserveGaps && (key.startsWith('g') || key.startsWith('f'))) continue;
+    if (preserveGaps && (key.startsWith('g') || key.startsWith('f') || key.startsWith('k'))) continue;
     if (kept++ >= count) delete options[key];
     else options[key] = { ...ref, excerpt: ref.excerpt.slice(0, characters) };
   }
@@ -201,7 +216,7 @@ function packDecision(frozen: FrozenDecision, question: string): void {
   ] as const) {
     const projectOptions = frozen.candidates[0]?.project_options ?? {};
     trimOptions(projectOptions, count, characters, true);
-    for (const candidate of frozen.candidates) trimOptions(candidate.candidate_options, count, characters);
+    for (const candidate of frozen.candidates) trimOptions(candidate.candidate_options, count, characters, true);
     buildDecisionState(frozen, question);
     const bytes = new TextEncoder().encode(JSON.stringify({ state: frozen.state, questions: frozen.questions })).byteLength;
     frozen.coverage = {
