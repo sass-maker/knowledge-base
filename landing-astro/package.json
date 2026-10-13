@@ -11,9 +11,10 @@
   "scripts": {
     "dev": "astro dev",
     "typecheck": "astro check",
-    "build": "astro build",
+    "build": "astro build && node scripts/write-public-cache-generation.mjs",
     "agent:check": "node scripts/check-agent-surfaces.mjs",
-    "check": "pnpm run typecheck && pnpm run build && pnpm run agent:check"
+    "check": "pnpm run typecheck && pnpm run build && pnpm run agent:check && pnpm run test:cache",
+    "test:cache": "node scripts/format-cache.test.mjs"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.6",

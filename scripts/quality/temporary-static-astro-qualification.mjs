@@ -15,7 +15,7 @@ export const TEMPORARY_STATIC_ASTRO_ADVISORY = Object.freeze({
   expiresAt: '2026-10-18T00:00:00.000Z',
 });
 
-export const TRUSTED_PAGES_WRAPPER_SHA256 = 'b052da50a40c23fd99ddff2f15c14080e57cf2b20d131b158780fdf7c46266cd';
+export const TRUSTED_PAGES_WRAPPER_SHA256 = '7c76663b1edab52b0d0c223b7210379532ca4dece988e066f4b0027f4a508c5f';
 export const TRUSTED_PAGES_HEADERS_SHA256 = '102e88103142138d578faf22528149a98786ecf12754ad88303b540a9cde36c5';
 export const TRUSTED_ASTRO_CONFIG_SHA256 = '3634031eb8c356b64d759248ed3a51e85c40ae37dd2f37c59f2f23b49353ce92';
 
@@ -113,7 +113,7 @@ function hasUnsupportedSourceMarker(text) {
 function checkPagesWrapper(workerText, outputHash) {
   return sha256(workerText ?? '') === TRUSTED_PAGES_WRAPPER_SHA256 && outputHash === TRUSTED_PAGES_WRAPPER_SHA256
     ? { qualified: true }
-    : fail('Pages wrapper source or built copy differs from the reviewed stateless asset proxy');
+    : fail('Pages wrapper source or built copy differs from the reviewed public asset wrapper');
 }
 
 function checkPagesHeaders(headersText, outputHash) {

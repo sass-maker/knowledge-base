@@ -198,3 +198,17 @@ settled, instead of waiting for a vector that was never written to appear.
 Started and uncertain writes still require provider convergence. The regression
 uses the real SQLite ledger and covers all three dispatch states. This source
 fix retains issue 48's migration, activation and authenticated acceptance gates.
+
+## Public landing source candidate (#76 / shared #248)
+
+The operator-only workspace link remains secondary and points at the existing
+Access-protected origin. The public landing wrapper uses build-content and
+format-specific Cache API lookup URLs with a 60-second internal TTL; downstream
+root responses are no-store. Missing build markers and session/private/error
+responses bypass caching. Retrieval and operator authorization are unchanged.
+
+Local public rendering and URL-only cache-double tests are source evidence.
+Real edge behavior, same-workload TTFB and production acceptance remain pending
+under [SaaS Maker #248](https://github.com/sass-maker/saas-maker/issues/248).
+[#76](https://github.com/sass-maker/knowledge-base/issues/76) retains human
+review and deployment approval. No provider calls, deployment or migrations.
