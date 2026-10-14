@@ -1,3 +1,4 @@
+import type { FeatureOperation } from './feature-operation';
 import type { JsonRecord } from './types';
 
 export interface EvidenceRef {
@@ -8,12 +9,16 @@ export interface EvidenceRef {
 interface DecisionCandidate {
   id: string;
   document_ids: string[];
+  capability_evidence?: EvidenceRef[];
 }
 export interface DecisionInput {
   question: string;
   context_document_ids: string[];
   candidates: DecisionCandidate[];
   explicit_gaps?: EvidenceRef[];
+  feature_evidence?: EvidenceRef[];
+  feature_description?: string;
+  feature_operation?: FeatureOperation;
   engine?: 'free_ai' | 'jev';
 }
 export interface DecisionItem {
@@ -23,6 +28,13 @@ export interface DecisionItem {
   benefit: string;
   project_evidence: EvidenceRef[];
   candidate_evidence: EvidenceRef[];
+  utility?: 'high' | 'medium' | 'low' | 'reject';
+  comparison?: {
+    action: string;
+    differences: string;
+    shared_operation?: { input: string; action: string; output: string };
+    candidate_operation: { input: string; action: string; output: string };
+  };
 }
 export interface DecisionResult {
   abstained: boolean;
@@ -38,6 +50,9 @@ export interface DecisionEngineResult {
   raw: unknown;
   result?: DecisionResult;
   error?: string;
+  error_code?: string;
+  gateway_input_hash?: string;
+  decision_backend?: 'free_ai_decisions';
 }
 interface ChoiceQuestion {
   type: 'choice';
@@ -51,6 +66,17 @@ export interface FrozenDecision {
   state: JsonRecord;
   questions: Record<string, ChoiceQuestion>;
   candidates: Array<{ id: string; project_options: Record<string, EvidenceRef>; candidate_options: Record<string, EvidenceRef>; gaps: string[] }>;
+  comparisons?: Record<
+    string,
+    {
+      project_key: string;
+      candidate_key: string;
+      action: string;
+      differences: string;
+      shared_operation?: { input: string; action: string; output: string };
+      candidate_operation: { input: string; action: string; output: string };
+    }
+  >;
   coverage: {
     candidates: number;
     omitted_candidates: 0;

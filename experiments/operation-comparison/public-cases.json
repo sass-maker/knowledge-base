@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "label_status": "agent_provisional_not_owner_validated",
+  "defined_before_comparison": true,
+  "sources": {
+    "readability": {
+      "url": "https://github.com/mozilla/readability/blob/ab4027a8b37669745016869a37a504727992b2ba/README.md#L42-L62",
+      "revision": "ab4027a8b37669745016869a37a504727992b2ba",
+      "path": "README.md",
+      "lines": [
+        42,
+        62
+      ],
+      "source_sha256": "0b9299bbc294dcabca728f5063bb8720f8dcc87b7a498f31b218d7bdafa3fc23",
+      "excerpt_sha256": "0f980acd80a1b86b4ef8b327207b93d6fb4caae5f7d4fc6b2df2f60b8b3253cb",
+      "excerpt": "### `parse()`\n\nReturns an object containing the following properties:\n\n* `title`: article title;\n* `content`: HTML string of processed article content;\n* `textContent`: text content of the article, with all the HTML tags removed;\n* `length`: length of an article, in characters;\n* `excerpt`: article description, or short excerpt from the content;\n* `byline`: author metadata;\n* `dir`: content direction;\n* `siteName`: name of the site;\n* `lang`: content language;\n* `publishedTime`: published time;\n\nThe `parse()` method works by modifying the DOM. This removes some elements in the web page, which may be undesirable. You can avoid this by passing the clone of the `document` object to the `Readability` constructor:\n\n```js\nvar documentClone = document.cloneNode(true);\nvar article = new Readability(documentClone).parse();\n```"
+    },
+    "trafilatura": {
+      "url": "https://github.com/adbar/trafilatura/blob/e2f85c965662c7df26b73290ef175b2c2a5fdca6/README.md#L50-L68",
+      "revision": "e2f85c965662c7df26b73290ef175b2c2a5fdca6",
+      "path": "README.md",
+      "lines": [
+        50,
+        68
+      ],
+      "source_sha256": "42962884fec6a66270f58a71f2b7494e294cf0b0881691eb79e50bbec55bc25a",
+      "excerpt_sha256": "a917cfbaffb893410bf7c57d8b71d9813efb5de06a7cb021cd0f844234d056c1",
+      "excerpt": "- Advanced web crawling and text discovery:\n  - Support for sitemaps (TXT, XML) and feeds (ATOM, JSON, RSS)\n  - Smart crawling and URL management (filtering and deduplication)\n\n- Parallel processing of online and offline input:\n  - Live URLs, efficient and polite processing of download queues\n  - Previously downloaded HTML files and parsed HTML trees\n\n- Robust and configurable extraction of key elements:\n  - Main text (own rule-based extractor with jusText and readability-lxml as fallbacks)\n  - Metadata (title, author, date, site name, categories and tags)\n  - Formatting and structure: paragraphs, titles, lists, quotes, code, line breaks, in-line text formatting\n  - Optional elements: comments, links, images, tables\n  - Optional add-ons: language detection, speed optimizations\n\n- Multiple output formats:\n  - TXT and Markdown\n  - CSV\n  - JSON"
+    },
+    "cheerio": {
+      "url": "https://github.com/cheeriojs/cheerio/blob/fe7e3c02db5380193156dcbf41b0d112f10593e4/Readme.md#L87-L112",
+      "revision": "fe7e3c02db5380193156dcbf41b0d112f10593e4",
+      "path": "Readme.md",
+      "lines": [
+        87,
+        112
+      ],
+      "source_sha256": "2b3f46ed34ff3c1c9f88ef85aab78c79f4bb7d26b14baa202f535c0a409ed5eb",
+      "excerpt_sha256": "e2345af32df52bc17d5d23df1e3f9b608ee44cc800cdcf0bfd9b8f895e7e996a",
+      "excerpt": "### Selectors\n\nOnce you've loaded the HTML, you can use jQuery-style selectors to find elements\nwithin the document.\n\n#### \\$( selector, [context], [root] )\n\n`selector` searches within the `context` scope which searches within the `root`\nscope. `selector` and `context` can be a string expression, DOM Element, array\nof DOM elements, or cheerio object. `root`, if provided, is typically the HTML\ndocument string.\n\nThis selector method is the starting point for traversing and manipulating the\ndocument. Like in jQuery, it's the primary method for selecting elements in the\ndocument.\n\n```js\n$('.apple', '#fruits').text();\n//=> Apple\n\n$('ul .pear').attr('class');\n//=> pear\n\n$('li[class=orange]').html();\n//=> Orange\n```"
+    },
+    "marked": {
+      "url": "https://github.com/markedjs/marked/blob/cdbdc0122ab83b2b97560944bf009a22cfb78b05/README.md#L14-L18",
+      "revision": "cdbdc0122ab83b2b97560944bf009a22cfb78b05",
+      "path": "README.md",
+      "lines": [
+        14,
+        18
+      ],
+      "source_sha256": "b2f958f05b55e66a736a99745c3bb2629793867b39c05f1bb8532722dddabd54",
+      "excerpt_sha256": "c4780af3ac6cb34b09c8892ac4a56a52f61ba3b6bc6f5784bf9b3fa3c1ade667",
+      "excerpt": "- \u26a1 built for speed\n- \u2b07\ufe0f low-level compiler for parsing markdown without caching or blocking for long periods of time\n- \u2696\ufe0f light-weight while implementing all markdown features from the supported flavors & specifications\n- \ud83d\udee0\ufe0f easily adaptable with [custom extensions](https://marked.js.org/using_advanced#extensions)\n- \ud83c\udf10 works in a browser, on a server, or from a command line interface (CLI)"
+    },
+    "trafilatura-title": {
+      "url": "https://github.com/adbar/trafilatura/blob/e2f85c965662c7df26b73290ef175b2c2a5fdca6/README.md#L1-L1",
+      "revision": "e2f85c965662c7df26b73290ef175b2c2a5fdca6",
+      "path": "README.md",
+      "lines": [
+        1,
+        1
+      ],
+      "source_sha256": "42962884fec6a66270f58a71f2b7494e294cf0b0881691eb79e50bbec55bc25a",
+      "excerpt_sha256": "1ce45f4f6f68ae06a51df981e6c04e2ee159b201d52a3651ed602f0378ee31eb",
+      "excerpt": "# Trafilatura: Discover Web Content, Extract Text and Metadata"
+    }
+  },
+  "cases": [
+    {
+      "id": "article-method-difference",
+      "split": "development",
+      "project": "readability",
+      "candidate": "trafilatura",
+      "user_problem": "Read an article without surrounding site noise",
+      "operation": {
+        "input": "HTML document",
+        "action": "Extract article text",
+        "output": "Article text",
+        "method": "Readability",
+        "constraints": [],
+        "importance": "core"
+      },
+      "provisional_label": "useful",
+      "rationale": "Both passages establish article/main-text extraction; rules/fallbacks differ from DOM-based Readability."
+    },
+    {
+      "id": "same-library",
+      "split": "development",
+      "project": "readability",
+      "candidate": "readability",
+      "user_problem": "Learn a distinct article extraction method",
+      "operation": {
+        "input": "HTML document",
+        "action": "Extract article text",
+        "output": "Article text",
+        "method": "Readability",
+        "constraints": [],
+        "importance": "core"
+      },
+      "provisional_label": "not_useful",
+      "rationale": "Operation overlap exists but the same source supplies no distinct method."
+    },
+    {
+      "id": "generic-html",
+      "split": "development",
+      "project": "readability",
+      "candidate": "cheerio",
+      "user_problem": "Read an article without surrounding site noise",
+      "operation": {
+        "input": "HTML document",
+        "action": "Extract article text",
+        "output": "Article text",
+        "method": "Readability",
+        "constraints": [],
+        "importance": "core"
+      },
+      "provisional_label": "unsupported",
+      "rationale": "Selector text extraction does not establish automatic main-article selection; parsing HTML alone is insufficient."
+    },
+    {
+      "id": "direction-mismatch",
+      "split": "development",
+      "project": "readability",
+      "candidate": "marked",
+      "user_problem": "Read an article without surrounding site noise",
+      "operation": {
+        "input": "HTML document",
+        "action": "Extract article text",
+        "output": "Article text",
+        "method": "Readability",
+        "constraints": [],
+        "importance": "core"
+      },
+      "provisional_label": "unsupported",
+      "rationale": "Markdown compilation has different input/action/output; shared rendering terminology is insufficient."
+    },
+    {
+      "id": "partial-retrieval",
+      "split": "development",
+      "project": "readability",
+      "candidate": "trafilatura-title",
+      "user_problem": "Read an article without surrounding site noise",
+      "operation": {
+        "input": "HTML document",
+        "action": "Extract article text",
+        "output": "Article text",
+        "method": "Readability",
+        "constraints": [],
+        "importance": "core"
+      },
+      "provisional_label": "ambiguous",
+      "rationale": "Title-only retrieval omits main-text/method evidence. Insufficient evidence is not proof the full candidate lacks the operation."
+    },
+    {
+      "id": "metadata-overlap",
+      "split": "held_out",
+      "project": "readability",
+      "candidate": "trafilatura",
+      "user_problem": "Inspect article author metadata",
+      "operation": {
+        "input": "HTML document",
+        "action": "Extract article metadata",
+        "output": "Author metadata",
+        "method": "Readability",
+        "constraints": [],
+        "importance": "core"
+      },
+      "provisional_label": "useful",
+      "rationale": "Both passages name author metadata, without proving improvements."
+    },
+    {
+      "id": "dom-selection",
+      "split": "held_out",
+      "project": "readability",
+      "candidate": "cheerio",
+      "user_problem": "Inspect a reusable DOM manipulation API",
+      "operation": {
+        "input": "HTML document",
+        "action": "Modify document DOM",
+        "output": "Modified DOM",
+        "method": "Readability",
+        "constraints": [],
+        "importance": "core"
+      },
+      "provisional_label": "useful",
+      "rationale": "Both passages describe DOM modification; generic selectors may be useful for this narrower target, unlike article selection."
+    },
+    {
+      "id": "markdown-reverse",
+      "split": "held_out",
+      "project": "readability",
+      "candidate": "marked",
+      "user_problem": "Produce article HTML from Markdown",
+      "operation": {
+        "input": "Markdown",
+        "action": "Compile Markdown",
+        "output": "HTML",
+        "method": "Readability",
+        "constraints": [],
+        "importance": "core"
+      },
+      "provisional_label": "unsupported",
+      "rationale": "The target Readability passage does not establish Markdown compilation."
+    }
+  ]
+}

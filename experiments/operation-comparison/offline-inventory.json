@@ -1,0 +1,19 @@
+{
+  "mode": "offline_source_inventory",
+  "corpus_sha256": "541e46d6e3a26bd1aeca99db1f83461ebcf1e9c226cc7d588a68d097c6fe331b",
+  "provisional_labels": true,
+  "development_cases": 5,
+  "held_out_cases": 3,
+  "evaluated_cases": 0,
+  "false_positives": null,
+  "false_negatives": null,
+  "entailment": null,
+  "coverage": {
+    "observed": 0,
+    "expected": 5
+  },
+  "cache_reuse": null,
+  "latency_ms": null,
+  "gateway_429": null,
+  "live_observations": "Not supplied; consult the runtime capability receipt before attempting inference."
+}
