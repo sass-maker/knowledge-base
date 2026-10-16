@@ -158,13 +158,7 @@ export default function OverviewPage() {
     <>
       <PageHeader title="Overview" description="Private retrieval operations for SaaS Maker projects" />
       <div className="flex flex-col gap-6 p-6">
-        <OverviewContent
-          status={status}
-          domains={domains}
-          loading={loading}
-          error={error}
-          onRetry={() => void loadOverview()}
-        />
+        <OverviewContent status={status} domains={domains} loading={loading} error={error} onRetry={() => void loadOverview()} />
       </div>
     </>
   );
