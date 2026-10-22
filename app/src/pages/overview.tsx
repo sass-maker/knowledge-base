@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Domain, KbStatus } from '@/lib/api';
 import { api, ApiError } from '@/lib/api';
 import { Button } from '@/components/button';
 import { Card, CardTitle, Skeleton, StatCard } from '@/components/card';
 import { Onboarding, isOnboardingDone } from '@/components/onboarding';
 import { PageHeader } from '@/components/page-header';
+import { useOverviewCache } from '@/components/overview-cache';
 import { AppLink as Link } from '@/components/app-link';
 import { formatTime } from '@/lib/utils';
 import { ArrowRight, Database, History, Search, TableProperties } from 'lucide-react';
@@ -18,18 +19,17 @@ export interface OverviewContentProps {
 }
 
 export function OverviewContent({ status, domains, loading, error, onRetry }: OverviewContentProps) {
-  if (error) {
-    return (
-      <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-4 text-sm text-destructive">
-        <p>Could not load overview data. {error}</p>
-        <Button className="mt-3" variant="secondary" onClick={onRetry}>
-          Retry overview
-        </Button>
-      </div>
-    );
-  }
+  const errorNotice = error ? (
+    <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-4 text-sm text-destructive">
+      <p>Could not load overview data. {error}</p>
+      <Button className="mt-3" variant="secondary" onClick={onRetry}>
+        Retry overview
+      </Button>
+    </div>
+  ) : null;
+  if (error && !status) return errorNotice;
 
-  if (loading) {
+  if (loading && !status) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Loading overview" aria-busy="true">
         {Array.from({ length: 8 }).map((_, i) => (
@@ -44,6 +44,7 @@ export function OverviewContent({ status, domains, loading, error, onRetry }: Ov
 
   return (
     <>
+      {errorNotice}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Domains" value={status?.domains ?? 0} />
         <StatCard label="Files" value={status?.files ?? 0} />
@@ -116,31 +117,41 @@ export function OverviewContent({ status, domains, loading, error, onRetry }: Ov
 }
 
 export default function OverviewPage() {
-  const [status, setStatus] = useState<KbStatus | null>(null);
-  const [domains, setDomains] = useState<Domain[]>([]);
+  const { snapshot, saveSnapshot } = useOverviewCache();
+  const status = snapshot?.status ?? null;
+  const domains = snapshot?.domains ?? [];
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!snapshot);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const latestRequest = useRef(0);
 
   const loadOverview = useCallback(async () => {
+    const request = ++latestRequest.current;
     setLoading(true);
     setError(null);
     try {
       const [nextStatus, nextDomains] = await Promise.all([api.getStatus(), api.getDomains()]);
-      setStatus(nextStatus);
-      setDomains(nextDomains.domains ?? []);
+      if (request !== latestRequest.current) return;
+      saveSnapshot({ status: nextStatus, domains: nextDomains.domains ?? [] });
       if (!isOnboardingDone() && (nextDomains.domains ?? []).length === 0) {
         setShowOnboarding(true);
       }
     } catch (cause) {
+      if (request !== latestRequest.current) return;
+      if (cause instanceof ApiError && (cause.status === 401 || cause.status === 403)) {
+        saveSnapshot(null);
+      }
       setError(cause instanceof ApiError ? `API error ${cause.status}` : String(cause));
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
-  }, []);
+  }, [saveSnapshot]);
 
   useEffect(() => {
     void loadOverview();
+    return () => {
+      latestRequest.current++;
+    };
   }, [loadOverview]);
 
   if (showOnboarding) {

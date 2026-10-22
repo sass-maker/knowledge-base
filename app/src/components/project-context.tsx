@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Database, Loader2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
+import { Button } from '@/components/button';
 import { isInternalProject, projectLabel, setApiProjectScope, sortProjects, type OperatorProject } from '@/lib/project-scope';
 
 const PROJECT_STORAGE_KEY = 'knowledgebase:selected-project';
@@ -46,9 +47,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [includeInternal, setIncludeInternalState] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
     api
       .getOperatorProjects()
       .then((result) => {
@@ -77,7 +81,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
   const visibleProjects = useMemo(() => projects.filter((project) => includeInternal || !isInternalProject(project)), [includeInternal, projects]);
 
@@ -119,6 +123,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
           <div>
             <p className="font-medium text-foreground">Project inventory unavailable</p>
             <p className="mt-1 text-muted-foreground">{error}</p>
+            <Button className="mt-3" variant="secondary" onClick={() => setAttempt((value) => value + 1)}>
+              Retry projects
+            </Button>
           </div>
         </div>
       </div>
