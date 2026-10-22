@@ -1,6 +1,7 @@
 import { AccessGuard } from '@/components/access-guard';
 import { ProjectProvider, useProjectScope } from '@/components/project-context';
 import { Sidebar } from '@/components/sidebar';
+import { OverviewCacheProvider } from '@/components/overview-cache';
 import { isAppPath, usePathname } from '@/lib/router';
 import DataPage from '@/pages/data';
 import DomainsPage from '@/pages/domains';
@@ -43,14 +44,16 @@ function DashboardShell() {
   const Page = isAppPath(pathname) ? PAGES[pathname] : NotFoundPage;
 
   return (
-    <div className="flex min-h-svh w-full">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="page-fade flex min-w-0 flex-1 flex-col overflow-y-auto">
-          <Page key={`${selectedProject}:${includeInternal}:${pathname}`} />
+    <OverviewCacheProvider key={`${selectedProject}:${includeInternal}`}>
+      <div className="flex min-h-svh w-full">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="page-fade flex min-w-0 flex-1 flex-col overflow-y-auto">
+            <Page key={`${selectedProject}:${includeInternal}:${pathname}`} />
+          </div>
         </div>
       </div>
-    </div>
+    </OverviewCacheProvider>
   );
 }
 
