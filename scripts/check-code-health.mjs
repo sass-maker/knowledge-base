@@ -6,8 +6,6 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { qualifyTemporaryAdvisory, TEMPORARY_STATIC_ASTRO_ADVISORY } from './quality/temporary-static-astro-qualification.mjs';
-import { verifyStaticAstroEvidence } from './quality/temporary-static-astro-evidence.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const productionPaths = [
@@ -180,22 +178,6 @@ function checkDependencies() {
     for (const advisory of report.advisories) {
       const id = advisory.github_advisory_id;
       if (acceptedIds[scope].has(id)) continue;
-      if (scope === 'landing' && id === TEMPORARY_STATIC_ASTRO_ADVISORY.id) {
-        const advisoryResult = qualifyTemporaryAdvisory(advisory);
-        if (!advisoryResult.qualified) {
-          unexpected.push(`${id} (${advisoryResult.reason})`);
-          continue;
-        }
-        const evidenceResult = verifyStaticAstroEvidence();
-        if (!evidenceResult.qualified) {
-          unexpected.push(`${id} (${evidenceResult.reason})`);
-          continue;
-        }
-        console.log(
-          `Dependencies: ${id} remains unpatched and reported; temporary static landing qualification is valid until ${TEMPORARY_STATIC_ASTRO_ADVISORY.expiresAt}.`,
-        );
-        continue;
-      }
       unexpected.push(id);
     }
     if (unexpected.length > 0) {
@@ -221,7 +203,7 @@ function checkDependencies() {
     workerCritical: 0,
     workerHigh: 4,
     landingCritical: 0,
-    landingHigh: 1,
+    landingHigh: 0,
   };
   console.log(
     `Dependencies: 0 critical; high advisories root ${observed.rootHigh}, app ${observed.appHigh}, ` +
