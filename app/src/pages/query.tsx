@@ -166,8 +166,8 @@ export default function QueryPage() {
                 </label>
 
                 {/* Tab toggle */}
-                <div className="flex items-center gap-2">
-                  <div className="flex rounded-lg border border-border p-0.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex shrink-0 rounded-lg border border-border p-0.5">
                     <button
                       onClick={() => setTab('search')}
                       className={cn(
@@ -197,7 +197,7 @@ export default function QueryPage() {
                       <option value="workers_ai">Workers AI</option>
                     </select>
                   )}
-                  <div className="flex-1" />
+                  <div className="hidden flex-1 sm:block" />
                   <Button onClick={handleRun} disabled={loading || !domain || !query.trim()}>
                     {loading ? (
                       <>

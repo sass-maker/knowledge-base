@@ -1,6 +1,6 @@
 import { AccessGuard } from '@/components/access-guard';
 import { ProjectProvider, useProjectScope } from '@/components/project-context';
-import { Sidebar } from '@/components/sidebar';
+import { ProjectScopeControls, Sidebar } from '@/components/sidebar';
 import { OverviewCacheProvider } from '@/components/overview-cache';
 import { isAppPath, usePathname } from '@/lib/router';
 import DataPage from '@/pages/data';
@@ -48,6 +48,9 @@ function DashboardShell() {
       <div className="flex min-h-svh w-full">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="border-b border-border bg-card p-4 sm:hidden">
+            <ProjectScopeControls />
+          </div>
           <div className="page-fade flex min-w-0 flex-1 flex-col overflow-y-auto">
             <Page key={`${selectedProject}:${includeInternal}:${pathname}`} />
           </div>
