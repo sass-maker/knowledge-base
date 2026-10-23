@@ -4,13 +4,15 @@ import { PageHeader } from '@/components/page-header';
 import { Card, CardTitle } from '@/components/card';
 import { Button } from '@/components/button';
 import { formatMs, formatScore, cn } from '@/lib/utils';
-import { Search, Sparkles, Loader2, Database } from 'lucide-react';
+import { Search, Sparkles, Loader2, Database, RefreshCw } from 'lucide-react';
 import { AppLink as Link } from '@/components/app-link';
 
 type Tab = 'search' | 'answer';
 
 export default function QueryPage() {
   const [domains, setDomains] = useState<Domain[]>([]);
+  const [domainsLoading, setDomainsLoading] = useState(true);
+  const [domainsError, setDomainsError] = useState<string | null>(null);
   const [domain, setDomain] = useState('');
   const [query, setQuery] = useState('What is this corpus about?');
   const [mode, setMode] = useState('hybrid');
@@ -22,15 +24,26 @@ export default function QueryPage() {
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
 
+  const loadDomains = useCallback(async () => {
+    setDomainsLoading(true);
+    setDomainsError(null);
+    try {
+      const result = await api.getDomains();
+      const nextDomains = result.domains ?? [];
+      setDomains(nextDomains);
+      setDomain((current) => (nextDomains.some((item) => item.name === current) ? current : (nextDomains[0]?.name ?? '')));
+    } catch (cause) {
+      setDomains([]);
+      setDomain('');
+      setDomainsError(cause instanceof ApiError ? `API error ${cause.status}` : String(cause));
+    } finally {
+      setDomainsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    api
-      .getDomains()
-      .then((d) => {
-        setDomains(d.domains ?? []);
-        if (d.domains?.length > 0 && !domain) setDomain(d.domains[0].name);
-      })
-      .catch(() => {});
-  }, [domain]);
+    void loadDomains();
+  }, [loadDomains]);
 
   const runSearch = useCallback(async () => {
     if (!domain || !query.trim()) return;
@@ -86,28 +99,7 @@ export default function QueryPage() {
     <>
       <PageHeader title="Query" description="Search your corpus or get cited answers" />
       <div className="flex flex-col gap-6 p-6">
-        {domains.length === 0 && (
-          <Card>
-            <div className="flex flex-col items-center gap-4 py-8 text-center">
-              <div
-                className="flex size-12 items-center justify-center rounded-xl"
-                style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
-              >
-                <Database className="size-6" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <h3 className="text-base font-semibold text-foreground">No domains to query</h3>
-                <p className="max-w-sm text-sm text-muted-foreground">Create a domain and ingest some files first, then come back to run queries.</p>
-              </div>
-              <Link
-                href="/domains"
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                <Database className="size-4" /> Go to domains
-              </Link>
-            </div>
-          </Card>
-        )}
+        <QueryDomainState loading={domainsLoading} error={domainsError} hasDomains={domains.length > 0} onRetry={() => void loadDomains()} />
 
         {domains.length > 0 && (
           <>
@@ -292,5 +284,59 @@ export default function QueryPage() {
         )}
       </div>
     </>
+  );
+}
+
+export function QueryDomainState({
+  loading,
+  error,
+  hasDomains,
+  onRetry,
+}: {
+  loading: boolean;
+  error: string | null;
+  hasDomains: boolean;
+  onRetry: () => void;
+}) {
+  if (loading) {
+    return (
+      <Card>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+          <Loader2 className="size-4 spin" /> Loading domains…
+        </div>
+      </Card>
+    );
+  }
+  if (error) {
+    return (
+      <Card>
+        <div className="flex flex-col items-start gap-3" role="alert">
+          <p className="text-sm text-destructive">Could not load domains. {error}</p>
+          <Button onClick={onRetry}>
+            <RefreshCw className="size-4" /> Retry domains
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+  if (hasDomains) return null;
+  return (
+    <Card>
+      <div className="flex flex-col items-center gap-4 py-8 text-center">
+        <div className="flex size-12 items-center justify-center rounded-xl" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}>
+          <Database className="size-6" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <h3 className="text-base font-semibold text-foreground">No domains to query</h3>
+          <p className="max-w-sm text-sm text-muted-foreground">Create a domain and ingest some files first, then come back to run queries.</p>
+        </div>
+        <Link
+          href="/domains"
+          className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          <Database className="size-4" /> Go to domains
+        </Link>
+      </div>
+    </Card>
   );
 }
