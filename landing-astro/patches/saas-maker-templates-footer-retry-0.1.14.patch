@@ -1,0 +1,81 @@
+diff --git a/src/Base.astro b/src/Base.astro
+--- a/src/Base.astro
++++ b/src/Base.astro
+@@ -142,10 +142,22 @@
+       // Close any open popover (mobile menu) after in-page navigation.
+       addEventListener("hashchange", () => document.querySelectorAll(":popover-open").forEach((p) => p.hidePopover()));
+ 
++      if (!document.querySelector("form[data-subscribe], form[data-feedback]")) return;
++
+       // Footer forms post to SaaS Maker with a publishable key. Without one they run in preview mode.
+       const api = "https://api.sassmaker.com";
+       // A page address without query or fragment, which can carry private tokens.
+       const pageUrl = () => location.origin + location.pathname;
++      const feedbackIntents = new WeakMap();
++      function submissionId(form, feedback, shot, key) {
++        const signature = JSON.stringify([key, feedback]);
++        let intent = feedbackIntents.get(form);
++        if (!intent || intent.signature !== signature || intent.shot !== shot) {
++          intent = { signature, shot, id: crypto.randomUUID() };
++          feedbackIntents.set(form, intent);
++        }
++        return intent.id;
++      }
+       // The publishable project key: given directly, or resolved from the catalog id.
+       // Only a found key is cached; a miss or a failed lookup is retried on the next send.
+       // null means preview mode (no key, or the catalog id has no project); a failed
+@@ -242,6 +254,7 @@
+       async function send(form, statusSel, request, ok) {
+         const status = form.querySelector(statusSel);
+         const button = form.querySelector("button[type=submit]");
++        if (button.disabled) return false;
+         const say = (text) => (status.textContent = text);
+         button.disabled = true;
+         say("Sending…");
+@@ -258,7 +271,7 @@
+         } catch (err) {
+           say(err instanceof Unreachable
+             ? "Couldn't reach SaaS Maker, so nothing was sent. Please try again in a moment."
+-            : "That did not send. Please try again in a moment.");
++            : "Couldn't confirm delivery. Please try again in a moment.");
+         } finally {
+           button.disabled = false;
+         }
+@@ -272,24 +285,28 @@
+           e.preventDefault();
+           const data = new FormData(form);
+           const email = String(data.get("email") || "").trim();
+-          const shot = data.get("screenshot");
++          const shot = form.elements.namedItem("screenshot")?.files?.[0];
++          const feedback = {
++            type: data.get("type") || "feedback",
++            title: String(data.get("title") || "").trim(),
++            description: String(data.get("message") || "").trim(),
++            ...(email && { submitter_email: email }),
++            page: { url: pageUrl(), title: document.title },
++            ...(anchor && { anchor }),
++            source: "studio-footer",
++          };
+           const sent = await send(form, "[data-feedback-status]", async () => {
+             const key = await projectKey(form);
+             if (!key) return null;
+             const body = new FormData();
+             body.set("feedback", JSON.stringify({
+-              type: data.get("type") || "feedback",
+-              title: String(data.get("title") || "").trim(),
+-              description: String(data.get("message") || "").trim(),
+-              ...(email && { submitter_email: email }),
+-              page: { url: pageUrl(), title: document.title },
+-              ...(anchor && { anchor }),
+-              source: "studio-footer",
++              ...feedback,
++              submission_id: submissionId(form, feedback, shot, key),
+             }));
+             if (shot && shot.size) body.set("screenshot", shot);
+             return fetch(api + "/v1/feedback", { method: "POST", credentials: "omit", headers: { "X-Project-Key": key }, body });
+           }, "Thanks, it reached the person who builds " + form.dataset.product + ".");
+-          if (sent) { anchor = null; showAnchor(); form.querySelector("[data-feedback-file-label]").textContent = "Add a screenshot"; }
++          if (sent) { feedbackIntents.delete(form); anchor = null; showAnchor(); form.querySelector("[data-feedback-file-label]").textContent = "Add a screenshot"; }
+         }
+ 
+         if (form.hasAttribute("data-subscribe")) {
