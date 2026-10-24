@@ -32,6 +32,7 @@
   },
   "pnpm": {
     "overrides": {
+      "knip>zod": "4.6.6",
       "tar": ">=7.5.21"
     }
   }
