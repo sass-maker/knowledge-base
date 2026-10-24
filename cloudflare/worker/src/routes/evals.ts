@@ -1,5 +1,6 @@
 import type { Hono } from 'hono';
-import { type KbQueryBody, MAX_EVAL_CASES, type ParseEvalBody, type QueryBody, type QueryEvalBody, type SearchEvalBody } from '../app-types';
+import { MAX_EVAL_CASES } from '../app-types';
+import type { KbAnswerPayload, KbQueryBody, ParseEvalBody, QueryBody, QueryEvalBody, SearchEvalBody } from '../app-types';
 import { average, elapsedMs, summarizeEvalReports, writeEvalReportAnalytics } from '../app-utils';
 import type { Variables } from '../auth';
 import { summarizeLatencies } from '../bench-utils';
@@ -20,6 +21,35 @@ import type { AppRuntime } from '../runtime';
 import type { Env, JsonRecord } from '../types';
 
 type App = Hono<{ Bindings: Env; Variables: Variables }>;
+
+type QueryEvalExecutionFailureReason =
+  | 'none'
+  | 'domain_index_not_found'
+  | 'index_not_found'
+  | 'embedding_profile_unavailable'
+  | 'provider_unavailable'
+  | 'query_failed';
+
+type QueryEvalFailureReason = 'none' | 'relevance_miss' | 'judge_failed' | 'not_evaluated';
+
+function queryEvalExecutionFailureReason(error: unknown): Exclude<QueryEvalExecutionFailureReason, 'none'> {
+  if (!(error instanceof Error)) return 'query_failed';
+  if (error.message === 'domain index not found') return 'domain_index_not_found';
+  if (error.message === 'Index not found') return 'index_not_found';
+  if (error.message === 'small embedding profile is not configured') return 'embedding_profile_unavailable';
+  if (/provider|gateway|workers ai/i.test(error.message)) return 'provider_unavailable';
+  return 'query_failed';
+}
+
+function queryEvalScopeSafe(payload: KbAnswerPayload, allowedFileIds: Set<string> | null): boolean | null {
+  if (allowedFileIds === null) return null;
+  const fileIds = [
+    ...payload.data.map((result) => (typeof result.metadata.file_id === 'string' ? result.metadata.file_id : null)),
+    ...payload.citations.map((citation) => citation.file_id),
+  ];
+  if (fileIds.length === 0) return true;
+  return fileIds.every((fileId) => fileId !== null && allowedFileIds.has(fileId));
+}
 
 export function registerEvalRoutes(app: App, rt: AppRuntime): void {
   const { makeMetadataRepository, runTextQuery, runKbAnswer } = rt;
@@ -207,11 +237,19 @@ export function registerEvalRoutes(app: App, rt: AppRuntime): void {
     let aiUsed = 0;
     let supportedAnswers = 0;
     let unsupportedTokenTotal = 0;
+    let failureCount = 0;
     const faithfulnessScores: number[] = [];
     const modelJudgeScores: number[] = [];
     let modelJudged = 0;
     let modelJudgeSupported = 0;
     const judgeModel = body.judge_model?.trim() || DEFAULT_EVAL_JUDGE_MODEL;
+    const metadataRepo = makeMetadataRepository(c.env);
+    let allowedFileIds: Set<string> | null = null;
+    try {
+      allowedFileIds = new Set((await metadataRepo.listFiles(c.get('tenant'), domain)).map((file) => file.id));
+    } catch {
+      // Missing scope inventory must remain unknown rather than being reported as safe.
+    }
     for (const [i, testCase] of cases.entries()) {
       const started = performance.now();
       const question = (testCase.question ?? testCase.query ?? '').trim();
@@ -231,7 +269,36 @@ export function registerEvalRoutes(app: App, rt: AppRuntime): void {
       if (body.mmr !== undefined) queryBody.mmr = body.mmr;
       if (body.query_rewrite !== undefined) queryBody.query_rewrite = body.query_rewrite;
       if (body.query_decompose !== undefined) queryBody.query_decompose = body.query_decompose;
-      const result = await runKbAnswer(c, queryBody, started);
+      let result: { payload: KbAnswerPayload };
+      try {
+        result = await runKbAnswer(c, queryBody, started);
+      } catch (error) {
+        failureCount += 1;
+        const latency = elapsedMs(started);
+        latencies.push(latency);
+        rows.push({
+          id: testCase.id ?? `case-${i + 1}`,
+          question,
+          hit: false,
+          cited: false,
+          faithfulness_status: 'not_evaluated',
+          faithfulness_score: null,
+          answer_token_count: 0,
+          supported_answer_token_count: 0,
+          unsupported_answer_token_count: 0,
+          unsupported_answer_tokens: [],
+          route: 'failed',
+          ai_used: false,
+          result_count: 0,
+          citation_count: 0,
+          latency_ms: latency,
+          trace_id: null,
+          scope_safe: null,
+          execution_failure_reason: queryEvalExecutionFailureReason(error),
+          evaluation_failure_reason: 'not_evaluated',
+        });
+        continue;
+      }
       const elapsed = elapsedMs(started);
       latencies.push(elapsed);
       const expectedText = (testCase.expected_answer_text ?? testCase.expected_citation_text ?? testCase.expected_text ?? '').trim().toLowerCase();
@@ -239,6 +306,7 @@ export function registerEvalRoutes(app: App, rt: AppRuntime): void {
       const hasCitation = result.payload.citations.length > 0 && /\[\d+\]/.test(result.payload.answer);
       const quality = answerSupportQuality(result.payload.answer, result.payload.citations, result.payload.data);
       let modelJudge: JsonRecord = {};
+      let evaluationFailureReason: QueryEvalFailureReason = 'none';
       if (body.ai_judge === true) {
         try {
           modelJudge = await judgeAnswerWithAi({
@@ -254,6 +322,8 @@ export function registerEvalRoutes(app: App, rt: AppRuntime): void {
           if (modelJudge.model_judge_status === 'supported') modelJudgeSupported += 1;
           if (typeof modelJudge.model_judge_score === 'number') modelJudgeScores.push(modelJudge.model_judge_score);
         } catch (error) {
+          failureCount += 1;
+          evaluationFailureReason = 'judge_failed';
           modelJudge = {
             model_judged: false,
             model_judge_model: judgeModel,
@@ -285,6 +355,9 @@ export function registerEvalRoutes(app: App, rt: AppRuntime): void {
         citation_count: result.payload.citations.length,
         latency_ms: elapsed,
         trace_id: result.payload.trace_id,
+        scope_safe: queryEvalScopeSafe(result.payload, allowedFileIds),
+        execution_failure_reason: 'none' satisfies QueryEvalExecutionFailureReason,
+        evaluation_failure_reason: evaluationFailureReason !== 'none' ? evaluationFailureReason : hit ? 'none' : 'relevance_miss',
         ...modelJudge,
       });
     }
@@ -299,6 +372,7 @@ export function registerEvalRoutes(app: App, rt: AppRuntime): void {
       avg_unsupported_answer_tokens: unsupportedTokenTotal / cases.length,
       ai_use_rate: aiUsed / cases.length,
       model_judge_enabled: body.ai_judge === true,
+      failure_count: failureCount,
       ...(body.ai_judge === true
         ? {
             model_judge_model: judgeModel,
@@ -309,7 +383,6 @@ export function registerEvalRoutes(app: App, rt: AppRuntime): void {
         : {}),
       latency: summarizeLatencies(latencies),
     };
-    const metadataRepo = makeMetadataRepository(c.env);
     const report = await metadataRepo.insertEvalReport({
       project: c.get('tenant'),
       kind: 'query',

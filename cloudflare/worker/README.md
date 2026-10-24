@@ -532,6 +532,11 @@ call.
 `/v1/kb/evals/query` keeps deterministic scoring as the default and accepts
 `ai_judge: true` with an optional `judge_model` to add Workers AI model-judged
 AIS-style support scores to rows, summaries, and D1 reports.
+Each row also reports `scope_safe` (`true`, `false`, or `null` when the scoped
+file inventory is unavailable), `execution_failure_reason`, and
+`evaluation_failure_reason`. Query failures remain as measured rows and do not
+stop later cases; relevance misses are evaluation outcomes, separate from
+execution failures. `failure_count` counts query and optional judge failures.
 Successful query traces and eval reports also emit compact data points to the
 `RAG_ANALYTICS` Analytics Engine dataset when bound.
 Source-set management is domain-backed: `/v1/kb/source-sets` summarizes files,

@@ -58,7 +58,9 @@ single-repo CI. That is why CI runs only `pnpm run check`.
 - **Search eval** — `POST /v1/kb/evals/search` reports hit rate, MRR, latency.
 - **Query eval** — `POST /v1/kb/evals/query` scores answer hit rate, citation
   rate, deterministic faithfulness/support coverage, opt-in Workers AI judge
-  scores, AI use rate, latency. Reports persist to D1; rollups via
+  scores, AI use rate, latency, and per-row scope safety. Each row distinguishes
+  execution failure reasons from evaluation outcomes; failed queries remain
+  measured rows and later cases still run. Reports persist to D1; rollups via
   `/v1/kb/evals/summary`.
 - **Benchmark** — `benchmark:rag` emits mode-labeled lexical/semantic/hybrid
   evidence for index, domain search, and domain answer surfaces with cache-hit

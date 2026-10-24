@@ -1,5 +1,6 @@
 import { strToU8, zipSync } from 'fflate';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { URL } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('../src/shared-ai-budget', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/shared-ai-budget')>();
@@ -6477,6 +6478,160 @@ describe('knowledgebase RAG Worker app', () => {
       expect.objectContaining({ id: 'hit-chunk', hit: true, result_count: 1 }),
       expect.objectContaining({ id: 'miss-doc', hit: false, result_count: 1 }),
     ]);
+  });
+
+  it('measures the checked-in public license corpus through actual KB ingest and query-eval routes', async () => {
+    const repo = new MemoryRepository();
+    const metadata = new MemoryMetadataRepository();
+    const rawDocs = new FakeR2Bucket();
+    const app = createApp({
+      makeRepository: () => repo,
+      makeMetadataRepository: () => metadata,
+      embed: async (_env, texts) => texts.map(vectorFor),
+    });
+    const env = makeEnv(new FakeVectorize(), undefined as unknown as D1Database, undefined, rawDocs as unknown as R2Bucket);
+    const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
+    const files = [
+      ['MIT.txt', '../../../domains/legal/fixtures/MIT.txt'],
+      ['Apache-2.0.txt', '../../../domains/legal/fixtures/Apache-2.0.txt'],
+      ['BSD-3-Clause.txt', '../../../domains/legal/fixtures/BSD-3-Clause.txt'],
+      ['MPL-2.0.txt', '../../../domains/legal/fixtures/MPL-2.0.txt'],
+    ] as const;
+    for (const [title, path] of files) {
+      const ingest = await app.request(
+        '/v1/kb/ingest/text',
+        {
+          method: 'POST',
+          headers: auth,
+          body: JSON.stringify({
+            domain: 'measurement-licenses',
+            title,
+            text: readFileSync(new URL(path, import.meta.url), 'utf8'),
+            async: false,
+          }),
+        },
+        env,
+      );
+      expect(ingest.status).toBe(201);
+    }
+
+    const cases = [
+      { id: 'mit-grant', question: 'What permission does the MIT License grant to the licensee?', expected_text: 'sublicense' },
+      { id: 'apache-attribution', question: 'What attribution requirement does Apache 2.0 impose on licensees?', expected_text: 'prominent notices' },
+      { id: 'bsd-endorsement', question: "Can contributor names be used to endorse BSD-derived products?", expected_text: 'prior written permission' },
+      { id: 'mpl-source', question: 'Does the MPL-2.0 require source code disclosure for modified files?', expected_text: 'source form' },
+      { id: 'eupl-absent', question: 'What does the European Union Public License grant?', expected_answer_text: 'from this domain with citations' },
+    ];
+    const evaluated = await app.request(
+      '/v1/kb/evals/query',
+      {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({ domain: 'measurement-licenses', mode: 'lexical', answer_mode: 'extractive', cases }),
+      },
+      env,
+    );
+    const evalBody = await evaluated.json() as {
+      hit_rate: number;
+      citation_rate: number;
+      faithfulness_rate: number;
+      failure_count: number;
+      rows: Array<{
+        id: string;
+        hit: boolean;
+        cited: boolean;
+        faithfulness_status: string;
+        faithfulness_score: number | null;
+        latency_ms: number;
+        result_count: number;
+        route: string;
+        ai_used: boolean;
+        scope_safe: boolean | null;
+        execution_failure_reason: string;
+        evaluation_failure_reason: string;
+      }>;
+    };
+    const allowedFileIds = new Set((await metadata.listFiles('tenant-a', 'measurement-licenses')).map((file) => file.id));
+    const rows = [];
+    for (const testCase of cases) {
+      const response = await app.request(
+        '/v1/kb/query',
+        {
+          method: 'POST',
+          headers: auth,
+          body: JSON.stringify({
+            domain: 'measurement-licenses',
+            question: testCase.question,
+            mode: 'lexical',
+            answer_mode: 'extractive',
+          }),
+        },
+        env,
+      );
+      const query = await response.json() as { data: SearchResult[]; citations: CitationRecord[] };
+      const referencedFileIds = [
+        ...query.data.map((result) => typeof result.metadata.file_id === 'string' ? result.metadata.file_id : null),
+        ...query.citations.map((citation) => citation.file_id),
+      ];
+      rows.push({
+        id: testCase.id,
+        ...(evalBody.rows.find((row) => row.id === testCase.id) ?? {}),
+        scope_safe: referencedFileIds.every((fileId) => fileId !== null && allowedFileIds.has(fileId)),
+      });
+      expect(response.status).toBe(200);
+    }
+
+    expect(evaluated.status).toBe(200);
+    expect(evalBody.rows).toHaveLength(cases.length);
+    expect(evalBody.failure_count).toBe(0);
+    expect(evalBody.rows.every((row) => row.scope_safe === true && row.execution_failure_reason === 'none')).toBe(true);
+    expect(evalBody.rows.map((row) => [row.id, row.evaluation_failure_reason])).toEqual([
+      ['mit-grant', 'none'],
+      ['apache-attribution', 'relevance_miss'],
+      ['bsd-endorsement', 'none'],
+      ['mpl-source', 'none'],
+      ['eupl-absent', 'relevance_miss'],
+    ]);
+    expect(rows.every((row, index) => row.scope_safe === evalBody.rows[index]?.scope_safe)).toBe(true);
+    console.info(`KB_MEASUREMENT_AFTER ${JSON.stringify({
+      fixture: 'checked-in public OSS license text; deterministic local embeddings; no provider calls',
+      domain: 'measurement-licenses',
+      parameters: { mode: 'lexical', answer_mode: 'extractive', top_k: 'default', ai_judge: false },
+      questions: cases.map(({ id }) => id),
+      summary: {
+        n: evalBody.rows.length,
+        hit_rate: evalBody.hit_rate,
+        citation_rate: evalBody.citation_rate,
+        faithfulness_rate: evalBody.faithfulness_rate,
+      },
+      rows,
+    })}`);
+
+    const missing = await app.request(
+      '/v1/kb/evals/query',
+      {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          domain: 'measurement-domain-absent',
+          cases: [
+            { id: 'missing-domain', question: 'Any source?' },
+            { id: 'continues-after-failure', question: 'Anything else?' },
+          ],
+        }),
+      },
+      env,
+    );
+    const missingBody = await missing.json() as { failure_count: number; rows: Array<{ id: string; execution_failure_reason: string; evaluation_failure_reason: string; scope_safe: boolean | null }> };
+    expect(missing.status).toBe(200);
+    expect(missingBody).toMatchObject({
+      failure_count: 2,
+      rows: [
+        { id: 'missing-domain', execution_failure_reason: 'domain_index_not_found', evaluation_failure_reason: 'not_evaluated', scope_safe: null },
+        { id: 'continues-after-failure', execution_failure_reason: 'domain_index_not_found', evaluation_failure_reason: 'not_evaluated', scope_safe: null },
+      ],
+    });
+    console.info(`KB_MEASUREMENT_AFTER_FAILURE ${JSON.stringify(missingBody.rows[0])}`);
   });
 
   it('runs parse evals and persists Markdown Conversion fallback reports', async () => {
