@@ -10,7 +10,7 @@ overrides:
   '@eslint/eslintrc>js-yaml': 4.3.2
   brace-expansion@<2.0.0: 1.1.20
   brace-expansion@>=5.0.0 <6.0.0: 5.0.11
-  miniflare>undici: 7.29.1
+  miniflare>undici: 7.30.1
   postcss>nanoid: 3.3.18
 
 importers:
@@ -1540,8 +1540,8 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
-  undici@7.29.1:
-    resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
+  undici@7.30.1:
+    resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
     engines: {node: '>=20.18.1'}
 
   unenv@2.0.0-rc.24:
@@ -2738,7 +2738,7 @@ snapshots:
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.5(@types/node@22.20.0)
-      undici: 7.29.1
+      undici: 7.30.1
       workerd: 1.20260617.1
       ws: 8.21.0
       youch: 4.1.0-beta.10
@@ -2957,7 +2957,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici@7.29.1: {}
+  undici@7.30.1: {}
 
   unenv@2.0.0-rc.24:
     dependencies:

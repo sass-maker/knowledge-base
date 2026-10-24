@@ -29,6 +29,7 @@
       "source-map-js": "1.2.2",
       "js-yaml": "4.3.2",
       "svgo": "4.1.0",
+      "unifont>undici": "8.12.2",
       "postcss>nanoid": "3.3.18"
     },
     "patchedDependencies": {
