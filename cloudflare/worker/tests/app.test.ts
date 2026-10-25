@@ -2,6 +2,7 @@ import { strToU8, zipSync } from 'fflate';
 import { existsSync, readFileSync } from 'node:fs';
 import { URL } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
+import type { EmbeddingCallOptions } from '../src/app-types';
 vi.mock('../src/shared-ai-budget', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/shared-ai-budget')>();
   return { ...actual, denyVectorizeStorageGrowth: vi.fn() };
@@ -9,6 +10,7 @@ vi.mock('../src/shared-ai-budget', async (importOriginal) => {
 import { buildLegacyParseEvalCases } from '../scripts/legacy-parse-eval.mjs';
 import { TtlCache } from '../src/cache';
 import { createApp, createWorker } from '../src/index';
+import { createRuntime } from '../src/runtime';
 import type {
   CorpusStatusRecord,
   DomainRecord,
@@ -1241,7 +1243,18 @@ function makeEnv(vectorize: FakeVectorize, db: D1Database = {
       get: () => ({ fetch: async (_url: string, init: RequestInit) => {
         const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
         if (body.neurons) return Response.json({ allowed: true, used: body.neurons, remaining: 9_500 - body.neurons, retryAfter: 0, dayKey: new Date().toISOString().slice(0, 10) });
-        return Response.json({ allowed: true, used: body.dimensions, remaining: 45_000_000 - (body.dimensions ?? 0), retryAfter: 0, monthKey: new Date().toISOString().slice(0, 7), baselineVerified: true });
+        const dimensions = body.dimensions ?? 0;
+        return Response.json({
+          allowed: true,
+          used: dimensions,
+          remaining: 45_000_000 - dimensions,
+          retryAfter: 0,
+          monthKey: new Date().toISOString().slice(0, 7),
+          baselineVerified: true,
+          storedCap: 200_000_000,
+          storedUsed: dimensions,
+          storedRemaining: 200_000_000 - dimensions,
+        });
       } }),
     } as unknown as DurableObjectNamespace,
     ...(vectorizeSmall ? { VECTORIZE_SMALL: vectorizeSmall } : {}),
@@ -2572,6 +2585,184 @@ describe('knowledgebase RAG Worker app', () => {
     expect(result.data.length).toBeGreaterThan(0);
     expect(result.data[0]?.chunk_content).toContain('alpha');
     expect(result.data[0]?.metadata).toMatchObject({ source: 'unit' });
+  });
+
+  it('denies storage before document or chunk writes, embedding, or Vectorize upserts', async () => {
+    const repo = new MemoryRepository();
+    const vectorize = new FakeVectorize();
+    const embedding = vi.fn(async (_env: Env, texts: string[]) => texts.map(vectorFor));
+    const runtime = createRuntime({ makeRepository: () => repo, embed: embedding });
+    const env = makeEnv(vectorize);
+    const storageReservations: number[] = [];
+    env.NEURON_BUDGET = {
+      idFromName: (name: string) => name,
+      get: () => ({
+        fetch: async (url: string, init: RequestInit) => {
+          const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
+          if (url.endsWith('/try-debit-vectorize-storage')) {
+            storageReservations.push(body.dimensions ?? 0);
+            return Response.json({
+              allowed: false,
+              used: 45_000_000,
+              remaining: 0,
+              retryAfter: 1,
+              monthKey: new Date().toISOString().slice(0, 7),
+              baselineVerified: true,
+            });
+          }
+          return Response.json({
+            allowed: true,
+            used: body.neurons ?? body.dimensions ?? 0,
+            remaining: 45_000_000,
+            retryAfter: 0,
+            dayKey: new Date().toISOString().slice(0, 10),
+            monthKey: new Date().toISOString().slice(0, 7),
+            baselineVerified: true,
+          });
+        },
+      }),
+    } as unknown as DurableObjectNamespace;
+    const createDocument = vi.spyOn(repo, 'createDocument');
+    const insertChunks = vi.spyOn(repo, 'insertChunks');
+    const upsert = vi.spyOn(vectorize, 'upsert');
+    const index = await repo.createIndex({ id: 'idx-storage-denied', tenant: 'tenant-a', name: 'Docs', externalId: null, dimensions: 768 });
+
+    await expect(
+      runtime.ingestDocumentsToIndex(env, repo, 'tenant-a', index.id, [
+        { external_id: 'storage-denied', content: 'storage admission must happen before persistence', metadata: {} },
+      ]),
+    ).rejects.toMatchObject({ status: 503 });
+
+    expect(storageReservations).toHaveLength(1);
+    expect(storageReservations[0]).toBeGreaterThan(0);
+    expect(createDocument).not.toHaveBeenCalled();
+    expect(insertChunks).not.toHaveBeenCalled();
+    expect(embedding).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+    expect(repo.documents.size).toBe(0);
+    expect(repo.chunks.size).toBe(0);
+  });
+
+  it('reserves exact combined base and small storage once before ordinary-ingest effects', async () => {
+    const repo = new MemoryRepository();
+    const vectorize = new FakeVectorize();
+    const vectorizeSmall = new FakeVectorize();
+    const events: string[] = [];
+    const embedding = vi.fn(async (_env: Env, texts: string[], options?: EmbeddingCallOptions) => {
+      events.push(`embed:${options?.model?.includes('small') ? 'small' : 'base'}`);
+      const dimensions = options?.model?.includes('small') ? 384 : 768;
+      return texts.map((text) => vectorFor(text).slice(0, dimensions));
+    });
+    const runtime = createRuntime({ makeRepository: () => repo, embed: embedding });
+    const env = makeEnv(vectorize, undefined, vectorizeSmall);
+    const storageReservations: number[] = [];
+    env.NEURON_BUDGET = {
+      idFromName: (name: string) => name,
+      get: () => ({
+        fetch: async (url: string, init: RequestInit) => {
+          const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
+          const dimensions = body.dimensions ?? body.neurons ?? 0;
+          if (url.endsWith('/try-debit-vectorize-storage')) {
+            storageReservations.push(dimensions);
+            events.push('reserve');
+          }
+          return Response.json({
+            allowed: true,
+            used: dimensions,
+            remaining: 45_000_000 - dimensions,
+            retryAfter: 0,
+            dayKey: new Date().toISOString().slice(0, 10),
+            monthKey: new Date().toISOString().slice(0, 7),
+            baselineVerified: true,
+            storedCap: 200_000_000,
+            storedUsed: dimensions,
+            storedRemaining: 200_000_000 - dimensions,
+          });
+        },
+      }),
+    } as unknown as DurableObjectNamespace;
+    const index = await repo.createIndex({ id: 'idx-combined-profiles', tenant: 'tenant-a', name: 'Docs', externalId: null, dimensions: 768 });
+    events.length = 0;
+    const originalCreateDocument = repo.createDocument.bind(repo);
+    const originalInsertChunks = repo.insertChunks.bind(repo);
+    const originalBaseUpsert = vectorize.upsert.bind(vectorize);
+    const originalSmallUpsert = vectorizeSmall.upsert.bind(vectorizeSmall);
+    vi.spyOn(repo, 'createDocument').mockImplementation(async (input) => {
+      events.push('create-document');
+      return originalCreateDocument(input);
+    });
+    vi.spyOn(repo, 'insertChunks').mockImplementation(async (chunks) => {
+      events.push('insert-chunks');
+      return originalInsertChunks(chunks);
+    });
+    vi.spyOn(vectorize, 'upsert').mockImplementation(async (vectors) => {
+      events.push('upsert-base');
+      return originalBaseUpsert(vectors);
+    });
+    vi.spyOn(vectorizeSmall, 'upsert').mockImplementation(async (vectors) => {
+      events.push('upsert-small');
+      return originalSmallUpsert(vectors);
+    });
+
+    await runtime.ingestDocumentsToIndex(env, repo, 'tenant-a', index.id, [
+      { external_id: 'combined-profiles', content: 'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu', metadata: {} },
+    ], { size: 20, overlap: 3 });
+
+    expect(storageReservations).toHaveLength(1);
+    expect(storageReservations[0]).toBe(repo.chunks.size * (768 + 384));
+    expect(vectorize.vectors.size).toBe(repo.chunks.size);
+    expect(vectorizeSmall.vectors.size).toBe(repo.chunks.size);
+    expect(events.indexOf('reserve')).toBeLessThan(events.indexOf('embed:base'));
+    expect(events.indexOf('reserve')).toBeLessThan(events.indexOf('embed:small'));
+    expect(events.indexOf('embed:small')).toBeLessThan(events.indexOf('create-document'));
+    expect(events.indexOf('create-document')).toBeLessThan(events.indexOf('insert-chunks'));
+    expect(events.indexOf('insert-chunks')).toBeLessThan(events.indexOf('upsert-base'));
+    expect(events.indexOf('upsert-base')).toBeLessThan(events.indexOf('upsert-small'));
+  });
+
+  it('keeps last-write metadata for duplicate chunk IDs while reserving each ID once', async () => {
+    const repo = new MemoryRepository();
+    const vectorize = new FakeVectorize();
+    const runtime = createRuntime({ makeRepository: () => repo, embed: async (_env, texts) => texts.map(vectorFor) });
+    const env = makeEnv(vectorize);
+    const storageReservations: number[] = [];
+    env.NEURON_BUDGET = {
+      idFromName: (name: string) => name,
+      get: () => ({
+        fetch: async (url: string, init: RequestInit) => {
+          const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
+          const dimensions = body.dimensions ?? body.neurons ?? 0;
+          if (url.endsWith('/try-debit-vectorize-storage')) storageReservations.push(dimensions);
+          return Response.json({
+            allowed: true,
+            used: dimensions,
+            remaining: 45_000_000 - dimensions,
+            retryAfter: 0,
+            dayKey: new Date().toISOString().slice(0, 10),
+            monthKey: new Date().toISOString().slice(0, 7),
+            baselineVerified: true,
+            storedCap: 200_000_000,
+            storedUsed: dimensions,
+            storedRemaining: 200_000_000 - dimensions,
+          });
+        },
+      }),
+    } as unknown as DurableObjectNamespace;
+    const index = await repo.createIndex({ id: 'idx-duplicate-metadata', tenant: 'tenant-a', name: 'Docs', externalId: null, dimensions: 768 });
+    const content = 'same one chunk';
+
+    await runtime.ingestDocumentsToIndex(env, repo, 'tenant-a', index.id, [
+      { external_id: 'duplicate-source', content, metadata: { source: 'first' } },
+      { external_id: 'duplicate-source', content, metadata: { source: 'last' } },
+    ], { size: 100, overlap: 0 });
+
+    expect(storageReservations).toHaveLength(1);
+    expect(storageReservations[0]).toBe(768);
+    expect(repo.documents.size).toBe(1);
+    expect([...repo.documents.values()][0]?.metadata).toMatchObject({ source: 'first' });
+    expect(repo.chunks.size).toBe(1);
+    expect([...repo.chunks.values()][0]?.metadata).toMatchObject({ source: 'last' });
+    expect([...vectorize.vectors.values()][0]?.metadata).toMatchObject({ chunk_metadata: JSON.stringify({ source: 'last' }) });
   });
 
   it('streams query lifecycle events for the knowledgebase answer route', async () => {

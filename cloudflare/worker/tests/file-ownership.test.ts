@@ -38,6 +38,8 @@ it.each(['prepared', 'started', 'unknown'] as const)('settled cleanup distinguis
   expect(await ledger.startWrite(operation, 'vector-a')).toBe(false);
 });
 afterEach(() => vi.unstubAllGlobals());
+afterEach(() => vi.useRealTimers());
+afterEach(() => vi.restoreAllMocks());
 afterEach(() => {
   for (const db of databases.splice(0)) db.close();
 });
@@ -118,10 +120,21 @@ function handlerFixture() {
     DB: db,
     NEURON_BUDGET: {
       idFromName: (name: string) => name,
-      get: () => ({ fetch: async (_url: string, init: RequestInit) => {
+      get: () => ({ fetch: async (url: string, init: RequestInit) => {
         const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
         if (body.neurons) return Response.json({ allowed: true, used: body.neurons, remaining: 9_500 - body.neurons, retryAfter: 0, dayKey: new Date().toISOString().slice(0, 10) });
-        return Response.json({ allowed: true, used: body.dimensions, remaining: 45_000_000 - (body.dimensions ?? 0), retryAfter: 0, monthKey: new Date().toISOString().slice(0, 7), baselineVerified: true });
+        const dimensions = body.dimensions ?? 0;
+        return Response.json({
+          allowed: true,
+          used: dimensions,
+          remaining: 45_000_000 - dimensions,
+          retryAfter: 0,
+          monthKey: new Date().toISOString().slice(0, 7),
+          baselineVerified: true,
+          ...(url.endsWith('/try-debit-vectorize-storage')
+            ? { storedCap: 200_000_000, storedUsed: dimensions, storedRemaining: 200_000_000 - dimensions }
+            : {}),
+        });
       } }),
     } as unknown as DurableObjectNamespace,
     RAG_SERVICE_KEYS: JSON.stringify({ 'key-a': 'tenant-a', 'key-b': 'tenant-b' }),
@@ -506,6 +519,103 @@ describe('inactive owned-file protocol with real migrated SQLite', () => {
     expect(objects.size).toBe(0);
     expect(vectors.size).toBe(0);
     expect(sqlite.prepare('SELECT COUNT(*) AS n FROM documents').get()).toMatchObject({ n: 0 });
+  });
+
+  it('reverts a known pre-dispatch expiry so owned-file deletion can finish', async () => {
+    const { request, hooks, db, sqlite, vectors } = handlerFixture();
+    const form = new FormData();
+    form.set('domain', 'manual');
+    form.set('file', new File(['heliotrope violet-lantern'], 'manual.txt', { type: 'text/plain' }));
+    const uploadedFile = await request('key-a', '/v1/kb/files/upload', 'POST', form);
+    expect(uploadedFile.status).toBe(201);
+    const fileId = (uploadedFile.payload as { id: string }).id;
+    const originalStartWrite = D1FileOwnership.prototype.startWrite;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-25T00:00:00.000Z'));
+    vi.spyOn(D1FileOwnership.prototype, 'startWrite').mockImplementation(async (operation, artifactId) => {
+      const result = await originalStartWrite.call(new D1FileOwnership(db), operation, artifactId);
+      if (result) {
+        const artifact = sqlite.prepare('SELECT kind FROM kb_file_artifacts WHERE artifact_id = ?').get(artifactId) as { kind: string } | undefined;
+        if (artifact?.kind === 'vector') vi.setSystemTime(new Date(Date.now() + 300_001));
+      }
+      return result;
+    });
+    hooks.beforeVectorUpsert = vi.fn(async () => undefined);
+
+    const ingestion = await request('key-a', '/v1/kb/ingest/run', 'POST', JSON.stringify({ domain: 'manual', file_ids: [fileId], async: false }));
+
+    expect(ingestion.payload).toMatchObject({ files: [{ status: 'failed' }] });
+    expect(hooks.beforeVectorUpsert).not.toHaveBeenCalled();
+    expect(sqlite.prepare(`SELECT dispatch_state, write_state, cleanup_state FROM kb_file_artifacts
+      WHERE file_id = ? AND kind = 'vector'`).get(fileId)).toMatchObject({ dispatch_state: 'prepared', write_state: 'intent', cleanup_state: 'pending' });
+    expect(await request('key-a', `/v1/kb/files/${fileId}`, 'DELETE')).toMatchObject({
+      status: 200,
+      payload: { logical_removed: true, physical_state: 'complete' },
+    });
+    expect(vectors.size).toBe(0);
+    expect(sqlite.prepare(`SELECT 1 AS pending FROM kb_file_artifacts WHERE file_id = ? AND cleanup_state != 'confirmed' LIMIT 1`).get(fileId)).toBeUndefined();
+  });
+
+  it('reverts earlier vector intents when cancellation wins during the dispatch-intent loop', async () => {
+    const { request, hooks, db, sqlite, vectors } = handlerFixture();
+    const form = new FormData();
+    form.set('domain', 'manual');
+    form.set('file', new File(['heliotrope violet-lantern. '.repeat(120)], 'manual.txt', { type: 'text/plain' }));
+    const uploadedFile = await request('key-a', '/v1/kb/files/upload', 'POST', form);
+    expect(uploadedFile.status).toBe(201);
+    const fileId = (uploadedFile.payload as { id: string }).id;
+    const originalStartWrite = D1FileOwnership.prototype.startWrite;
+    let vectorStarts = 0;
+    vi.spyOn(D1FileOwnership.prototype, 'startWrite').mockImplementation(async (operation, artifactId) => {
+      const artifact = sqlite.prepare('SELECT kind FROM kb_file_artifacts WHERE artifact_id = ?').get(artifactId) as { kind: string } | undefined;
+      if (artifact?.kind === 'vector' && ++vectorStarts === 2) await new D1FileOwnership(db).requestDelete('tenant-a', fileId, 'delete-during-ingest');
+      return await originalStartWrite.call(new D1FileOwnership(db), operation, artifactId);
+    });
+    hooks.beforeVectorUpsert = vi.fn(async () => undefined);
+
+    const ingestion = await request('key-a', '/v1/kb/ingest/run', 'POST', JSON.stringify({ domain: 'manual', file_ids: [fileId], async: false }));
+
+    expect(ingestion.payload).toMatchObject({ files: [{ status: 'failed' }] });
+    expect(vectorStarts).toBe(2);
+    expect(hooks.beforeVectorUpsert).not.toHaveBeenCalled();
+    const vectorArtifacts = sqlite.prepare(`SELECT dispatch_state, write_state, cleanup_state FROM kb_file_artifacts
+      WHERE file_id = ? AND kind = 'vector'`).all(fileId) as Array<{
+      dispatch_state: string;
+      write_state: string;
+      cleanup_state: string;
+    }>;
+    expect(vectorArtifacts.length).toBeGreaterThanOrEqual(2);
+    expect(vectorArtifacts.every((artifact) => artifact.dispatch_state === 'prepared' && artifact.write_state === 'intent')).toBe(true);
+    expect(await request('key-a', `/v1/kb/files/${fileId}`, 'DELETE')).toMatchObject({
+      status: 200,
+      payload: { logical_removed: true, physical_state: 'complete' },
+    });
+    expect(vectors.size).toBe(0);
+  });
+
+  it('keeps a provider-thrown vector error conservatively pending after dispatch starts', async () => {
+    const { request, hooks, sqlite } = handlerFixture();
+    const form = new FormData();
+    form.set('domain', 'manual');
+    form.set('file', new File(['heliotrope violet-lantern'], 'manual.txt', { type: 'text/plain' }));
+    const uploadedFile = await request('key-a', '/v1/kb/files/upload', 'POST', form);
+    expect(uploadedFile.status).toBe(201);
+    const fileId = (uploadedFile.payload as { id: string }).id;
+    hooks.beforeVectorUpsert = vi.fn(async () => { throw new Error('synthetic provider transport failure'); });
+
+    const ingestion = await request('key-a', '/v1/kb/ingest/run', 'POST', JSON.stringify({ domain: 'manual', file_ids: [fileId], async: false }));
+
+    expect(ingestion.payload).toMatchObject({ files: [{ status: 'failed' }] });
+    expect(hooks.beforeVectorUpsert).toHaveBeenCalledTimes(1);
+    expect(sqlite.prepare(`SELECT a.dispatch_state, a.write_state, a.cleanup_state, o.state AS operation_state
+      FROM kb_file_artifacts a JOIN kb_file_operations o ON o.project = a.project AND o.operation_id = a.operation_id
+      WHERE a.file_id = ? AND a.kind = 'vector'`).get(fileId)).toMatchObject({
+      dispatch_state: 'started',
+      write_state: 'intent',
+      cleanup_state: 'pending',
+      operation_state: 'running',
+    });
+    expect(await request('key-a', `/v1/kb/files/${fileId}`, 'DELETE')).toMatchObject({ status: 202, payload: { physical_state: 'pending' } });
   });
 
   it('does not mistake an accepted but invisible vector upsert for completed erasure', async () => {

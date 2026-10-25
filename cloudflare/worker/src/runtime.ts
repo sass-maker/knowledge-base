@@ -41,10 +41,16 @@ import {
   sharedQueryCacheEnabled,
   userVectorFilter,
   vectorizeProfileForIndex,
-  vectorMetadata,
   vectorNamespace,
 } from './app-utils';
 import { parseCacheOptions, TtlCache } from './cache';
+import {
+  prepareVectorizeUpsert,
+  reserveVectorizeStorageAdmissions,
+  VectorizeStorageAdmissionError,
+  type PreparedVectorizeUpsert,
+  type VectorizeStorageAdmission,
+} from './catalog-storage';
 import { chunkText } from './chunk';
 import { D1Repository } from './d1-repository';
 import { parseUploadBytesWithCloudflare } from './document-parser';
@@ -96,8 +102,8 @@ import {
   writeTraceAnalytics,
 } from './query';
 import type { CreateChunkInput, Repository } from './repository';
-import { denyVectorizeStorageGrowth, reserveModelCall, reserveVectorizeDimensions } from './shared-ai-budget';
-import type { ChunkRecord, Env, IndexRecord, JsonRecord, SearchResult, VectorizeVector } from './types';
+import { reserveModelCall, reserveVectorizeDimensions } from './shared-ai-budget';
+import type { ChunkRecord, Env, IndexRecord, JsonRecord, SearchResult } from './types';
 
 export function createRuntime(options: AppOptions = {}) {
   const makeRepository = options.makeRepository ?? ((env: Env) => new D1Repository(env.DB, options.ownedFileProtocol === true));
@@ -853,36 +859,42 @@ export function createRuntime(options: AppOptions = {}) {
   async function upsertChunkVectors(
     env: Env,
     tenant: string,
-    indexId: string,
     chunkRows: CreateChunkInput[],
-    vectors: number[][],
     profile: ConfiguredVectorizeProfile,
+    prepared: PreparedVectorizeUpsert | undefined,
     operation?: FileOperation,
   ): Promise<void> {
-    const rows: VectorizeVector[] = chunkRows.map((chunk, i) => ({
-      id: chunk.id,
-      values: vectors[i] ?? [],
-      namespace: vectorNamespace(tenant, indexId),
-      metadata: vectorMetadata(tenant, indexId, chunk.documentId, chunk.chunkIndex, chunk.content, chunk.metadata),
-    }));
-    if (rows.length === 0) return;
-    denyVectorizeStorageGrowth();
+    if (chunkRows.length === 0) return;
+    if (!prepared) throw new VectorizeStorageAdmissionError();
     const ledger = operation ? new D1FileOwnership(env.DB) : undefined;
-    const intents: Array<{ artifactId: string; rowId: string }> = [];
+    const intents: Array<{ artifactId: string; resourceId: string }> = [];
     if (operation && ledger) {
-      for (const row of rows) {
-        const artifactId = crypto.randomUUID();
-        if (!(await ledger.recordIntent(operation, { artifact_id: artifactId, kind: 'vector', resource_id: row.id, provider: `vector:${profile.key}` })))
-          throw new HTTPException(409, { message: 'File deletion is pending.' });
-        if (!(await ledger.startWrite(operation, artifactId))) throw new HTTPException(409, { message: 'File operation was cancelled before dispatch.' });
-        intents.push({ artifactId, rowId: row.id });
+      try {
+        for (const chunk of chunkRows) {
+          const artifactId = crypto.randomUUID();
+          // Track the exact intended row before either awaited D1 transition;
+          // a successful commit may be followed by a rejected D1 promise.
+          intents.push({ artifactId, resourceId: chunk.id });
+          if (!(await ledger.recordIntent(operation, { artifact_id: artifactId, kind: 'vector', resource_id: chunk.id, provider: `vector:${profile.key}` })))
+            throw new HTTPException(409, { message: 'File deletion is pending.' });
+          if (!(await ledger.startWrite(operation, artifactId))) throw new HTTPException(409, { message: 'File operation was cancelled before dispatch.' });
+        }
+      } catch (error) {
+        await ledger.markVectorIntentsUndispatched(operation, `vector:${profile.key}`, intents);
+        throw error;
       }
     }
     let receipt: unknown;
     try {
-      receipt = await profile.binding.upsert(rows);
+      prepared.validateBeforeDispatch();
+      receipt = await prepared.dispatch();
     } catch (error) {
+      if (operation && ledger && !prepared.providerCallStarted()) {
+        await ledger.markVectorIntentsUndispatched(operation, `vector:${profile.key}`, intents);
+        throw error;
+      }
       if (operation) throw new UnsettledFileWrite('Vector upsert settlement is unknown.');
+      if (error instanceof VectorizeStorageAdmissionError) throw error;
       throw error;
     }
     for (const intent of intents)
@@ -904,15 +916,24 @@ export function createRuntime(options: AppOptions = {}) {
     chunking?: KbIngestRunBody['chunking'],
     operation?: FileOperation,
   ): Promise<{ document_id: string; chunks: CreateChunkInput[] }[]> {
-    if (documents.length > 0) denyVectorizeStorageGrowth();
     const out: { document_id: string; chunks: CreateChunkInput[] }[] = [];
     const index = await getIndexRecord(env, repo, tenant, indexId);
     if (!index) throw new Error('Index not found');
     const vectorizeProfile = vectorizeProfileForIndex(env, index);
     const embeddingProfile = embeddingProfileForIndex(env, index, vectorizeProfile);
     const smallProfile = embeddingProfile.vectorizeProfile === 'base' ? configuredVectorizeProfiles(env).find((profile) => profile.key === 'small') : undefined;
+    type PlannedDocument = {
+      id: string;
+      existing: Awaited<ReturnType<Repository['getDocument']>>;
+      externalId: string | null;
+      content: string;
+      metadata: JsonRecord;
+    };
+    const plannedDocuments: Array<PlannedDocument & { artifactId: string }> = [];
+    const plannedById = new Map<string, PlannedDocument>();
     const pendingChunks: CreateChunkInput[] = [];
     const pendingChunkContents: string[] = [];
+    const pendingChunkIndexes = new Map<string, number>();
     for (const original of documents) {
       const input = operation
         ? {
@@ -924,29 +945,19 @@ export function createRuntime(options: AppOptions = {}) {
       const content = input.content.trim();
       if (!content) continue;
       if (content.length > MAX_DOC_SIZE) throw new Error('document content too large');
-      const documentId = input.external_id ? await deterministicId('doc', `${tenant}:${indexId}:${input.external_id}`) : crypto.randomUUID();
-      const ledger = operation ? new D1FileOwnership(env.DB) : undefined;
-      const artifactId = crypto.randomUUID();
-      if (
-        operation &&
-        ledger &&
-        !(await ledger.recordIntent(operation, { artifact_id: artifactId, kind: 'document', resource_id: documentId, provider: 'd1' }))
-      )
-        throw new HTTPException(409, { message: 'File deletion is pending.' });
-      if (operation && ledger && !(await ledger.startWrite(operation, artifactId)))
-        throw new HTTPException(409, { message: 'File operation was cancelled before dispatch.' });
-      const existingDocument = await repo.getDocument(tenant, documentId);
-      const document =
-        existingDocument ??
-        (await repo.createDocument({
-          id: documentId,
-          tenant,
-          indexId,
+      const candidateId = input.external_id ? await deterministicId('doc', `${tenant}:${indexId}:${input.external_id}`) : crypto.randomUUID();
+      let plannedDocument = plannedById.get(candidateId);
+      if (!plannedDocument) {
+        const existing = await repo.getDocument(tenant, candidateId);
+        plannedDocument = {
+          id: existing?.id ?? candidateId,
+          existing,
           externalId: input.external_id,
           content,
           metadata: input.metadata,
-        }));
-      if (operation && ledger) await ledger.recordWrite(tenant, operation.operation_id, artifactId, 'confirmed');
+        };
+        plannedById.set(candidateId, plannedDocument);
+      }
       const chunkContents = chunkText(content, chunking);
       const chunkRows: CreateChunkInput[] = [];
       for (let i = 0; i < chunkContents.length; i += 1) {
@@ -955,23 +966,73 @@ export function createRuntime(options: AppOptions = {}) {
           id: input.external_id ? await deterministicId('chk', `${tenant}:${indexId}:${input.external_id}:${i}:${chunk}`) : crypto.randomUUID(),
           tenant,
           indexId,
-          documentId: document.id,
+          documentId: plannedDocument.id,
           content: chunk,
           chunkIndex: i,
           metadata: input.metadata,
         });
       }
-      pendingChunks.push(...chunkRows);
-      pendingChunkContents.push(...chunkContents);
-      out.push({ document_id: document.id, chunks: chunkRows });
+      plannedDocuments.push({ ...plannedDocument, artifactId: crypto.randomUUID() });
+      for (let i = 0; i < chunkRows.length; i += 1) {
+        const chunk = chunkRows[i];
+        if (!chunk) continue;
+        const existingIndex = pendingChunkIndexes.get(chunk.id);
+        if (existingIndex === undefined) {
+          pendingChunkIndexes.set(chunk.id, pendingChunks.length);
+          pendingChunks.push(chunk);
+          pendingChunkContents.push(chunkContents[i] ?? '');
+        } else {
+          pendingChunks[existingIndex] = chunk;
+          pendingChunkContents[existingIndex] = chunkContents[i] ?? '';
+        }
+      }
+      out.push({ document_id: plannedDocument.id, chunks: chunkRows });
+    }
+    const profiles = [vectorizeProfile, ...(smallProfile ? [smallProfile] : [])];
+    const admissions =
+      pendingChunks.length > 0
+        ? await reserveVectorizeStorageAdmissions(env, { tenant, indexId, chunkIds: pendingChunks.map((chunk) => chunk.id) }, profiles)
+        : new Map<ConfiguredVectorizeProfile, VectorizeStorageAdmission>();
+    const vectors = pendingChunks.length > 0 ? await embed(env, pendingChunkContents, embeddingOptionsForProfile(embeddingProfile)) : [];
+    const smallVectors = smallProfile && pendingChunks.length > 0 ? await embed(env, pendingChunkContents, { model: embeddingModel(env, 'small') }) : [];
+    const preparedVectors = new Map<ConfiguredVectorizeProfile, PreparedVectorizeUpsert>();
+    if (pendingChunks.length > 0) {
+      preparedVectors.set(vectorizeProfile, prepareVectorizeUpsert(env, admissions.get(vectorizeProfile), vectorizeProfile, pendingChunks, vectors));
+      if (smallProfile && smallVectors.length > 0)
+        preparedVectors.set(smallProfile, prepareVectorizeUpsert(env, admissions.get(smallProfile), smallProfile, pendingChunks, smallVectors));
+    }
+    for (const prepared of preparedVectors.values()) prepared.validateBeforeDispatch();
+
+    const ledger = operation ? new D1FileOwnership(env.DB) : undefined;
+    const persistedDocuments = new Map<string, Awaited<ReturnType<Repository['getDocument']>>>();
+    for (const planned of plannedDocuments) {
+      if (
+        operation &&
+        ledger &&
+        !(await ledger.recordIntent(operation, { artifact_id: planned.artifactId, kind: 'document', resource_id: planned.id, provider: 'd1' }))
+      )
+        throw new HTTPException(409, { message: 'File deletion is pending.' });
+      if (operation && ledger && !(await ledger.startWrite(operation, planned.artifactId)))
+        throw new HTTPException(409, { message: 'File operation was cancelled before dispatch.' });
+      const existing = planned.existing ?? persistedDocuments.get(planned.id) ?? null;
+      const document =
+        existing ??
+        (await repo.createDocument({
+          id: planned.id,
+          tenant,
+          indexId,
+          externalId: planned.externalId,
+          content: planned.content,
+          metadata: planned.metadata,
+        }));
+      persistedDocuments.set(document.id, document);
+      if (operation && ledger) await ledger.recordWrite(tenant, operation.operation_id, planned.artifactId, 'confirmed');
     }
     if (pendingChunks.length === 0) return out;
-    const vectors = await embed(env, pendingChunkContents, embeddingOptionsForProfile(embeddingProfile));
-    const smallVectors = smallProfile ? await embed(env, pendingChunkContents, { model: embeddingModel(env, 'small') }) : [];
     await repo.insertChunks(pendingChunks);
-    await upsertChunkVectors(env, tenant, indexId, pendingChunks, vectors, vectorizeProfile, operation);
+    await upsertChunkVectors(env, tenant, pendingChunks, vectorizeProfile, preparedVectors.get(vectorizeProfile), operation);
     if (smallProfile && smallVectors.length > 0) {
-      await upsertChunkVectors(env, tenant, indexId, pendingChunks, smallVectors, smallProfile, operation);
+      await upsertChunkVectors(env, tenant, pendingChunks, smallProfile, preparedVectors.get(smallProfile), operation);
     }
     return out;
   }
