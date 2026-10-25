@@ -69,24 +69,40 @@ describe('operator shared Vectorize budget read', () => {
   });
 
   it.each([
-    { ...status(), monthKey: '2000-01' },
-    { ...status(), query: { ...status().query, remaining: 1 } },
-    { ...status(), storage: { ...status().storage, baselineVerified: false } },
-    null,
-  ])('fails closed for malformed or stale upstream state', async (payload) => {
+    [{ ...status(), monthKey: '2000-01' }, 'stale_period'],
+    [{ ...status(), query: { ...status().query, remaining: 1 } }, 'invalid_ledger'],
+    [{ ...status(), storage: { ...status().storage, baselineVerified: false } }, 'invalid_ledger'],
+    [null, 'invalid_payload'],
+  ])('fails closed for malformed or stale upstream state', async (payload, reason) => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { app, env } = setup(payload);
     const res = await app.request(path, auth(), env);
     expect(res.status).toBe(503);
     expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(log).toHaveBeenCalledExactlyOnceWith('knowledgebase shared Vectorize status unavailable', { reason });
   });
 
   it('returns a no-store failure when the binding or upstream is unavailable', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { app, env } = setup({}, 503);
     for (const candidate of [env, { ...env, NEURON_BUDGET: undefined } as unknown as Env]) {
       const res = await app.request(path, auth(), candidate);
       expect(res.status).toBe(503);
       expect(res.headers.get('cache-control')).toBe('no-store');
     }
+    expect(log.mock.calls).toEqual([
+      ['knowledgebase shared Vectorize status unavailable', { reason: 'upstream_status' }],
+      ['knowledgebase shared Vectorize status unavailable', { reason: 'missing_binding' }],
+    ]);
+  });
+
+  it('classifies an HTTP 200 non-JSON response as invalid payload', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { app, env, fetch } = setup();
+    fetch.mockResolvedValueOnce(new Response('not-json'));
+    const res = await app.request(path, auth(), env);
+    expect(res.status).toBe(503);
+    expect(log).toHaveBeenCalledExactlyOnceWith('knowledgebase shared Vectorize status unavailable', { reason: 'invalid_payload' });
   });
 
   it('logs a bounded reason without exposing unexpected upstream error details', async () => {

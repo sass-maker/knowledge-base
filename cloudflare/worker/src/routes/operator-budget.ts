@@ -21,7 +21,11 @@ export function registerOperatorBudgetRoutes(app: App): void {
         signal: AbortSignal.timeout(5_000),
       });
       if (!response.ok) throw new BudgetStatusError('upstream_status');
-      const body = (await response.json()) as Record<string, unknown>;
+      const payload: unknown = await response.json().catch(() => {
+        throw new BudgetStatusError('invalid_payload');
+      });
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new BudgetStatusError('invalid_payload');
+      const body = payload as Record<string, unknown>;
       if (body.monthKey !== new Date().toISOString().slice(0, 7)) throw new BudgetStatusError('stale_period');
       return c.json({
         monthKey: body.monthKey,
