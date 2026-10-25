@@ -10,6 +10,7 @@ import { registerEvalRoutes } from './routes/evals';
 import { registerIndexRoutes } from './routes/indexes';
 import { registerIngestRoutes } from './routes/ingest';
 import { registerIntelligenceRoutes } from './routes/intelligence';
+import { registerOperatorBudgetRoutes } from './routes/operator-budget';
 import { registerSearchRoutes } from './routes/search';
 import { registerSystemRoutes } from './routes/system';
 import { createRuntime } from './runtime';
@@ -34,6 +35,8 @@ export function createApp(options: AppOptions = {}) {
   registerSystemRoutes(app, rt);
 
   app.use('/v1/*', requireServiceKey);
+
+  registerOperatorBudgetRoutes(app);
 
   registerCatalogRoutes(app, rt);
   registerIngestRoutes(app, rt);
