@@ -45,13 +45,14 @@ it('restricts named entity fallback to names while preserving default content se
     VALUES
       ('unrelated', 'tenant-a', 'manual', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}'),
       ('named', 'tenant-a', 'manual', 'person', 'alice-smith', 'Alice Smith', '{"note":"research papers"}'),
-      ('named-acme', 'tenant-a', 'manual', 'company', 'acme', 'Acme', '{"note":"company entity"}'),
+      ('named-acme', 'tenant-a', 'manual', 'company', 'acme', 'Acme', '{"note":"company entity","code":"acme-1"}'),
       ('stopword-only', 'tenant-a', 'manual', 'term', 'in', 'In', '{}'),
       ('mismatched-name', 'tenant-a', 'manual', 'word', 'in', 'Alpha Corp', '{}'),
       ('numeric-name', 'tenant-a', 'manual', 'term', '3', '3', '{}'),
       ('common-word-name', 'tenant-a', 'manual', 'topic', 'model', 'Model', '{}'),
       ('name-jose', 'tenant-a', 'manual', 'person', 'jose-lopez', 'José López', '{}'),
       ('name-yahoo', 'tenant-a', 'manual', 'company', 'yahoo!', 'Yahoo!', '{}'),
+      ('malformed-fields', 'tenant-a', 'manual', 'company', 'broken-corp', 'Broken Corp', 'not-json'),
       ('other-project', 'tenant-b', 'manual', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}'),
       ('other-domain', 'tenant-a', 'other', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}');
   `);
@@ -63,6 +64,7 @@ it('restricts named entity fallback to names while preserving default content se
   expect(unrelated.map((entity) => entity.id)).not.toContain('unrelated');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Alice Smith', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme code', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Tell me about Acme', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'What does the word in mean?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
     'stopword-only',
@@ -80,6 +82,7 @@ it('restricts named entity fallback to names while preserving default content se
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Tell me about José López!', 5, { match: 'name' })).map((entity) => entity.id)).toContain(
     'name-jose',
   );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Broken Corp', 5, { match: 'name' })).map((entity) => entity.id)).toContain('malformed-fields');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'YAHOO!', 5, { match: 'name' })).map((entity) => entity.id)).toContain('name-yahoo');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'PatchDock', 5)).map((entity) => entity.id)).toContain('unrelated');
   expect(unrelated.map((entity) => entity.id)).not.toContain('other-project');

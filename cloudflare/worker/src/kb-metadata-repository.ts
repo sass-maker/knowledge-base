@@ -1750,29 +1750,36 @@ export class D1MetadataRepository implements MetadataRepository {
           .match(/[\p{L}\p{N}]+/gu) ?? [];
       const questionTokens = normalizedTokens(query).filter((token) => !STOP_WORDS.has(token));
       if (questionTokens.length === 0) return [];
-      const oneNameLookupModifiers = new Set([...STOP_WORDS, 'about', 'code', 'does', 'is', 'me', 'tell', 'who']);
+      const grammaticalLookupModifiers = new Set([...STOP_WORDS, 'about', 'does', 'is', 'me', 'tell', 'who']);
       const candidates = await this.db
         .prepare(
-          `SELECT id, identity_key, display_name
-             FROM ${this.entityTable}
-            WHERE project = ? AND domain = ?
-            ORDER BY updated_at DESC
+          `SELECT entity.id, entity.identity_key, entity.display_name,
+                  COALESCE((
+                    SELECT json_group_array(field.key)
+                      FROM json_each(CASE WHEN json_valid(entity.fields) THEN entity.fields ELSE '{}' END) AS field
+                  ), '[]') AS field_names
+             FROM ${this.entityTable} AS entity
+            WHERE entity.project = ? AND entity.domain = ?
+            ORDER BY entity.updated_at DESC
             LIMIT ?
           `,
         )
         .bind(project, domain, namedCandidateLimit + 1)
-        .all<Pick<StoredEntity, 'id' | 'identity_key' | 'display_name'>>();
+        .all<Pick<StoredEntity, 'id' | 'identity_key' | 'display_name'> & { field_names: string }>();
       // Never turn a partial candidate scan into a confident entity answer.
       if ((candidates.results ?? []).length > namedCandidateLimit) return [];
-      const isFullNameMention = (value: string | null) => {
+      const isFullNameMention = (candidate: Pick<StoredEntity, 'identity_key' | 'display_name'> & { field_names: string }, value: string | null) => {
         if (!value) return false;
         const nameTokens = normalizedTokens(value).filter((token) => !STOP_WORDS.has(token));
         if (nameTokens.length === 0) return false;
         if (nameTokens.length === 1) {
-          const [nameToken] = nameTokens;
+          const nameToken = nameTokens[0];
+          if (!nameToken) return false;
           const rawQuestionTokens = normalizedTokens(query);
           if (/^(?:\d+|true|false)$/u.test(nameToken)) return rawQuestionTokens.length === 1 && rawQuestionTokens[0] === nameToken;
-          const lookupTokens = rawQuestionTokens.filter((token) => !oneNameLookupModifiers.has(token));
+          const candidateFieldNames = parseJson<string[]>(candidate.field_names, []).flatMap(normalizedTokens);
+          const fieldNameTokens = new Set(candidateFieldNames);
+          const lookupTokens = rawQuestionTokens.filter((token) => !grammaticalLookupModifiers.has(token) && !fieldNameTokens.has(token));
           return lookupTokens.length === 1 && lookupTokens[0] === nameToken;
         }
         return questionTokens.some(
@@ -1780,7 +1787,7 @@ export class D1MetadataRepository implements MetadataRepository {
         );
       };
       const ids = (candidates.results ?? [])
-        .filter((candidate) => isFullNameMention(candidate.identity_key) || isFullNameMention(candidate.display_name))
+        .filter((candidate) => isFullNameMention(candidate, candidate.identity_key) || isFullNameMention(candidate, candidate.display_name))
         .slice(0, Math.min(Math.max(Math.trunc(limit), 1), 100))
         .map((candidate) => candidate.id);
       if (ids.length === 0) return [];
