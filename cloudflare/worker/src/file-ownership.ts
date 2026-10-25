@@ -193,6 +193,65 @@ export class D1FileOwnership {
     return result.meta.changes === 1;
   }
 
+  // The caller may return an artifact to prepared only when it can prove the
+  // provider method was never invoked. Keep this transition bound to the exact
+  // operation, generation, vector resource and pending intent.
+  async markVectorIntentsUndispatched(
+    operation: FileOperation,
+    provider: string,
+    artifacts: Array<{ artifactId: string; resourceId: string }>,
+  ): Promise<boolean> {
+    let allReverted = true;
+    for (const artifact of artifacts) {
+      const updated = await this.db
+        .prepare(`UPDATE kb_file_artifacts SET dispatch_state = 'prepared'
+        WHERE project = ? AND file_id = ? AND generation = ? AND operation_id = ? AND artifact_id = ?
+        AND kind = 'vector' AND resource_id = ? AND provider = ?
+        AND dispatch_state = 'started' AND write_state = 'intent' AND cleanup_state = 'pending'
+        AND EXISTS (SELECT 1 FROM kb_file_operations o JOIN kb_file_lifecycle l
+          ON l.project = o.project AND l.file_id = o.file_id
+          WHERE o.project = ? AND o.file_id = ? AND o.operation_id = ? AND o.generation = ? AND o.state = 'running'
+          AND l.active_operation_id = o.operation_id AND l.state IN ('uploading', 'active', 'deleting')
+          AND l.generation IN (o.generation, o.generation + 1))`)
+        .bind(
+          operation.project,
+          operation.file_id,
+          operation.generation,
+          operation.operation_id,
+          artifact.artifactId,
+          artifact.resourceId,
+          provider,
+          operation.project,
+          operation.file_id,
+          operation.operation_id,
+          operation.generation,
+        )
+        .run();
+      if (updated.meta.changes === 1) continue;
+      const alreadyPrepared = await this.db
+        .prepare(`SELECT 1 FROM kb_file_artifacts a JOIN kb_file_operations o
+          ON o.project = a.project AND o.file_id = a.file_id AND o.operation_id = a.operation_id AND o.generation = a.generation
+          JOIN kb_file_lifecycle l ON l.project = o.project AND l.file_id = o.file_id
+          WHERE a.project = ? AND a.file_id = ? AND a.generation = ? AND a.operation_id = ? AND a.artifact_id = ?
+          AND a.kind = 'vector' AND a.resource_id = ? AND a.provider = ?
+          AND a.dispatch_state = 'prepared' AND a.write_state = 'intent' AND a.cleanup_state = 'pending'
+          AND o.state = 'running' AND l.active_operation_id = o.operation_id
+          AND l.state IN ('uploading', 'active', 'deleting') AND l.generation IN (o.generation, o.generation + 1)`)
+        .bind(
+          operation.project,
+          operation.file_id,
+          operation.generation,
+          operation.operation_id,
+          artifact.artifactId,
+          artifact.resourceId,
+          provider,
+        )
+        .first();
+      if (!alreadyPrepared) allReverted = false;
+    }
+    return allReverted;
+  }
+
   // No timer or external absence check is settlement evidence. This fast path
   // covers only operations for which no artifact write could have started.
   async cancelPrepared(project: string, operationId: string): Promise<boolean> {

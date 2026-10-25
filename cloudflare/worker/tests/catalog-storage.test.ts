@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConfiguredVectorizeProfile } from '../src/app-types';
 import { vectorMetadata } from '../src/app-utils';
-import { reserveCatalogStorage, upsertCatalogVectors } from '../src/catalog-storage';
+import { prepareVectorizeUpsert, reserveCatalogStorage, upsertCatalogVectors } from '../src/catalog-storage';
 import { reserveVectorizeStorage } from '../src/shared-ai-budget';
 import { catalogFixture, sourceChunk, sourceDocument } from './catalog-fixture';
 
@@ -47,7 +47,55 @@ describe('catalog storage admission', () => {
     sqlite.close();
   });
 
-  it.each(['forged', 'expired', 'wrong tenant', 'wrong binding', 'wrong dimensions'])('rejects %s admission without uploading', async (failure) => {
+  it('charges the reservation-time profile snapshot and rejects a profile mutated during reserve', async () => {
+    const { env, binding, sqlite, upsert } = catalogFixture();
+    const base = profile(binding);
+    const chunk = sourceChunk(sourceDocument('source'));
+    const scope = { tenant: 'tenant-a', indexId: 'catalog', chunkIds: [chunk.id] };
+    let signalStarted!: () => void;
+    let releaseReservation!: () => void;
+    const started = new Promise<void>((resolve) => { signalStarted = resolve; });
+    const reservationGate = new Promise<void>((resolve) => { releaseReservation = resolve; });
+    const chargedDimensions: number[] = [];
+    env.NEURON_BUDGET = {
+      idFromName: (name: string) => name,
+      get: () => ({
+        fetch: async (_url: string, init: RequestInit) => {
+          const { dimensions } = JSON.parse(String(init.body)) as { dimensions: number };
+          chargedDimensions.push(dimensions);
+          signalStarted();
+          await reservationGate;
+          return Response.json({
+            allowed: true,
+            baselineVerified: true,
+            monthKey: new Date().toISOString().slice(0, 7),
+            retryAfter: 0,
+            used: dimensions,
+            remaining: 45_000_000 - dimensions,
+            storedCap: 200_000_000,
+            storedUsed: dimensions,
+            storedRemaining: 200_000_000 - dimensions,
+          });
+        },
+      }),
+    } as unknown as NonNullable<typeof env.NEURON_BUDGET>;
+
+    const pendingAdmission = reserveCatalogStorage(env, scope, [base]);
+    await started;
+    scope.chunkIds[0] = 'mutated-chunk-id';
+    base.key = 'small';
+    base.dimensions = 384;
+    base.binding = { ...binding };
+    releaseReservation();
+    const tokens = await pendingAdmission;
+
+    expect(chargedDimensions).toEqual([768]);
+    await expect(upsertCatalogVectors(env, tokens.get(base), base, [chunk], [Array(384).fill(0.1)])).rejects.toMatchObject({ status: 503 });
+    expect(upsert).not.toHaveBeenCalled();
+    sqlite.close();
+  });
+
+  it.each(['forged', 'expired', 'wrong tenant', 'wrong index', 'wrong binding', 'wrong dimensions'])('rejects %s admission without uploading', async (failure) => {
     const { env, binding, sqlite, upsert } = catalogFixture();
     const base = profile(binding);
     const chunk = sourceChunk(sourceDocument('source'));
@@ -58,8 +106,73 @@ describe('catalog storage admission', () => {
     }
     const token = failure === 'forged' ? ({} as Parameters<typeof upsertCatalogVectors>[1]) : tokens.get(base);
     const target = failure === 'wrong binding' ? { ...base, binding: { ...binding } } : failure === 'wrong dimensions' ? { ...base, dimensions: 384 } : base;
-    const chunks = failure === 'wrong tenant' ? [{ ...chunk, tenant: 'tenant-b' }] : [chunk];
+    const chunks = failure === 'wrong tenant' ? [{ ...chunk, tenant: 'tenant-b' }] : failure === 'wrong index' ? [{ ...chunk, indexId: 'other-index' }] : [chunk];
     await expect(upsertCatalogVectors(env, token, target, chunks, [Array(768).fill(0.1)])).rejects.toMatchObject({ status: 503 });
+    expect(upsert).not.toHaveBeenCalled();
+    sqlite.close();
+  });
+
+  it('allows a prepared vector dispatch only once', async () => {
+    const { env, binding, sqlite, upsert } = catalogFixture();
+    const base = profile(binding);
+    const chunk = sourceChunk(sourceDocument('source'));
+    const tokens = await reserveCatalogStorage(env, { tenant: 'tenant-a', indexId: 'catalog', chunkIds: [chunk.id] }, [base]);
+    const prepared = prepareVectorizeUpsert(env, tokens.get(base), base, [chunk], [Array(768).fill(0.1)]);
+
+    await prepared.dispatch();
+    await expect(prepared.dispatch()).rejects.toMatchObject({ status: 503 });
+    expect(upsert).toHaveBeenCalledTimes(1);
+    sqlite.close();
+  });
+
+  it('rechecks admission expiry at dispatch', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-25T00:00:00.000Z'));
+    const { env, binding, sqlite, upsert } = catalogFixture();
+    const base = profile(binding);
+    const chunk = sourceChunk(sourceDocument('source'));
+    const tokens = await reserveCatalogStorage(env, { tenant: 'tenant-a', indexId: 'catalog', chunkIds: [chunk.id] }, [base]);
+    const prepared = prepareVectorizeUpsert(env, tokens.get(base), base, [chunk], [Array(768).fill(0.1)]);
+    vi.setSystemTime(new Date('2026-10-25T00:05:01.000Z'));
+
+    expect(() => prepared.validateBeforeDispatch()).toThrowError(/admission/i);
+    await expect(prepared.dispatch()).rejects.toMatchObject({ status: 503 });
+    expect(upsert).not.toHaveBeenCalled();
+    sqlite.close();
+  });
+
+  it('uses the captured binding and vector values after preparation', async () => {
+    const { env, binding, sqlite } = catalogFixture();
+    const base = profile(binding);
+    const chunk = sourceChunk(sourceDocument('source'));
+    const tokens = await reserveCatalogStorage(env, { tenant: 'tenant-a', indexId: 'catalog', chunkIds: [chunk.id] }, [base]);
+    const values = [Array(768).fill(0.1)];
+    const prepared = prepareVectorizeUpsert(env, tokens.get(base), base, [chunk], values);
+    const dispatchedUpsert = vi.spyOn(binding, 'upsert');
+    const replacementUpsert = vi.fn(async () => ({}));
+    base.binding = { ...binding, upsert: replacementUpsert };
+    values[0]![0] = 0.9;
+
+    await prepared.dispatch();
+
+    expect(dispatchedUpsert).toHaveBeenCalledTimes(1);
+    expect(dispatchedUpsert.mock.calls[0]?.[0]?.[0]?.values[0]).toBe(0.1);
+    expect(replacementUpsert).not.toHaveBeenCalled();
+    sqlite.close();
+  });
+
+  it('rejects a prepared admission when the UTC month changes before dispatch', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-31T23:59:59.000Z'));
+    const { env, binding, sqlite, upsert } = catalogFixture();
+    const base = profile(binding);
+    const chunk = sourceChunk(sourceDocument('source'));
+    const tokens = await reserveCatalogStorage(env, { tenant: 'tenant-a', indexId: 'catalog', chunkIds: [chunk.id] }, [base]);
+    const prepared = prepareVectorizeUpsert(env, tokens.get(base), base, [chunk], [Array(768).fill(0.1)]);
+    vi.setSystemTime(new Date('2026-11-01T00:00:00.000Z'));
+
+    expect(() => prepared.validateBeforeDispatch()).toThrowError(/admission/i);
+    await expect(prepared.dispatch()).rejects.toMatchObject({ status: 503 });
     expect(upsert).not.toHaveBeenCalled();
     sqlite.close();
   });
