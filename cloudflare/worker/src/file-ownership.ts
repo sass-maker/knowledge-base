@@ -237,15 +237,7 @@ export class D1FileOwnership {
           AND a.dispatch_state = 'prepared' AND a.write_state = 'intent' AND a.cleanup_state = 'pending'
           AND o.state = 'running' AND l.active_operation_id = o.operation_id
           AND l.state IN ('uploading', 'active', 'deleting') AND l.generation IN (o.generation, o.generation + 1)`)
-        .bind(
-          operation.project,
-          operation.file_id,
-          operation.generation,
-          operation.operation_id,
-          artifact.artifactId,
-          artifact.resourceId,
-          provider,
-        )
+        .bind(operation.project, operation.file_id, operation.generation, operation.operation_id, artifact.artifactId, artifact.resourceId, provider)
         .first();
       if (!alreadyPrepared) allReverted = false;
     }

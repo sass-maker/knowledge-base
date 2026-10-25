@@ -989,9 +989,10 @@ export function createRuntime(options: AppOptions = {}) {
       out.push({ document_id: plannedDocument.id, chunks: chunkRows });
     }
     const profiles = [vectorizeProfile, ...(smallProfile ? [smallProfile] : [])];
-    const admissions = pendingChunks.length > 0
-      ? await reserveVectorizeStorageAdmissions(env, { tenant, indexId, chunkIds: pendingChunks.map((chunk) => chunk.id) }, profiles)
-      : new Map<ConfiguredVectorizeProfile, VectorizeStorageAdmission>();
+    const admissions =
+      pendingChunks.length > 0
+        ? await reserveVectorizeStorageAdmissions(env, { tenant, indexId, chunkIds: pendingChunks.map((chunk) => chunk.id) }, profiles)
+        : new Map<ConfiguredVectorizeProfile, VectorizeStorageAdmission>();
     const vectors = pendingChunks.length > 0 ? await embed(env, pendingChunkContents, embeddingOptionsForProfile(embeddingProfile)) : [];
     const smallVectors = smallProfile && pendingChunks.length > 0 ? await embed(env, pendingChunkContents, { model: embeddingModel(env, 'small') }) : [];
     const preparedVectors = new Map<ConfiguredVectorizeProfile, PreparedVectorizeUpsert>();
@@ -1005,19 +1006,25 @@ export function createRuntime(options: AppOptions = {}) {
     const ledger = operation ? new D1FileOwnership(env.DB) : undefined;
     const persistedDocuments = new Map<string, Awaited<ReturnType<Repository['getDocument']>>>();
     for (const planned of plannedDocuments) {
-      if (operation && ledger && !(await ledger.recordIntent(operation, { artifact_id: planned.artifactId, kind: 'document', resource_id: planned.id, provider: 'd1' })))
+      if (
+        operation &&
+        ledger &&
+        !(await ledger.recordIntent(operation, { artifact_id: planned.artifactId, kind: 'document', resource_id: planned.id, provider: 'd1' }))
+      )
         throw new HTTPException(409, { message: 'File deletion is pending.' });
       if (operation && ledger && !(await ledger.startWrite(operation, planned.artifactId)))
         throw new HTTPException(409, { message: 'File operation was cancelled before dispatch.' });
       const existing = planned.existing ?? persistedDocuments.get(planned.id) ?? null;
-      const document = existing ?? await repo.createDocument({
-        id: planned.id,
-        tenant,
-        indexId,
-        externalId: planned.externalId,
-        content: planned.content,
-        metadata: planned.metadata,
-      });
+      const document =
+        existing ??
+        (await repo.createDocument({
+          id: planned.id,
+          tenant,
+          indexId,
+          externalId: planned.externalId,
+          content: planned.content,
+          metadata: planned.metadata,
+        }));
       persistedDocuments.set(document.id, document);
       if (operation && ledger) await ledger.recordWrite(tenant, operation.operation_id, planned.artifactId, 'confirmed');
     }

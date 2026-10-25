@@ -42,7 +42,8 @@ export async function reserveVectorizeStorageAdmissions(env: Env, scope: Vectori
   const requestedProfiles = profiles.map((profile) => ({ requested: profile, snapshot: { ...profile } }));
   const profileSnapshots = requestedProfiles.map(({ snapshot }) => snapshot);
   if (!scoped.tenant || !scoped.indexId || !scoped.chunkIds.length || new Set(scoped.chunkIds).size !== scoped.chunkIds.length) denyAdmission();
-  if (!profileSnapshots.length || profileSnapshots.length > 2 || new Set(profileSnapshots.map((profile) => profile.binding)).size !== profileSnapshots.length) denyAdmission();
+  if (!profileSnapshots.length || profileSnapshots.length > 2 || new Set(profileSnapshots.map((profile) => profile.binding)).size !== profileSnapshots.length)
+    denyAdmission();
   if (profileSnapshots.some((profile) => !Number.isSafeInteger(profile.dimensions) || profile.dimensions <= 0)) denyAdmission();
   const dimensions = scoped.chunkIds.length * profileSnapshots.reduce((total, profile) => total + profile.dimensions, 0);
   const month = new Date().toISOString().slice(0, 7);
@@ -63,7 +64,12 @@ export async function reserveVectorizeStorageAdmissions(env: Env, scope: Vectori
   return tokens;
 }
 
-function consumeAdmission(env: Env, token: VectorizeStorageAdmission | undefined, profile: ConfiguredVectorizeProfile, chunks: CreateChunkInput[]): AdmissionState {
+function consumeAdmission(
+  env: Env,
+  token: VectorizeStorageAdmission | undefined,
+  profile: ConfiguredVectorizeProfile,
+  chunks: CreateChunkInput[],
+): AdmissionState {
   if (!token) return denyAdmission();
   const state = admissions.get(token);
   admissions.delete(token); // Failures consume credit too; no refunds or retry reuse.
