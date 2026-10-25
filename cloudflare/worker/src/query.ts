@@ -744,8 +744,7 @@ function parseTypedAiAnswer(record: JsonRecord, allowedCitationIds: Set<number>)
 
 function parseLegacyJsonAiAnswer(record: JsonRecord, allowedCitationIds: Set<number>): ParsedAiAnswer {
   const answer = record.answer ?? record.response ?? record.text;
-  const supportedKeys = new Set(['answer', 'response', 'text', 'citation_ids']);
-  if (Object.keys(record).some((key) => !supportedKeys.has(key)) || typeof answer !== 'string') {
+  if (typeof answer !== 'string') {
     return { kind: 'rejected', reason: 'unsupported_typed_output' };
   }
   return validateCitedAiAnswer(answer, allowedCitationIds, record.citation_ids);
@@ -861,13 +860,17 @@ export async function answerFromEvidence(input: {
         aiUsed = true;
         timing.answer_mode = 'free_ai';
       } else if (synthesized.result.kind === 'insufficient_evidence') {
-        answer = INSUFFICIENT_EVIDENCE_ANSWER;
-        answerMode = 'free_ai';
-        answerModel = synthesized.model;
-        aiUsed = true;
-        modelAbstained = true;
-        timing.answer_mode = 'free_ai';
-        timing.synthesis_outcome = 'insufficient_evidence';
+        if (String(input.baseConfidence.calibration ?? '').startsWith('exact_structured_')) {
+          timing.synthesis_fallback = 'model_abstained_with_exact_structured_answer';
+        } else {
+          answer = INSUFFICIENT_EVIDENCE_ANSWER;
+          answerMode = 'free_ai';
+          answerModel = synthesized.model;
+          aiUsed = true;
+          modelAbstained = true;
+          timing.answer_mode = 'free_ai';
+          timing.synthesis_outcome = 'insufficient_evidence';
+        }
       } else {
         timing.synthesis_fallback = synthesized.result.reason;
       }

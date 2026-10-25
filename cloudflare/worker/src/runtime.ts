@@ -1517,7 +1517,9 @@ export function createRuntime(options: AppOptions = {}) {
       confidence: answerState.confidence,
       data: result.payload.data,
     };
-    if (answerCacheKey && payload.data.length > 0) answerCache.set(answerCacheKey, payload);
+    if (answerCacheKey && payload.data.length > 0 && answerState.timing.synthesis_outcome !== 'insufficient_evidence') {
+      answerCache.set(answerCacheKey, payload);
+    }
     return {
       payload,
       timing: result.timing,

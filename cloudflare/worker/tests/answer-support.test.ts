@@ -32,6 +32,7 @@ function setup(content: string) {
     requestedMode: 'workers_ai' | 'extractive' = 'workers_ai',
     citations: CitationRecord[] = [citation],
     searchResults: SearchResult[] = retrieved,
+    baseConfidence: Record<string, unknown> = { level: 'high' },
   ) =>
     answerFromEvidence({
       env,
@@ -39,7 +40,7 @@ function setup(content: string) {
       citations,
       retrieved: searchResults,
       extractiveAnswer: 'Self-attention connects token relationships. [1]',
-      baseConfidence: { level: 'high' },
+      baseConfidence,
       requestedMode,
     });
   return { fetch, run };
@@ -60,6 +61,33 @@ describe('AI answer support gate', () => {
       answer_support_reason: 'model_reported_insufficient_evidence',
     });
     expect(result.timing).toMatchObject({ answer_mode: 'free_ai', synthesis_outcome: 'insufficient_evidence' });
+  });
+
+  it('preserves deterministic exact structured answers when the model abstains', async () => {
+    const { run } = setup('{"status":"insufficient_evidence"}');
+    const result = await run('workers_ai', [citation], retrieved, {
+      level: 'high',
+      calibration: 'exact_structured_field_match',
+    });
+
+    expect(result.answer).toBe('Self-attention connects token relationships. [1]');
+    expect(result.answerMode).toBe('extractive');
+    expect(result.aiUsed).toBe(false);
+    expect(result.confidence).toMatchObject({ verification_checked: true });
+    expect(result.timing).toMatchObject({ synthesis_fallback: 'model_abstained_with_exact_structured_answer' });
+    expect(result.timing.synthesis_outcome).toBeUndefined();
+  });
+
+  it('keeps ordinary retrieved answers subject to a model abstention', async () => {
+    const { run } = setup('{"status":"insufficient_evidence"}');
+    const result = await run('workers_ai', [citation], retrieved, {
+      level: 'high',
+      calibration: 'retrieval_confidence',
+    });
+
+    expect(result.answer).toBe('I do not have enough cited evidence in this domain to answer.');
+    expect(result.confidence).toMatchObject({ level: 'none', verification_status: 'abstained' });
+    expect(result.timing.synthesis_outcome).toBe('insufficient_evidence');
   });
 
   it('accepts a typed refusal inside an exact JSON code fence', async () => {
@@ -134,6 +162,22 @@ describe('AI answer support gate', () => {
     expect(result.answer).toBe('Self-attention connects token relationships. [1]');
     expect(result.answerMode).toBe('free_ai');
     expect(result.aiUsed).toBe(true);
+  });
+
+  it('preserves legacy JSON metadata while validating declared citation IDs', async () => {
+    const { run } = setup('{"answer":"Self-attention connects token relationships. [1]","citations":[1],"source":"legacy"}');
+    const result = await run();
+
+    expect(result.answer).toBe('Self-attention connects token relationships. [1]');
+    expect(result.answerMode).toBe('free_ai');
+  });
+
+  it('rejects unknown citation IDs declared in legacy JSON metadata', async () => {
+    const { run } = setup('{"answer":"Self-attention connects token relationships. [1]","citation_ids":[999]}');
+    const result = await run();
+
+    expect(result.answer).toBe('Self-attention connects token relationships. [1]');
+    expect(result.timing.synthesis_fallback).toBe('unknown_citation_id');
   });
 
   it('accepts a typed supported answer only when its inline and declared citation IDs match', async () => {
