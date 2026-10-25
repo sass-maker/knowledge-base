@@ -6328,6 +6328,72 @@ describe('knowledgebase RAG Worker app', () => {
     expect(typeof timing.synthesis_ms).toBe('number');
   });
 
+  it('does not cache a model abstention as a reusable answer', async () => {
+    const repo = new MemoryRepository();
+    const metadata = new MemoryMetadataRepository();
+    const vectorize = new FakeVectorize();
+    const app = createApp({
+      makeRepository: () => repo,
+      makeMetadataRepository: () => metadata,
+      embed: async (_env, texts) => texts.map(vectorFor),
+      answerCache: new TtlCache({ enabled: true, ttlMs: 60_000, maxEntries: 100 }),
+    });
+    const env = makeEnv(vectorize);
+    let synthesisCalls = 0;
+    env.FREE_AI!.fetch = async () => {
+      synthesisCalls += 1;
+      return Response.json({ choices: [{ message: { content: '{"status":"insufficient_evidence"}' } }] });
+    };
+    const auth = { Authorization: 'Bearer key-a', 'Content-Type': 'application/json' };
+    const created = await app.request(
+      '/v1/indexes',
+      { method: 'POST', headers: auth, body: JSON.stringify({ name: 'Abstention Domain', external_id: 'kb:abstention' }) },
+      env,
+    );
+    const index = (await created.json()) as IndexRecord;
+    await app.request(
+      `/v1/indexes/${index.id}/ingest-vectors`,
+      {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          chunks: [{
+            id: 'abstention-doc-1',
+            document_id: 'abstention-doc',
+            document_content: 'Some retrieved evidence exists for this question.',
+            content: 'Some retrieved evidence exists for this question.',
+            embedding: vectorFor('abstention question'),
+            chunk_index: 0,
+            metadata: { filename: 'evidence.txt' },
+          }],
+        }),
+      },
+      env,
+    );
+    const body = JSON.stringify({
+      domain: 'abstention',
+      question: 'What does the evidence say?',
+      mode: 'semantic',
+      answer_mode: 'workers_ai',
+    });
+    const first = await app.request('/v1/kb/query', { method: 'POST', headers: auth, body }, env);
+    const second = await app.request('/v1/kb/query', { method: 'POST', headers: auth, body }, env);
+    const firstBody = (await first.json()) as { answer: string; confidence: JsonRecord; data: SearchResult[] };
+    const secondBody = (await second.json()) as { answer: string; confidence: JsonRecord; data: SearchResult[] };
+    const secondTiming = JSON.parse(second.headers.get('X-RAG-Timing') ?? '{}');
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(firstBody.data.length).toBeGreaterThan(0);
+    expect(secondBody.data.length).toBeGreaterThan(0);
+    expect(firstBody.answer).toBe('I do not have enough cited evidence in this domain to answer.');
+    expect(secondBody.answer).toBe('I do not have enough cited evidence in this domain to answer.');
+    expect(firstBody.confidence).toMatchObject({ level: 'none', verification_status: 'abstained' });
+    expect(secondBody.confidence).toMatchObject({ level: 'none', verification_status: 'abstained' });
+    expect(synthesisCalls).toBe(2);
+    expect(secondTiming.cache_layer).not.toBe('answer_memory');
+  });
+
   it('serves the Cloudflare-hosted testing UI without a service key', async () => {
     const app = createApp();
     const res = await app.request('/', {}, makeEnv(new FakeVectorize()));

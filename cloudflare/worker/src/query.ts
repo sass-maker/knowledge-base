@@ -688,15 +688,89 @@ function boundedEvidenceText(citations: CitationRecord[], retrieved: SearchResul
     .slice(0, 5)
     .map((item, i) => `retrieved-${i + 1}: ${item.chunk_content}`)
     .join('\n');
-  return `${citationText}\n${retrievedText}`.trim().slice(0, 6000);
+  const bounded = `${citationText}\n${retrievedText}`.trim().slice(0, 6000);
+  return bounded;
 }
 
-function parseAnswerText(text: string): string {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith('{')) return trimmed;
-  const parsed = parseJudgeJson(trimmed);
-  const answer = parsed?.answer ?? parsed?.response ?? parsed?.text;
-  return typeof answer === 'string' ? answer.trim() : trimmed;
+function includedCitationIds(evidence: string, citations: CitationRecord[]): Set<number> {
+  const ids = new Set<number>();
+  let offset = 0;
+  for (const citation of citations.slice(0, 5)) {
+    const row = `[${citation.index}] ${citation.excerpt}`;
+    if (evidence.slice(offset, offset + row.length) === row) ids.add(citation.index);
+    offset += row.length + 1;
+  }
+  return ids;
+}
+
+type ParsedAiAnswer = { kind: 'answered'; answer: string } | { kind: 'insufficient_evidence' } | { kind: 'rejected'; reason: string };
+
+const INSUFFICIENT_EVIDENCE_ANSWER = 'I do not have enough cited evidence in this domain to answer.';
+
+function validateCitedAiAnswer(answerText: string, allowedCitationIds: Set<number>, declaredCitationIds?: unknown): ParsedAiAnswer {
+  const answer = answerText.trim().slice(0, 4000);
+  const inlineIds = Array.from(answer.matchAll(/\[(\d+)\]/gu), (match) => Number(match[1]));
+  if (inlineIds.length === 0) return { kind: 'rejected', reason: 'uncited_response' };
+  if (inlineIds.some((id) => !Number.isSafeInteger(id) || !allowedCitationIds.has(id))) {
+    return { kind: 'rejected', reason: 'unknown_citation_id' };
+  }
+  if (declaredCitationIds !== undefined) {
+    if (
+      !Array.isArray(declaredCitationIds) ||
+      declaredCitationIds.length === 0 ||
+      declaredCitationIds.some((id) => typeof id !== 'number' || !Number.isSafeInteger(id))
+    ) {
+      return { kind: 'rejected', reason: 'malformed_typed_output' };
+    }
+    const declaredIds = declaredCitationIds as number[];
+    if (declaredIds.some((id) => !allowedCitationIds.has(id))) return { kind: 'rejected', reason: 'unknown_citation_id' };
+    if (new Set(declaredIds).size !== new Set(inlineIds).size || inlineIds.some((id) => !declaredIds.includes(id))) {
+      return { kind: 'rejected', reason: 'citation_id_mismatch' };
+    }
+  }
+  return { kind: 'answered', answer };
+}
+
+function parseTypedAiAnswer(record: JsonRecord, allowedCitationIds: Set<number>): ParsedAiAnswer {
+  if (record.status === 'insufficient_evidence') {
+    return Object.keys(record).length === 1 ? { kind: 'insufficient_evidence' } : { kind: 'rejected', reason: 'malformed_typed_output' };
+  }
+  if (record.status !== 'answered') return { kind: 'rejected', reason: 'unsupported_typed_status' };
+  if (Object.keys(record).length !== 3 || typeof record.answer !== 'string' || !Array.isArray(record.citation_ids)) {
+    return { kind: 'rejected', reason: 'malformed_typed_output' };
+  }
+  return validateCitedAiAnswer(record.answer, allowedCitationIds, record.citation_ids);
+}
+
+function parseLegacyJsonAiAnswer(record: JsonRecord, allowedCitationIds: Set<number>): ParsedAiAnswer {
+  const answer = record.answer ?? record.response ?? record.text;
+  if (typeof answer !== 'string') {
+    return { kind: 'rejected', reason: 'unsupported_typed_output' };
+  }
+  return validateCitedAiAnswer(answer, allowedCitationIds, record.citation_ids);
+}
+
+function parseStructuredAiAnswer(parsed: unknown, allowedCitationIds: Set<number>): ParsedAiAnswer {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { kind: 'rejected', reason: 'malformed_typed_output' };
+  const record = parsed as JsonRecord;
+  return 'status' in record ? parseTypedAiAnswer(record, allowedCitationIds) : parseLegacyJsonAiAnswer(record, allowedCitationIds);
+}
+
+function parseAiAnswer(text: string, allowedCitationIds: Set<number>): ParsedAiAnswer {
+  const rawText = text.trim();
+  const fenced = rawText.match(/^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/iu);
+  const trimmed = fenced ? (fenced[1]?.trim() ?? '') : rawText;
+  if (!trimmed) return { kind: 'rejected', reason: 'empty_response' };
+
+  if (!trimmed.startsWith('{')) return validateCitedAiAnswer(trimmed, allowedCitationIds);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed) as unknown;
+  } catch {
+    return { kind: 'rejected', reason: 'malformed_typed_output' };
+  }
+  return parseStructuredAiAnswer(parsed, allowedCitationIds);
 }
 
 async function synthesizeAnswerWithAi(input: {
@@ -705,9 +779,10 @@ async function synthesizeAnswerWithAi(input: {
   citations: CitationRecord[];
   retrieved: SearchResult[];
   model?: string | undefined;
-}): Promise<{ answer: string; model: string }> {
+}): Promise<{ result: ParsedAiAnswer; model: string }> {
   const model = 'auto';
   const evidence = boundedEvidenceText(input.citations, input.retrieved);
+  const allowedCitationIds = includedCitationIds(evidence, input.citations);
   const response = await runAiChat(input.env, model, {
     messages: [
       {
@@ -715,7 +790,9 @@ async function synthesizeAnswerWithAi(input: {
         content: [
           'You answer questions using only the cited evidence provided by a retrieval system.',
           'Every factual claim must include bracket citations like [1] that match the evidence numbers.',
-          'If the evidence is insufficient, say that the answer is not available from the provided domain evidence.',
+          'Return one JSON object only. If supported, use {"status":"answered","answer":"... [1]","citation_ids":[1]} and make citation_ids match every inline citation.',
+          'If evidence is insufficient, use exactly {"status":"insufficient_evidence"} with no answer text or other fields.',
+          'Never put uncited factual prose in an insufficient_evidence response.',
         ].join(' '),
       },
       {
@@ -723,14 +800,19 @@ async function synthesizeAnswerWithAi(input: {
         content: JSON.stringify({
           question: input.question,
           evidence,
-          instructions: ['Return a concise answer.', 'Use only citation ids present in the evidence.', 'Do not mention evidence ids that are not provided.'],
+          instructions: [
+            'Return the typed JSON contract from the system message.',
+            'Use only citation ids present in the evidence.',
+            'Do not mention evidence ids that are not provided.',
+          ],
         }),
       },
     ],
     max_tokens: 512,
     temperature: 0.1,
   });
-  return { answer: parseAnswerText(aiTextResponse(response)).slice(0, 4000), model };
+  const result = parseAiAnswer(aiTextResponse(response), allowedCitationIds);
+  return { result, model };
 }
 
 export async function answerFromEvidence(input: {
@@ -754,6 +836,7 @@ export async function answerFromEvidence(input: {
   let answerMode: AnswerMode = 'extractive';
   let answerModel: string | null = null;
   let aiUsed = false;
+  let modelAbstained = false;
   const timing: RagTiming = {
     answer_requested_mode: input.requestedMode,
     answer_mode: 'extractive',
@@ -770,14 +853,26 @@ export async function answerFromEvidence(input: {
       });
       timing.synthesis_ms = elapsedMs(synthesisStarted);
       timing.synthesis_model = synthesized.model;
-      if (synthesized.answer && /\[\d+\]/.test(synthesized.answer)) {
-        answer = synthesized.answer;
+      if (synthesized.result.kind === 'answered') {
+        answer = synthesized.result.answer;
         answerMode = 'free_ai';
         answerModel = synthesized.model;
         aiUsed = true;
         timing.answer_mode = 'free_ai';
+      } else if (synthesized.result.kind === 'insufficient_evidence') {
+        if (input.baseConfidence.calibration === 'exact_structured_field_match') {
+          timing.synthesis_fallback = 'model_abstained_with_exact_structured_field_answer';
+        } else {
+          answer = INSUFFICIENT_EVIDENCE_ANSWER;
+          answerMode = 'free_ai';
+          answerModel = synthesized.model;
+          aiUsed = true;
+          modelAbstained = true;
+          timing.answer_mode = 'free_ai';
+          timing.synthesis_outcome = 'insufficient_evidence';
+        }
       } else {
-        timing.synthesis_fallback = 'empty_or_uncited_response';
+        timing.synthesis_fallback = synthesized.result.reason;
       }
     } catch (error) {
       timing.synthesis_ms = elapsedMs(synthesisStarted);
@@ -786,7 +881,15 @@ export async function answerFromEvidence(input: {
   }
   return {
     answer,
-    confidence: confidenceWithVerification(input.baseConfidence, answerSupportQuality(answer, input.citations, input.retrieved)),
+    confidence: modelAbstained
+      ? {
+          ...input.baseConfidence,
+          level: 'none',
+          verification_status: 'abstained',
+          verification_checked: false,
+          answer_support_reason: 'model_reported_insufficient_evidence',
+        }
+      : confidenceWithVerification(input.baseConfidence, answerSupportQuality(answer, input.citations, input.retrieved)),
     answerMode,
     answerModel,
     aiUsed,
