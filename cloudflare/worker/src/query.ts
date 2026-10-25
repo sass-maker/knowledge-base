@@ -860,8 +860,8 @@ export async function answerFromEvidence(input: {
         aiUsed = true;
         timing.answer_mode = 'free_ai';
       } else if (synthesized.result.kind === 'insufficient_evidence') {
-        if (String(input.baseConfidence.calibration ?? '').startsWith('exact_structured_')) {
-          timing.synthesis_fallback = 'model_abstained_with_exact_structured_answer';
+        if (input.baseConfidence.calibration === 'exact_structured_field_match') {
+          timing.synthesis_fallback = 'model_abstained_with_exact_structured_field_answer';
         } else {
           answer = INSUFFICIENT_EVIDENCE_ANSWER;
           answerMode = 'free_ai';

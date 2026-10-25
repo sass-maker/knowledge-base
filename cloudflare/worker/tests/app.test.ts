@@ -6378,10 +6378,18 @@ describe('knowledgebase RAG Worker app', () => {
     });
     const first = await app.request('/v1/kb/query', { method: 'POST', headers: auth, body }, env);
     const second = await app.request('/v1/kb/query', { method: 'POST', headers: auth, body }, env);
+    const firstBody = (await first.json()) as { answer: string; confidence: JsonRecord; data: SearchResult[] };
+    const secondBody = (await second.json()) as { answer: string; confidence: JsonRecord; data: SearchResult[] };
     const secondTiming = JSON.parse(second.headers.get('X-RAG-Timing') ?? '{}');
 
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
+    expect(firstBody.data.length).toBeGreaterThan(0);
+    expect(secondBody.data.length).toBeGreaterThan(0);
+    expect(firstBody.answer).toBe('I do not have enough cited evidence in this domain to answer.');
+    expect(secondBody.answer).toBe('I do not have enough cited evidence in this domain to answer.');
+    expect(firstBody.confidence).toMatchObject({ level: 'none', verification_status: 'abstained' });
+    expect(secondBody.confidence).toMatchObject({ level: 'none', verification_status: 'abstained' });
     expect(synthesisCalls).toBe(2);
     expect(secondTiming.cache_layer).not.toBe('answer_memory');
   });

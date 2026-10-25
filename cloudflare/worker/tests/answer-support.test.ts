@@ -74,8 +74,20 @@ describe('AI answer support gate', () => {
     expect(result.answerMode).toBe('extractive');
     expect(result.aiUsed).toBe(false);
     expect(result.confidence).toMatchObject({ verification_checked: true });
-    expect(result.timing).toMatchObject({ synthesis_fallback: 'model_abstained_with_exact_structured_answer' });
+    expect(result.timing).toMatchObject({ synthesis_fallback: 'model_abstained_with_exact_structured_field_answer' });
     expect(result.timing.synthesis_outcome).toBeUndefined();
+  });
+
+  it('does not treat a name-only entity match as an exact structured answer', async () => {
+    const { run } = setup('{"status":"insufficient_evidence"}');
+    const result = await run('workers_ai', [citation], retrieved, {
+      level: 'high',
+      calibration: 'exact_structured_entity_match',
+    });
+
+    expect(result.answer).toBe('I do not have enough cited evidence in this domain to answer.');
+    expect(result.confidence).toMatchObject({ level: 'none', verification_status: 'abstained' });
+    expect(result.timing.synthesis_outcome).toBe('insufficient_evidence');
   });
 
   it('keeps ordinary retrieved answers subject to a model abstention', async () => {
