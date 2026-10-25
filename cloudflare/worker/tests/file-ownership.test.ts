@@ -37,6 +37,96 @@ it.each(['prepared', 'started', 'unknown'] as const)('settled cleanup distinguis
   expect(deleteByIds).not.toHaveBeenCalled();
   expect(await ledger.startWrite(operation, 'vector-a')).toBe(false);
 });
+
+it('restricts named entity fallback to names while preserving default content search and scope', async () => {
+  const { db, sqlite } = fixture();
+  sqlite.exec(`
+    INSERT INTO kb_entities (id, project, domain, type, identity_key, display_name, fields)
+    VALUES
+      ('unrelated', 'tenant-a', 'manual', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}'),
+      ('named', 'tenant-a', 'manual', 'person', 'alice-smith', 'Alice Smith', '{"note":"research papers"}'),
+      ('named-acme', 'tenant-a', 'manual', 'company', 'acme', 'Acme', '{"note":"company entity","acme_code":"acme-1","code":"acme-1"}'),
+      ('stopword-only', 'tenant-a', 'manual', 'term', 'in', 'In', '{}'),
+      ('mismatched-name', 'tenant-a', 'manual', 'word', 'in', 'Alpha Corp', '{}'),
+      ('numeric-name', 'tenant-a', 'manual', 'term', '3', '3', '{}'),
+      ('common-word-name', 'tenant-a', 'manual', 'topic', 'model', 'Model', '{}'),
+      ('model-with-name-field', 'tenant-a', 'manual', 'topic', 'model-with-name', 'Model', '{"model_version":"v2"}'),
+      ('risk-with-name-field', 'tenant-a', 'manual', 'topic', 'risk-with-name', 'Risk', '{"risk_factors":"market"}'),
+      ('name-jose', 'tenant-a', 'manual', 'person', 'jose-lopez', 'José López', '{}'),
+      ('name-yahoo', 'tenant-a', 'manual', 'company', 'yahoo!', 'Yahoo!', '{}'),
+      ('malformed-fields', 'tenant-a', 'manual', 'company', 'broken-corp', 'Broken Corp', 'not-json'),
+      ('other-project', 'tenant-b', 'manual', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}'),
+      ('other-domain', 'tenant-a', 'other', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}');
+  `);
+  const metadata = new D1MetadataRepository(db);
+
+  const unrelated = await metadata.searchEntities('tenant-a', 'manual', 'What problem does self-attention address in transformer models?', 5, {
+    match: 'name',
+  });
+  expect(unrelated.map((entity) => entity.id)).not.toContain('unrelated');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Alice Smith', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme code', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme acme code', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
+  expect((await metadata.searchEntities('tenant-a', 'manual', "What is Acme's code?", 5, { match: 'name' })).map((entity) => entity.id)).toContain(
+    'named-acme',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What is the code of Acme?', 5, { match: 'name' })).map((entity) => entity.id)).toContain(
+    'named-acme',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Tell me about Acme', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'named-acme',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What does the word in mean?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'stopword-only',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What are the 3 main risks?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'numeric-name',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What is 3?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain('numeric-name');
+  expect((await metadata.searchEntities('tenant-a', 'manual', '3', 5, { match: 'name' })).map((entity) => entity.id)).toContain('numeric-name');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What does the model solve?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'common-word-name',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What is the model?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'common-word-name',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What is the model version?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'model-with-name-field',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What are the risk factors?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'risk-with-name-field',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Tell me about the model', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'common-word-name',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme versus Globex risks', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'named-acme',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'model', 5, { match: 'name' })).map((entity) => entity.id)).toContain('common-word-name');
+  expect(unrelated.map((entity) => entity.id)).not.toContain('mismatched-name');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Tell me about José López!', 5, { match: 'name' })).map((entity) => entity.id)).toContain(
+    'name-jose',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Broken Corp', 5, { match: 'name' })).map((entity) => entity.id)).toContain('malformed-fields');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'YAHOO!', 5, { match: 'name' })).map((entity) => entity.id)).toContain('name-yahoo');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'PatchDock', 5)).map((entity) => entity.id)).toContain('unrelated');
+  expect(unrelated.map((entity) => entity.id)).not.toContain('other-project');
+  expect(unrelated.map((entity) => entity.id)).not.toContain('other-domain');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'TrackingDataAssociation', 5, { match: 'name' })).map((entity) => entity.id)).toEqual([
+    'unrelated',
+  ]);
+
+  const insertCandidate = sqlite.prepare(`
+    INSERT INTO kb_entities (id, project, domain, type, identity_key, display_name, fields)
+    VALUES (?, 'tenant-a', 'manual', 'company', ?, ?, '{}')
+  `);
+  for (let index = 0; index < 501; index += 1) {
+    insertCandidate.run(`candidate-${index}`, `candidate-${index}`, `Candidate ${index}`);
+  }
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Candidate 500', 5, { match: 'name' })).map((entity) => entity.id)).toEqual([]);
+});
+
 afterEach(() => vi.unstubAllGlobals());
 afterEach(() => vi.useRealTimers());
 afterEach(() => vi.restoreAllMocks());
@@ -120,22 +210,31 @@ function handlerFixture() {
     DB: db,
     NEURON_BUDGET: {
       idFromName: (name: string) => name,
-      get: () => ({ fetch: async (url: string, init: RequestInit) => {
-        const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
-        if (body.neurons) return Response.json({ allowed: true, used: body.neurons, remaining: 9_500 - body.neurons, retryAfter: 0, dayKey: new Date().toISOString().slice(0, 10) });
-        const dimensions = body.dimensions ?? 0;
-        return Response.json({
-          allowed: true,
-          used: dimensions,
-          remaining: 45_000_000 - dimensions,
-          retryAfter: 0,
-          monthKey: new Date().toISOString().slice(0, 7),
-          baselineVerified: true,
-          ...(url.endsWith('/try-debit-vectorize-storage')
-            ? { storedCap: 200_000_000, storedUsed: dimensions, storedRemaining: 200_000_000 - dimensions }
-            : {}),
-        });
-      } }),
+      get: () => ({
+        fetch: async (url: string, init: RequestInit) => {
+          const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
+          if (body.neurons)
+            return Response.json({
+              allowed: true,
+              used: body.neurons,
+              remaining: 9_500 - body.neurons,
+              retryAfter: 0,
+              dayKey: new Date().toISOString().slice(0, 10),
+            });
+          const dimensions = body.dimensions ?? 0;
+          return Response.json({
+            allowed: true,
+            used: dimensions,
+            remaining: 45_000_000 - dimensions,
+            retryAfter: 0,
+            monthKey: new Date().toISOString().slice(0, 7),
+            baselineVerified: true,
+            ...(url.endsWith('/try-debit-vectorize-storage')
+              ? { storedCap: 200_000_000, storedUsed: dimensions, storedRemaining: 200_000_000 - dimensions }
+              : {}),
+          });
+        },
+      }),
     } as unknown as DurableObjectNamespace,
     RAG_SERVICE_KEYS: JSON.stringify({ 'key-a': 'tenant-a', 'key-b': 'tenant-b' }),
     EMBEDDING_MODEL: '@cf/baai/bge-base-en-v1.5',
@@ -374,11 +473,27 @@ describe('inactive owned-file protocol with real migrated SQLite', () => {
       DB: db,
       NEURON_BUDGET: {
         idFromName: (name: string) => name,
-        get: () => ({ fetch: async (_url: string, init: RequestInit) => {
-          const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
-          if (body.neurons) return Response.json({ allowed: true, used: body.neurons, remaining: 9_500 - body.neurons, retryAfter: 0, dayKey: new Date().toISOString().slice(0, 10) });
-          return Response.json({ allowed: true, used: body.dimensions, remaining: 45_000_000 - (body.dimensions ?? 0), retryAfter: 0, monthKey: new Date().toISOString().slice(0, 7), baselineVerified: true });
-        } }),
+        get: () => ({
+          fetch: async (_url: string, init: RequestInit) => {
+            const body = JSON.parse(String(init.body)) as { neurons?: number; dimensions?: number };
+            if (body.neurons)
+              return Response.json({
+                allowed: true,
+                used: body.neurons,
+                remaining: 9_500 - body.neurons,
+                retryAfter: 0,
+                dayKey: new Date().toISOString().slice(0, 10),
+              });
+            return Response.json({
+              allowed: true,
+              used: body.dimensions,
+              remaining: 45_000_000 - (body.dimensions ?? 0),
+              retryAfter: 0,
+              monthKey: new Date().toISOString().slice(0, 7),
+              baselineVerified: true,
+            });
+          },
+        }),
       } as unknown as DurableObjectNamespace,
       RAG_SERVICE_KEYS: JSON.stringify({ 'key-a': 'tenant-a' }),
       EMBEDDING_MODEL: '@cf/baai/bge-base-en-v1.5',
@@ -546,8 +661,12 @@ describe('inactive owned-file protocol with real migrated SQLite', () => {
 
     expect(ingestion.payload).toMatchObject({ files: [{ status: 'failed' }] });
     expect(hooks.beforeVectorUpsert).not.toHaveBeenCalled();
-    expect(sqlite.prepare(`SELECT dispatch_state, write_state, cleanup_state FROM kb_file_artifacts
-      WHERE file_id = ? AND kind = 'vector'`).get(fileId)).toMatchObject({ dispatch_state: 'prepared', write_state: 'intent', cleanup_state: 'pending' });
+    expect(
+      sqlite
+        .prepare(`SELECT dispatch_state, write_state, cleanup_state FROM kb_file_artifacts
+      WHERE file_id = ? AND kind = 'vector'`)
+        .get(fileId),
+    ).toMatchObject({ dispatch_state: 'prepared', write_state: 'intent', cleanup_state: 'pending' });
     expect(await request('key-a', `/v1/kb/files/${fileId}`, 'DELETE')).toMatchObject({
       status: 200,
       payload: { logical_removed: true, physical_state: 'complete' },
@@ -578,8 +697,10 @@ describe('inactive owned-file protocol with real migrated SQLite', () => {
     expect(ingestion.payload).toMatchObject({ files: [{ status: 'failed' }] });
     expect(vectorStarts).toBe(2);
     expect(hooks.beforeVectorUpsert).not.toHaveBeenCalled();
-    const vectorArtifacts = sqlite.prepare(`SELECT dispatch_state, write_state, cleanup_state FROM kb_file_artifacts
-      WHERE file_id = ? AND kind = 'vector'`).all(fileId) as Array<{
+    const vectorArtifacts = sqlite
+      .prepare(`SELECT dispatch_state, write_state, cleanup_state FROM kb_file_artifacts
+      WHERE file_id = ? AND kind = 'vector'`)
+      .all(fileId) as Array<{
       dispatch_state: string;
       write_state: string;
       cleanup_state: string;
@@ -601,15 +722,21 @@ describe('inactive owned-file protocol with real migrated SQLite', () => {
     const uploadedFile = await request('key-a', '/v1/kb/files/upload', 'POST', form);
     expect(uploadedFile.status).toBe(201);
     const fileId = (uploadedFile.payload as { id: string }).id;
-    hooks.beforeVectorUpsert = vi.fn(async () => { throw new Error('synthetic provider transport failure'); });
+    hooks.beforeVectorUpsert = vi.fn(async () => {
+      throw new Error('synthetic provider transport failure');
+    });
 
     const ingestion = await request('key-a', '/v1/kb/ingest/run', 'POST', JSON.stringify({ domain: 'manual', file_ids: [fileId], async: false }));
 
     expect(ingestion.payload).toMatchObject({ files: [{ status: 'failed' }] });
     expect(hooks.beforeVectorUpsert).toHaveBeenCalledTimes(1);
-    expect(sqlite.prepare(`SELECT a.dispatch_state, a.write_state, a.cleanup_state, o.state AS operation_state
+    expect(
+      sqlite
+        .prepare(`SELECT a.dispatch_state, a.write_state, a.cleanup_state, o.state AS operation_state
       FROM kb_file_artifacts a JOIN kb_file_operations o ON o.project = a.project AND o.operation_id = a.operation_id
-      WHERE a.file_id = ? AND a.kind = 'vector'`).get(fileId)).toMatchObject({
+      WHERE a.file_id = ? AND a.kind = 'vector'`)
+        .get(fileId),
+    ).toMatchObject({
       dispatch_state: 'started',
       write_state: 'intent',
       cleanup_state: 'pending',

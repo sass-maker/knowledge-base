@@ -1,6 +1,7 @@
 import type { FileOperation } from './file-ownership';
 import type { CitationRecord, JsonRecord, SearchResult } from './types';
 import type { DomainSchema } from './schema-inference';
+import { STOP_WORDS } from './app-types';
 
 export interface DomainRecord {
   project: string;
@@ -158,6 +159,10 @@ export interface EntityRecord {
   parent_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface EntitySearchOptions {
+  match?: 'content' | 'name';
 }
 
 export interface EntityRelationshipRecord {
@@ -348,7 +353,7 @@ export interface MetadataRepository {
   getEntity(project: string, id: string): Promise<EntityRecord | null>;
   findEntity(project: string, domain: string, type: string, identityKey: string): Promise<EntityRecord | null>;
   getEntityLineage(project: string, id: string): Promise<EntityLineageRecord>;
-  searchEntities(project: string, domain: string, query: string, limit?: number): Promise<EntityRecord[]>;
+  searchEntities(project: string, domain: string, query: string, limit?: number, options?: EntitySearchOptions): Promise<EntityRecord[]>;
   listRelationships(project: string, domain?: string, relType?: string, entityId?: string, limit?: number): Promise<EntityRelationshipRecord[]>;
   createSession(project: string, domain: string, id?: string): Promise<SessionRecord>;
   listSessions(project: string, domain?: string, limit?: number): Promise<SessionRecord[]>;
@@ -1734,7 +1739,110 @@ export class D1MetadataRepository implements MetadataRepository {
     };
   }
 
-  async searchEntities(project: string, domain: string, query: string, limit = 20): Promise<EntityRecord[]> {
+  async searchEntities(project: string, domain: string, query: string, limit = 20, options: EntitySearchOptions = {}): Promise<EntityRecord[]> {
+    if (options.match === 'name') {
+      const namedCandidateLimit = 500;
+      const normalizedTokens = (value: string) =>
+        value
+          .normalize('NFKD')
+          .replace(/\p{M}/gu, '')
+          .toLowerCase()
+          .replace(/['’]s\b/gu, '')
+          .match(/[\p{L}\p{N}]+/gu) ?? [];
+      const rawQuestionTokens = normalizedTokens(query);
+      const questionTokens = normalizedTokens(query).filter((token) => !STOP_WORDS.has(token));
+      if (questionTokens.length === 0) return [];
+      const grammaticalFieldRequestWords = new Set([...STOP_WORDS, 'about', 'does', 'is', 'me', 'of', 'show', 'tell', 'who']);
+      type NameCandidate = Pick<StoredEntity, 'id' | 'identity_key' | 'display_name'>;
+      const candidates = await this.db
+        .prepare(
+          `SELECT id, identity_key, display_name
+             FROM ${this.entityTable}
+            WHERE project = ? AND domain = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+          `,
+        )
+        .bind(project, domain, namedCandidateLimit + 1)
+        .all<NameCandidate>();
+      // Never turn a partial candidate scan into a confident entity answer.
+      if ((candidates.results ?? []).length > namedCandidateLimit) return [];
+      const rows = candidates.results ?? [];
+      const singleNameCandidates = rows.filter((candidate) =>
+        [candidate.identity_key, candidate.display_name].some((name) => {
+          if (rawQuestionTokens.length === 1) return false;
+          if (!name) return false;
+          const tokens = normalizedTokens(name).filter((token) => !STOP_WORDS.has(token));
+          return tokens.length === 1 && !/^(?:\d+|true|false)$/u.test(tokens[0] ?? '') && rawQuestionTokens.some((token) => token === tokens[0]);
+        }),
+      );
+      const fieldNamesById = new Map<string, string[][]>();
+      if (singleNameCandidates.length > 0) {
+        const fieldRows = await this.db
+          .prepare(
+            `SELECT entity.id,
+                    COALESCE((
+                      SELECT json_group_array(field.key)
+                        FROM json_each(CASE WHEN json_valid(entity.fields) THEN entity.fields ELSE '{}' END) AS field
+                    ), '[]') AS field_names
+               FROM ${this.entityTable} AS entity
+              WHERE entity.project = ? AND entity.domain = ?
+                AND entity.id IN (SELECT value FROM json_each(?))`,
+          )
+          .bind(project, domain, JSON.stringify(singleNameCandidates.map((candidate) => candidate.id)))
+          .all<{ id: string; field_names: string }>();
+        for (const fieldRow of fieldRows.results ?? []) {
+          const keys = parseJson<string[]>(fieldRow.field_names, []);
+          fieldNamesById.set(fieldRow.id, keys.map(normalizedTokens));
+        }
+      }
+      const isFullNameMention = (candidate: NameCandidate, value: string | null) => {
+        if (!value) return false;
+        const nameTokens = normalizedTokens(value).filter((token) => !STOP_WORDS.has(token));
+        if (nameTokens.length === 0) return false;
+        if (nameTokens.length === 1) {
+          const nameToken = nameTokens[0];
+          if (!nameToken) return false;
+          if (/^(?:\d+|true|false)$/u.test(nameToken)) return rawQuestionTokens.length === 1 && rawQuestionTokens[0] === nameToken;
+          if (rawQuestionTokens.length === 1 && rawQuestionTokens[0] === nameToken) return true;
+          const fieldNameTokenLists = fieldNamesById.get(candidate.id) ?? [];
+          if (!rawQuestionTokens.some((token) => token === nameToken)) return false;
+          const nameIndices = rawQuestionTokens.flatMap((token, index) => (token === nameToken ? [index] : []));
+          return fieldNameTokenLists.some((fieldTokens) => {
+            if (fieldTokens.length === 0 || fieldTokens.every((token) => token === nameToken)) return false;
+            for (let fieldStart = 0; fieldStart <= rawQuestionTokens.length - fieldTokens.length; fieldStart += 1) {
+              if (!fieldTokens.every((token, offset) => rawQuestionTokens[fieldStart + offset] === token)) continue;
+              const fieldEnd = fieldStart + fieldTokens.length;
+              const nameIndex = nameIndices.find((index) => index < fieldStart || index >= fieldEnd);
+              if (nameIndex === undefined) continue;
+              const covered = new Set([nameIndex, ...fieldTokens.map((_, offset) => fieldStart + offset)]);
+              if (rawQuestionTokens.every((token, index) => covered.has(index) || grammaticalFieldRequestWords.has(token))) return true;
+            }
+            return false;
+          });
+        }
+        return questionTokens.some(
+          (token, index) => token === nameTokens[0] && nameTokens.every((nameToken, offset) => questionTokens[index + offset] === nameToken),
+        );
+      };
+      const ids = rows
+        .filter((candidate) => isFullNameMention(candidate, candidate.identity_key) || isFullNameMention(candidate, candidate.display_name))
+        .slice(0, Math.min(Math.max(Math.trunc(limit), 1), 100))
+        .map((candidate) => candidate.id);
+      if (ids.length === 0) return [];
+      const placeholders = ids.map(() => '?').join(', ');
+      const result = await this.db
+        .prepare(
+          `SELECT *
+             FROM ${this.entityTable}
+            WHERE project = ? AND domain = ? AND id IN (${placeholders})
+            ORDER BY updated_at DESC`,
+        )
+        .bind(project, domain, ...ids)
+        .all<StoredEntity>();
+      return (result.results ?? []).map(rowToEntity);
+    }
+
     const tokens =
       query
         .toLowerCase()
