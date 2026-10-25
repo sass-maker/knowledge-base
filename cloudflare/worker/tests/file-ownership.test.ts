@@ -47,6 +47,9 @@ it('restricts named entity fallback to names while preserving default content se
       ('named', 'tenant-a', 'manual', 'person', 'alice-smith', 'Alice Smith', '{"note":"research papers"}'),
       ('named-acme', 'tenant-a', 'manual', 'company', 'acme', 'Acme', '{"note":"company entity"}'),
       ('stopword-only', 'tenant-a', 'manual', 'term', 'in', 'In', '{}'),
+      ('mismatched-name', 'tenant-a', 'manual', 'word', 'in', 'Alpha Corp', '{}'),
+      ('name-jose', 'tenant-a', 'manual', 'person', 'jose-lopez', 'José López', '{}'),
+      ('name-yahoo', 'tenant-a', 'manual', 'company', 'yahoo!', 'Yahoo!', '{}'),
       ('other-project', 'tenant-b', 'manual', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}'),
       ('other-domain', 'tenant-a', 'other', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}');
   `);
@@ -57,10 +60,22 @@ it('restricts named entity fallback to names while preserving default content se
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Alice Smith', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'What does the word in mean?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain('stopword-only');
+  expect(unrelated.map((entity) => entity.id)).not.toContain('mismatched-name');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Tell me about José López!', 5, { match: 'name' })).map((entity) => entity.id)).toContain('name-jose');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'I visited YAHOO!', 5, { match: 'name' })).map((entity) => entity.id)).toContain('name-yahoo');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'PatchDock', 5)).map((entity) => entity.id)).toContain('unrelated');
   expect(unrelated.map((entity) => entity.id)).not.toContain('other-project');
   expect(unrelated.map((entity) => entity.id)).not.toContain('other-domain');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'TrackingDataAssociation', 5, { match: 'name' })).map((entity) => entity.id)).toEqual(['unrelated']);
+
+  const insertCandidate = sqlite.prepare(`
+    INSERT INTO kb_entities (id, project, domain, type, identity_key, display_name, fields)
+    VALUES (?, 'tenant-a', 'manual', 'company', ?, ?, '{}')
+  `);
+  for (let index = 0; index < 501; index += 1) {
+    insertCandidate.run(`candidate-${index}`, `candidate-${index}`, `Candidate ${index}`);
+  }
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Candidate 500', 5, { match: 'name' })).map((entity) => entity.id)).toEqual([]);
 });
 
 afterEach(() => vi.unstubAllGlobals());

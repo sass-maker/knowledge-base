@@ -1741,38 +1741,50 @@ export class D1MetadataRepository implements MetadataRepository {
 
   async searchEntities(project: string, domain: string, query: string, limit = 20, options: EntitySearchOptions = {}): Promise<EntityRecord[]> {
     if (options.match === 'name') {
-      const tokens = query.toLowerCase().match(/[a-z0-9]+/g) ?? [];
-      if (!tokens.some((token) => !STOP_WORDS.has(token))) return [];
-      const normalizedQuestion = tokens.join(' ');
-      const normalizeName = (column: string) => {
-        let expression = `lower(COALESCE(${column}, ''))`;
-        for (const separator of ['-', '_', '.', ',', '/', '(', ')', ':', '&']) {
-          expression = `replace(${expression}, '${separator}', ' ')`;
-        }
-        expression = `replace(${expression}, char(39), ' ')`;
-        for (let pass = 0; pass < 4; pass += 1) expression = `replace(${expression}, '  ', ' ')`;
-        return `trim(${expression})`;
+      const namedCandidateLimit = 500;
+      const normalizedTokens = (value: string) =>
+        value
+          .normalize('NFKD')
+          .replace(/\p{M}/gu, '')
+          .toLowerCase()
+          .match(/[\p{L}\p{N}]+/gu) ?? [];
+      const questionTokens = normalizedTokens(query).filter((token) => !STOP_WORDS.has(token));
+      if (questionTokens.length === 0) return [];
+      const candidates = await this.db
+        .prepare(
+          `SELECT id, identity_key, display_name
+             FROM ${this.entityTable}
+            WHERE project = ? AND domain = ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+          `,
+        )
+        .bind(project, domain, namedCandidateLimit + 1)
+        .all<Pick<StoredEntity, 'id' | 'identity_key' | 'display_name'>>();
+      // Never turn a partial candidate scan into a confident entity answer.
+      if ((candidates.results ?? []).length > namedCandidateLimit) return [];
+      const isFullNameMention = (value: string | null) => {
+        if (!value) return false;
+        const nameTokens = normalizedTokens(value).filter((token) => !STOP_WORDS.has(token));
+        if (nameTokens.length === 0) return false;
+        return questionTokens.some((token, index) => token === nameTokens[0] && nameTokens.every((nameToken, offset) => questionTokens[index + offset] === nameToken));
       };
+      const ids = (candidates.results ?? [])
+        .filter((candidate) => isFullNameMention(candidate.identity_key) || isFullNameMention(candidate.display_name))
+        .slice(0, Math.min(Math.max(Math.trunc(limit), 1), 100))
+        .map((candidate) => candidate.id);
+      if (ids.length === 0) return [];
+      const placeholders = ids.map(() => '?').join(', ');
       const result = await this.db
         .prepare(
           `SELECT *
              FROM ${this.entityTable}
-            WHERE project = ? AND domain = ?
-              AND (
-                instr(' ' || ? || ' ', ' ' || ${normalizeName('identity_key')} || ' ') > 0
-                OR instr(' ' || ? || ' ', ' ' || ${normalizeName('display_name')} || ' ') > 0
-              )
-            ORDER BY updated_at DESC
-            LIMIT ?`,
+            WHERE project = ? AND domain = ? AND id IN (${placeholders})
+            ORDER BY updated_at DESC`,
         )
-        .bind(project, domain, normalizedQuestion, normalizedQuestion, Math.min(Math.max(Math.trunc(limit), 1), 100))
+        .bind(project, domain, ...ids)
         .all<StoredEntity>();
-      return (result.results ?? [])
-        .map(rowToEntity)
-        .filter((entity) => [entity.identity_key, entity.display_name].some((name) => {
-          const nameTokens = name?.toLowerCase().match(/[a-z0-9]+/g) ?? [];
-          return nameTokens.some((token) => !STOP_WORDS.has(token));
-        }));
+      return (result.results ?? []).map(rowToEntity);
     }
 
     const tokens =
