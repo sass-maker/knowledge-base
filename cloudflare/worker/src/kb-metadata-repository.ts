@@ -1767,7 +1767,12 @@ export class D1MetadataRepository implements MetadataRepository {
         if (!value) return false;
         const nameTokens = normalizedTokens(value).filter((token) => !STOP_WORDS.has(token));
         if (nameTokens.length === 0) return false;
-        return questionTokens.some((token, index) => token === nameTokens[0] && nameTokens.every((nameToken, offset) => questionTokens[index + offset] === nameToken));
+        // A one-word entity is too ambiguous inside a natural-language question;
+        // keep it available only when the user is directly looking up that name.
+        if (nameTokens.length === 1) return questionTokens.length === 1 && questionTokens[0] === nameTokens[0];
+        return questionTokens.some(
+          (token, index) => token === nameTokens[0] && nameTokens.every((nameToken, offset) => questionTokens[index + offset] === nameToken),
+        );
       };
       const ids = (candidates.results ?? [])
         .filter((candidate) => isFullNameMention(candidate.identity_key) || isFullNameMention(candidate.display_name))
