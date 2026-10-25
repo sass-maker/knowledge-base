@@ -1807,11 +1807,14 @@ export class D1MetadataRepository implements MetadataRepository {
           if (rawQuestionTokens.length === 1 && rawQuestionTokens[0] === nameToken) return true;
           const fieldNameTokenLists = fieldNamesById.get(candidate.id) ?? [];
           if (!rawQuestionTokens.some((token) => token === nameToken)) return false;
-          const nameIndex = rawQuestionTokens.findIndex((token) => token === nameToken);
+          const nameIndices = rawQuestionTokens.flatMap((token, index) => (token === nameToken ? [index] : []));
           return fieldNameTokenLists.some((fieldTokens) => {
             if (fieldTokens.length === 0 || fieldTokens.every((token) => token === nameToken)) return false;
             for (let fieldStart = 0; fieldStart <= rawQuestionTokens.length - fieldTokens.length; fieldStart += 1) {
               if (!fieldTokens.every((token, offset) => rawQuestionTokens[fieldStart + offset] === token)) continue;
+              const fieldEnd = fieldStart + fieldTokens.length;
+              const nameIndex = nameIndices.find((index) => index < fieldStart || index >= fieldEnd);
+              if (nameIndex === undefined) continue;
               const covered = new Set([nameIndex, ...fieldTokens.map((_, offset) => fieldStart + offset)]);
               if (rawQuestionTokens.every((token, index) => covered.has(index) || grammaticalFieldRequestWords.has(token))) return true;
             }

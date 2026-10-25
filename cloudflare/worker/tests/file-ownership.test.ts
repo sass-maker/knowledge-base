@@ -50,6 +50,8 @@ it('restricts named entity fallback to names while preserving default content se
       ('mismatched-name', 'tenant-a', 'manual', 'word', 'in', 'Alpha Corp', '{}'),
       ('numeric-name', 'tenant-a', 'manual', 'term', '3', '3', '{}'),
       ('common-word-name', 'tenant-a', 'manual', 'topic', 'model', 'Model', '{}'),
+      ('model-with-name-field', 'tenant-a', 'manual', 'topic', 'model-with-name', 'Model', '{"model_version":"v2"}'),
+      ('risk-with-name-field', 'tenant-a', 'manual', 'topic', 'risk-with-name', 'Risk', '{"risk_factors":"market"}'),
       ('name-jose', 'tenant-a', 'manual', 'person', 'jose-lopez', 'José López', '{}'),
       ('name-yahoo', 'tenant-a', 'manual', 'company', 'yahoo!', 'Yahoo!', '{}'),
       ('malformed-fields', 'tenant-a', 'manual', 'company', 'broken-corp', 'Broken Corp', 'not-json'),
@@ -65,6 +67,7 @@ it('restricts named entity fallback to names while preserving default content se
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Alice Smith', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme code', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme acme code', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
   expect((await metadata.searchEntities('tenant-a', 'manual', "What is Acme's code?", 5, { match: 'name' })).map((entity) => entity.id)).toContain(
     'named-acme',
   );
@@ -87,6 +90,12 @@ it('restricts named entity fallback to names while preserving default content se
   );
   expect((await metadata.searchEntities('tenant-a', 'manual', 'What is the model?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
     'common-word-name',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What is the model version?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'model-with-name-field',
+  );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What are the risk factors?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
+    'risk-with-name-field',
   );
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Tell me about the model', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
     'common-word-name',
