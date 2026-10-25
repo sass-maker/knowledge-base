@@ -63,12 +63,15 @@ it('restricts named entity fallback to names while preserving default content se
   expect(unrelated.map((entity) => entity.id)).not.toContain('unrelated');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Alice Smith', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Tell me about Acme', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'What does the word in mean?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
     'stopword-only',
   );
   expect((await metadata.searchEntities('tenant-a', 'manual', 'What are the 3 main risks?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
     'numeric-name',
   );
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What is 3?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain('numeric-name');
+  expect((await metadata.searchEntities('tenant-a', 'manual', '3', 5, { match: 'name' })).map((entity) => entity.id)).toContain('numeric-name');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'What does the model solve?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain(
     'common-word-name',
   );

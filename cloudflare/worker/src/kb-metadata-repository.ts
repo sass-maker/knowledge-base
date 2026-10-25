@@ -1750,6 +1750,7 @@ export class D1MetadataRepository implements MetadataRepository {
           .match(/[\p{L}\p{N}]+/gu) ?? [];
       const questionTokens = normalizedTokens(query).filter((token) => !STOP_WORDS.has(token));
       if (questionTokens.length === 0) return [];
+      const oneNameLookupModifiers = new Set([...STOP_WORDS, 'about', 'code', 'does', 'is', 'me', 'tell', 'who']);
       const candidates = await this.db
         .prepare(
           `SELECT id, identity_key, display_name
@@ -1767,9 +1768,13 @@ export class D1MetadataRepository implements MetadataRepository {
         if (!value) return false;
         const nameTokens = normalizedTokens(value).filter((token) => !STOP_WORDS.has(token));
         if (nameTokens.length === 0) return false;
-        // A one-word entity is too ambiguous inside a natural-language question;
-        // keep it available only when the user is directly looking up that name.
-        if (nameTokens.length === 1) return questionTokens.length === 1 && questionTokens[0] === nameTokens[0];
+        if (nameTokens.length === 1) {
+          const [nameToken] = nameTokens;
+          const rawQuestionTokens = normalizedTokens(query);
+          if (/^(?:\d+|true|false)$/u.test(nameToken)) return rawQuestionTokens.length === 1 && rawQuestionTokens[0] === nameToken;
+          const lookupTokens = rawQuestionTokens.filter((token) => !oneNameLookupModifiers.has(token));
+          return lookupTokens.length === 1 && lookupTokens[0] === nameToken;
+        }
         return questionTokens.some(
           (token, index) => token === nameTokens[0] && nameTokens.every((nameToken, offset) => questionTokens[index + offset] === nameToken),
         );
