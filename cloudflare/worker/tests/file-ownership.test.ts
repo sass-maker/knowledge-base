@@ -45,19 +45,22 @@ it('restricts named entity fallback to names while preserving default content se
     VALUES
       ('unrelated', 'tenant-a', 'manual', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}'),
       ('named', 'tenant-a', 'manual', 'person', 'alice-smith', 'Alice Smith', '{"note":"research papers"}'),
+      ('named-acme', 'tenant-a', 'manual', 'company', 'acme', 'Acme', '{"note":"company entity"}'),
+      ('stopword-only', 'tenant-a', 'manual', 'term', 'in', 'In', '{}'),
       ('other-project', 'tenant-b', 'manual', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}'),
       ('other-domain', 'tenant-a', 'other', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}');
   `);
   const metadata = new D1MetadataRepository(db);
 
-  // @ts-expect-error named-match options are introduced with the implementation commit.
   const unrelated = await metadata.searchEntities('tenant-a', 'manual', 'What problem does self-attention address in transformer models?', 5, { match: 'name' });
   expect(unrelated.map((entity) => entity.id)).not.toContain('unrelated');
-  // @ts-expect-error named-match options are introduced with the implementation commit.
   expect((await metadata.searchEntities('tenant-a', 'manual', 'Alice Smith', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Acme', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named-acme');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'What does the word in mean?', 5, { match: 'name' })).map((entity) => entity.id)).not.toContain('stopword-only');
   expect((await metadata.searchEntities('tenant-a', 'manual', 'PatchDock', 5)).map((entity) => entity.id)).toContain('unrelated');
   expect(unrelated.map((entity) => entity.id)).not.toContain('other-project');
   expect(unrelated.map((entity) => entity.id)).not.toContain('other-domain');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'TrackingDataAssociation', 5, { match: 'name' })).map((entity) => entity.id)).toEqual(['unrelated']);
 });
 
 afterEach(() => vi.unstubAllGlobals());

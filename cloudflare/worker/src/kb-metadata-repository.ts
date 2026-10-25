@@ -1,6 +1,7 @@
 import type { FileOperation } from './file-ownership';
 import type { CitationRecord, JsonRecord, SearchResult } from './types';
 import type { DomainSchema } from './schema-inference';
+import { STOP_WORDS } from './app-types';
 
 export interface DomainRecord {
   project: string;
@@ -158,6 +159,10 @@ export interface EntityRecord {
   parent_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface EntitySearchOptions {
+  match?: 'content' | 'name';
 }
 
 export interface EntityRelationshipRecord {
@@ -348,7 +353,7 @@ export interface MetadataRepository {
   getEntity(project: string, id: string): Promise<EntityRecord | null>;
   findEntity(project: string, domain: string, type: string, identityKey: string): Promise<EntityRecord | null>;
   getEntityLineage(project: string, id: string): Promise<EntityLineageRecord>;
-  searchEntities(project: string, domain: string, query: string, limit?: number): Promise<EntityRecord[]>;
+  searchEntities(project: string, domain: string, query: string, limit?: number, options?: EntitySearchOptions): Promise<EntityRecord[]>;
   listRelationships(project: string, domain?: string, relType?: string, entityId?: string, limit?: number): Promise<EntityRelationshipRecord[]>;
   createSession(project: string, domain: string, id?: string): Promise<SessionRecord>;
   listSessions(project: string, domain?: string, limit?: number): Promise<SessionRecord[]>;
@@ -1734,7 +1739,42 @@ export class D1MetadataRepository implements MetadataRepository {
     };
   }
 
-  async searchEntities(project: string, domain: string, query: string, limit = 20): Promise<EntityRecord[]> {
+  async searchEntities(project: string, domain: string, query: string, limit = 20, options: EntitySearchOptions = {}): Promise<EntityRecord[]> {
+    if (options.match === 'name') {
+      const tokens = query.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+      if (!tokens.some((token) => !STOP_WORDS.has(token))) return [];
+      const normalizedQuestion = tokens.join(' ');
+      const normalizeName = (column: string) => {
+        let expression = `lower(COALESCE(${column}, ''))`;
+        for (const separator of ['-', '_', '.', ',', '/', '(', ')', ':', '&']) {
+          expression = `replace(${expression}, '${separator}', ' ')`;
+        }
+        expression = `replace(${expression}, char(39), ' ')`;
+        for (let pass = 0; pass < 4; pass += 1) expression = `replace(${expression}, '  ', ' ')`;
+        return `trim(${expression})`;
+      };
+      const result = await this.db
+        .prepare(
+          `SELECT *
+             FROM ${this.entityTable}
+            WHERE project = ? AND domain = ?
+              AND (
+                instr(' ' || ? || ' ', ' ' || ${normalizeName('identity_key')} || ' ') > 0
+                OR instr(' ' || ? || ' ', ' ' || ${normalizeName('display_name')} || ' ') > 0
+              )
+            ORDER BY updated_at DESC
+            LIMIT ?`,
+        )
+        .bind(project, domain, normalizedQuestion, normalizedQuestion, Math.min(Math.max(Math.trunc(limit), 1), 100))
+        .all<StoredEntity>();
+      return (result.results ?? [])
+        .map(rowToEntity)
+        .filter((entity) => [entity.identity_key, entity.display_name].some((name) => {
+          const nameTokens = name?.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+          return nameTokens.some((token) => !STOP_WORDS.has(token));
+        }));
+    }
+
     const tokens =
       query
         .toLowerCase()

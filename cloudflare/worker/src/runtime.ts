@@ -1287,7 +1287,10 @@ export function createRuntime(options: AppOptions = {}) {
       const structuredStarted = performance.now();
       const topK = clampTopK(body.top_k ?? 5);
       const fieldQuery = await structuredFieldQueryResults(metadataRepo, tenant, domain, question, topK);
-      const structuredEntities = fieldQuery.entities.length > 0 ? fieldQuery.entities : await metadataRepo.searchEntities(tenant, domain, question, topK);
+      const structuredEntities =
+        fieldQuery.entities.length > 0
+          ? fieldQuery.entities
+          : await metadataRepo.searchEntities(tenant, domain, question, topK, { match: 'name' });
       if (structuredEntities.length > 0) {
         const structuredRoute = fieldQuery.entities.length > 0 ? 'd1_structured_query' : 'd1_entities';
         const entityResults = structuredEntities.map((entity, i) =>
