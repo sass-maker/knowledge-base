@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/index';
 import type { Env } from '../src/types';
 
@@ -35,6 +35,7 @@ const path = '/v1/kb/operator/budget/vectorize';
 const auth = (key = 'operator-test') => ({ headers: { Authorization: `Bearer ${key}` } });
 
 describe('operator shared Vectorize budget read', () => {
+  afterEach(() => vi.restoreAllMocks());
   it.each(['', 'consumer-test', 'append-test', 'proof-test'])('rejects non-operator access before reading the ledger: %s', async (key) => {
     const { app, env, fetch } = setup();
     const res = await app.request(path, auth(key), env);
@@ -86,5 +87,15 @@ describe('operator shared Vectorize budget read', () => {
       expect(res.status).toBe(503);
       expect(res.headers.get('cache-control')).toBe('no-store');
     }
+  });
+
+  it('logs a bounded reason without exposing unexpected upstream error details', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { app, env, fetch } = setup();
+    fetch.mockRejectedValueOnce(new Error('private-upstream-detail'));
+    const res = await app.request(path, auth(), env);
+    expect(res.status).toBe(503);
+    expect(log).toHaveBeenCalledExactlyOnceWith('knowledgebase shared Vectorize status unavailable', { reason: 'upstream_unavailable' });
+    expect(JSON.stringify(await res.json())).not.toContain('private-upstream-detail');
   });
 });
