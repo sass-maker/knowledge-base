@@ -11,6 +11,21 @@ function profile(binding: ConfiguredVectorizeProfile['binding'], dimensions = 76
 afterEach(() => vi.useRealTimers());
 
 describe('catalog storage admission', () => {
+  it('reports a denied storage reservation before embedding or vector writes', async () => {
+    const { env, binding, sqlite, upsert, budgetFetch } = catalogFixture();
+    const chunk = sourceChunk(sourceDocument('denied-source'));
+    budgetFetch.mockResolvedValueOnce(Response.json({ allowed: false }));
+
+    await expect(reserveCatalogStorage(env, { tenant: 'tenant-a', indexId: 'catalog', chunkIds: [chunk.id] }, [profile(binding)])).rejects.toMatchObject({
+      status: 503,
+      message: expect.stringContaining('[budget_admission kind=vectorize_storage reason=denied_receipt]'),
+    });
+
+    expect(env.AI.run).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+    sqlite.close();
+  });
+
   it('atomically reserves exact base plus small dimensions and consumes each token once', async () => {
     const { env, binding, debits, sqlite, upsert } = catalogFixture();
     const base = profile(binding);
