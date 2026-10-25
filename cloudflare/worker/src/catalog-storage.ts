@@ -118,7 +118,7 @@ export function prepareVectorizeUpsert(
   };
 }
 
-export async function upsertVectorizeVectors(
+async function upsertVectorizeVectors(
   env: Env,
   token: VectorizeStorageAdmission | undefined,
   profile: ConfiguredVectorizeProfile,
