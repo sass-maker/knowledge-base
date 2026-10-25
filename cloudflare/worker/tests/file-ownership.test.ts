@@ -37,6 +37,29 @@ it.each(['prepared', 'started', 'unknown'] as const)('settled cleanup distinguis
   expect(deleteByIds).not.toHaveBeenCalled();
   expect(await ledger.startWrite(operation, 'vector-a')).toBe(false);
 });
+
+it('restricts named entity fallback to names while preserving default content search and scope', async () => {
+  const { db, sqlite } = fixture();
+  sqlite.exec(`
+    INSERT INTO kb_entities (id, project, domain, type, identity_key, display_name, fields)
+    VALUES
+      ('unrelated', 'tenant-a', 'manual', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}'),
+      ('named', 'tenant-a', 'manual', 'person', 'alice-smith', 'Alice Smith', '{"note":"research papers"}'),
+      ('other-project', 'tenant-b', 'manual', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}'),
+      ('other-domain', 'tenant-a', 'other', 'paper', 'tracking-data-association', 'TrackingDataAssociation', '{"note":"PatchDock SUS tracking"}');
+  `);
+  const metadata = new D1MetadataRepository(db);
+
+  // @ts-expect-error named-match options are introduced with the implementation commit.
+  const unrelated = await metadata.searchEntities('tenant-a', 'manual', 'What problem does self-attention address in transformer models?', 5, { match: 'name' });
+  expect(unrelated.map((entity) => entity.id)).not.toContain('unrelated');
+  // @ts-expect-error named-match options are introduced with the implementation commit.
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'Alice Smith', 5, { match: 'name' })).map((entity) => entity.id)).toContain('named');
+  expect((await metadata.searchEntities('tenant-a', 'manual', 'PatchDock', 5)).map((entity) => entity.id)).toContain('unrelated');
+  expect(unrelated.map((entity) => entity.id)).not.toContain('other-project');
+  expect(unrelated.map((entity) => entity.id)).not.toContain('other-domain');
+});
+
 afterEach(() => vi.unstubAllGlobals());
 afterEach(() => vi.useRealTimers());
 afterEach(() => vi.restoreAllMocks());
