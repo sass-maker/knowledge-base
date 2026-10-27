@@ -15,7 +15,7 @@ export const GET: APIRoute = () =>
         aiCatalog: `${SITE_ORIGIN}/.well-known/ai-catalog.json`,
         markdown: {
           suffix: '.md',
-          negotiation: false,
+          negotiation: true,
         },
         surfaces: publicSurfaceCatalog(),
         auth: {

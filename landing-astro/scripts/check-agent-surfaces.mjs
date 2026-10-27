@@ -18,7 +18,10 @@ const requiredFiles = [
   'api/ai',
   '.well-known/ai-catalog.json',
   '404.html',
-  '_worker.js',
+  '_worker.js/index.js',
+  'ai.txt',
+  'api/md/_identity',
+  'api/md/_catalog',
 ];
 
 for (const requiredFile of requiredFiles) {
@@ -48,9 +51,7 @@ if (!/^# Knowledge Base/m.test(indexMarkdown) || indexMarkdown.length < 800) {
   throw new Error('landing Markdown is not substantive');
 }
 
-if (!/^---\n[\s\S]*?\n---\n/u.test(indexMarkdown)) {
-  throw new Error('landing Markdown must include YAML frontmatter');
-}
+if (!indexMarkdown.includes('Canonical: https://knowledgebase.sassmaker.com/')) throw new Error('Markdown requires canonical metadata');
 
 if (aiCatalog.host?.identifier !== 'https://knowledgebase.sassmaker.com' || aiCatalog.entries?.length !== 1) {
   throw new Error('AI catalog must describe exactly the public Knowledge Base catalog');
@@ -66,6 +67,13 @@ for (const forbiddenPattern of forbiddenPatterns) {
 }
 
 const indexHtml = await read('index.html');
+if (!indexHtml.includes('name="ai-summary"') || !indexHtml.includes('rel="alternate"')) throw new Error('Public HTML discovery missing');
+const builtCatalog = JSON.parse(await read('api/md/_catalog'));
+if (builtCatalog.length !== 1 || builtCatalog[0].path !== '/') throw new Error('Public registry must stay home-only');
+const publicHtml = (await fs.readdir(dist)).filter((file) => file.endsWith('.html') && file !== '404.html');
+if (publicHtml.length !== 1 || publicHtml[0] !== 'index.html') throw new Error('Unregistered public HTML page');
+if ((await read('llms-full.txt')).length > 500_000) throw new Error('Unbounded full export');
+
 const consoleImage = indexHtml.match(/<img\b[^>]*evidence-console[^>]*>/u)?.[0];
 if (
   !consoleImage?.includes('srcset=') ||
@@ -98,8 +106,10 @@ if (!/Page not found/u.test(notFound) || !/noindex/u.test(notFound)) {
   throw new Error('404 page must be explicit and noindex');
 }
 
-const workerModule = await import(`${pathToFileURL(resolve(dist, '_worker.js')).href}?check=${Date.now()}`);
+const workerModule = await import(`${pathToFileURL(resolve(dist, '_worker.js/index.js')).href}?check=${Date.now()}`);
 const assetBodies = new Map([
+  ['/api/md/_identity', { body: await read('api/md/_identity'), contentType: 'application/json', status: 200 }],
+  ['/api/md/_catalog', { body: await read('api/md/_catalog'), contentType: 'application/json', status: 200 }],
   ['/index.md', { body: indexMarkdown, contentType: 'text/markdown; charset=utf-8', status: 200 }],
   ['/', { body: await read('index.html'), contentType: 'text/html; charset=utf-8', status: 200 }],
 ]);
@@ -130,3 +140,10 @@ if (markdownMissing.status !== 404 || !markdownMissing.headers.get('Content-Type
 }
 
 console.log('agent surfaces verified: 1 public HTML route, Markdown negotiation, 1 AI catalog, and HTML/Markdown 404s');
+
+for (const disclosure of ['PostHog', 'Microsoft Clarity', 'session replay', 'source integrations', 'https://github.com/Codevetter/starboard']) {
+  if (!indexMarkdown.includes(disclosure)) throw new Error(`Missing retained disclosure: ${disclosure}`);
+}
+
+if (!(await read('llms.txt')).includes('approved project scope')) throw new Error('Missing agent scope guidance');
+if (!(await read('ai.txt')).includes('public-machine-endpoints: /api/ai, /api/md/*')) throw new Error('Missing public machine endpoint exceptions');
