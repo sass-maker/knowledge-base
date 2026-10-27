@@ -80,12 +80,26 @@ for (const section of content.sections) {
 }
 // Preserve the existing public brief's operational disclosures alongside the
 // shared page body; these are agent guidance, not private retrieval content.
-lines.push('## Product boundaries', '', content.footer.summary, '',
-  'The operator workspace is separately protected at https://search.sassmaker.com.', '',
-  '## Website analytics', '',
-  'The public landing uses PostHog for a page-view event and Microsoft Clarity for session replay and heatmaps. The Access-protected operator workspace also loads Clarity, but its entire application root is explicitly masked before collection so private corpus content is not uploaded.', '');
+lines.push(
+  '## Product boundaries',
+  '',
+  content.footer.summary,
+  '',
+  'The operator workspace is separately protected at https://search.sassmaker.com.',
+  '',
+  '## Website analytics',
+  '',
+  'The public landing uses PostHog for a page-view event and Microsoft Clarity for session replay and heatmaps. The Access-protected operator workspace also loads Clarity, but its entire application root is explicitly masked before collection so private corpus content is not uploaded.',
+  '',
+);
 for (const group of content.footer.groups.filter((group) => group.title === 'source integrations')) {
-  lines.push(`## ${group.title}`, '', ...group.links.map((link) => `- ${action(link)}`), '',
-    'These links verify integration code, not live traffic or current production configuration.', '');
+  lines.push(
+    `## ${group.title}`,
+    '',
+    ...group.links.map((link) => `- ${action(link)}`),
+    '',
+    'These links verify integration code, not live traffic or current production configuration.',
+    '',
+  );
 }
 export const homeMarkdown = absoluteMarkdownLinks(lines.join('\n'), absoluteURL('/'));
