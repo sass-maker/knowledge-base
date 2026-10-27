@@ -1,3 +1,5 @@
+import content from '../content/home.json';
+import { absoluteMarkdownLinks } from '../../public/_worker.js/agent-surfaces/format.mjs';
 export const SITE_ORIGIN = import.meta.env.PUBLIC_SITE_ORIGIN ?? 'https://knowledgebase.sassmaker.com';
 
 export interface PublicSurface {
@@ -15,8 +17,8 @@ export const publicSurfaces: PublicSurface[] = [
     path: '/',
     markdownPath: '/index.md',
     kind: 'product',
-    title: 'Knowledge Base — Private cited retrieval for Fleet agents',
-    description: 'A maintained retrieval layer that gives approved Fleet products and agents cited answers from private, specialized corpora.',
+    title: content.page.title,
+    description: content.page.description,
   },
 ];
 
@@ -35,59 +37,45 @@ export function publicSurfaceCatalog() {
   }));
 }
 
-export const homeMarkdown = `---
-title: "Knowledge Base — Private cited retrieval for Fleet agents"
-description: "A maintained retrieval layer that gives approved Fleet products and agents cited answers from private, specialized corpora."
-canonical: "${SITE_ORIGIN}/"
-last_updated: "2026-10-04"
----
-
-# Knowledge Base — Private cited retrieval for Fleet agents
-
-> Canonical page: ${SITE_ORIGIN}/
-
-Knowledge Base is the shared retrieval layer behind approved Fleet products and
-agents. It searches private, specialized corpora by exact terms or meaning,
-ranks the evidence, and returns answers tied to a file, page, and excerpt.
-
-Public source contains Knowledge Base integrations in [Karte](https://github.com/Significant-Hobbies/karte/blob/main/src/lib/knowledgebase.ts),
-[Research Papers](https://github.com/High-Signal-App/research-papers/blob/main/src/researchpapers/api.py),
-and [Starboard](https://github.com/Codevetter/starboard/blob/main/src/lib/knowledgebase.ts).
-These links verify integration code, not live traffic or current production
-configuration. Knowledge Base is maintained internal infrastructure, not a
-public document-chat product or a self-serve RAG service.
-
-## What it does
-
-- Limits each consumer to its approved project and domain.
-- Supports lexical, semantic, and hybrid retrieval over controlled sources.
-- Returns ranked citations, provenance, confidence, and trace data.
-- Keeps operator workspaces, indexed material, and retrieval access private.
-
-## Operating rule
-
-Maintain the shared service for concrete consumer needs, retrieval regressions,
-or new corpora—not to expand the infrastructure for its own sake.
-
-## Product boundaries
-
-This public landing contains product documentation only. It does not expose
-indexed documents, search history, operator settings, private dashboard routes,
-or retrieval access. There is no public signup, checkout, or permanent pricing
-promise.
-
-The operator workspace is separately protected at https://search.sassmaker.com.
-
-## Website analytics
-
-The public landing uses PostHog for a page-view event and Microsoft Clarity for
-session replay and heatmaps. The Access-protected operator workspace also loads
-Clarity, but its entire application root is explicitly masked before collection
-so private corpus content is not uploaded.
-
-## Project
-
-Source and roadmap: https://github.com/sass-maker/knowledge-base
-
-Agent contract: https://github.com/sass-maker/knowledge-base/blob/main/docs/product/agent-tool-contract.md
-`;
+// Workbench source fields in the same order as the public template. Chrome and
+// private corpus data are deliberately absent; unsupported block kinds fail build.
+function action(link: { label: string; href: string }) {
+  return `[${link.label}](${absoluteURL(link.href)})`;
+}
+const lines = [
+  `# ${content.page.title}`,
+  '',
+  `> ${content.page.description}`,
+  '',
+  `Canonical: ${absoluteURL('/')}`,
+  '',
+  `## ${content.hero.title}`,
+  '',
+  content.hero.eyebrow,
+  '',
+  content.hero.lede,
+  '',
+  action(content.hero.primary),
+  '',
+  action(content.hero.secondary),
+  '',
+  content.hero.note,
+  '',
+  `![${content.hero.window.alt}](${absoluteURL(content.hero.window.src)})`,
+  '',
+  content.hero.caption,
+  '',
+];
+for (const section of content.sections) {
+  for (const block of section.blocks) {
+    if (block.type === 'statement' && 'points' in block) {
+      lines.push(`## ${block.title}`, '', block.eyebrow ?? '', '');
+      for (const point of block.points ?? []) lines.push(`### ${point.title}`, '', point.body, '');
+    } else if (block.type === 'cta' && 'primary' in block) {
+      lines.push(`## ${block.title}`, '', block.lede ?? '', '');
+      if (block.primary) lines.push(action(block.primary), '');
+      if (block.secondary) lines.push(action(block.secondary), '');
+    } else throw new Error(`Unmapped public Workbench block: ${block.type}`);
+  }
+}
+export const homeMarkdown = absoluteMarkdownLinks(lines.join('\n'), absoluteURL('/'));

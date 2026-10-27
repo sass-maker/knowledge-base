@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import worker from '../public/_worker.js';
+import worker from '../public/_worker.js/index.js';
 
 // URL-only keys intentionally ignore Vary, matching the Cloudflare failure.
 class UrlCache {
@@ -18,6 +18,9 @@ const env = (generation = 'a'.repeat(64), status = 200, headers = {}) => ({
     async fetch(request) {
       const path = new URL(request.url).pathname;
       if (path === '/public-cache-generation.txt') return new Response(generation);
+      if (path === '/api/md/_identity')
+        return Response.json({ name: 'Knowledge Base', url: 'https://knowledgebase.sassmaker.com', summary: 'Public fixture', trainingAllowed: true });
+      if (path === '/api/md/_catalog') return Response.json([{ path: '/', title: 'Knowledge Base', description: 'Public fixture', assetPath: '/index.md' }]);
       assetReads++;
       const markdown = path.endsWith('.md');
       return new Response(markdown ? '# public brief' : '<html>public home</html>', {
@@ -148,3 +151,12 @@ test('cache failures do not prevent serving', async () => {
   };
   assert.equal((await respond()).status, 200);
 });
+
+for (const accept of ['text/markdown;q=0', 'text/markdown;q=0.5,text/html;q=1', 'text/markdown,text/html', '*/*']) {
+  test(`HTML cache selection respects Accept quality: ${accept}`, async () => {
+    globalThis.caches = { default: new UrlCache() };
+    const response = await respond(accept);
+    assert.match(response.headers.get('content-type'), /text\/html/);
+    assert.ok([...globalThis.caches.default.entries.keys()][0].endsWith('/html'));
+  });
+}

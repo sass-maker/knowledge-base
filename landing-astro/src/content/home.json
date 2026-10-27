@@ -20,6 +20,8 @@
         {
           "@type": "WebSite",
           "@id": "https://knowledgebase.sassmaker.com/#website",
+          "publisher": { "@id": "https://sarthakagrawal.dev/#person" },
+          "sameAs": ["https://github.com/sass-maker/knowledge-base"],
           "name": "Knowledge Base",
           "url": "https://knowledgebase.sassmaker.com",
           "description": "A maintained retrieval layer that gives approved Fleet products and agents cited answers from private, specialized corpora."

@@ -1,9 +1,4 @@
 import type { APIRoute } from 'astro';
-import { homeMarkdown } from '../config/public-surfaces';
-
-export const GET: APIRoute = () =>
-  new Response(homeMarkdown, {
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-    },
-  });
+import { SITE_ORIGIN } from '../config/public-surfaces';
+import { markdownHandler } from '../config/markdown-documents';
+export const GET: APIRoute = async () => (await markdownHandler(new Request(`${SITE_ORIGIN}/llms-full.txt`)))!;
