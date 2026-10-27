@@ -144,3 +144,6 @@ console.log('agent surfaces verified: 1 public HTML route, Markdown negotiation,
 for (const disclosure of ['PostHog', 'Microsoft Clarity', 'session replay', 'source integrations', 'https://github.com/Codevetter/starboard']) {
   if (!indexMarkdown.includes(disclosure)) throw new Error(`Missing retained disclosure: ${disclosure}`);
 }
+
+if (!(await read('llms.txt')).includes('approved project scope')) throw new Error('Missing agent scope guidance');
+if (!(await read('ai.txt')).includes('public-machine-endpoints: /api/ai, /api/md/*')) throw new Error('Missing public machine endpoint exceptions');
