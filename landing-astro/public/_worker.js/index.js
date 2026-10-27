@@ -122,6 +122,7 @@ async function resolveRequest(request, env) {
     return new Response(missing.body, { status: 404, headers: missing.headers });
   }
   const result = advertiseMarkdown(response, SITE_ORIGIN, url.pathname === '/' ? '/index.md' : undefined);
+  if (url.pathname === '/') result.headers.append('Link', `<${SITE_ORIGIN}/api/ai>; rel="alternate"; type="application/json", <${SITE_ORIGIN}/.well-known/ai-catalog.json>; rel="ai-catalog"; type="application/json", <${SITE_ORIGIN}/sitemap.xml>; rel="sitemap"; type="application/xml"`);
   result.headers.set('X-Content-Type-Options', 'nosniff');
   if (url.pathname === '/api/ai' || url.pathname === '/.well-known/ai-catalog.json') result.headers.set('Content-Type', 'application/json; charset=utf-8');
   return result;

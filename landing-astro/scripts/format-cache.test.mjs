@@ -160,3 +160,11 @@ for (const accept of ['text/markdown;q=0', 'text/markdown;q=0.5,text/html;q=1', 
     assert.ok([...globalThis.caches.default.entries.keys()][0].endsWith('/html'));
   });
 }
+
+test('HTML homepage retains JSON catalog and sitemap HTTP discovery', async () => {
+  const response = await respond();
+  const links = response.headers.get('link');
+  assert.match(links, /rel="ai-catalog"/);
+  assert.match(links, /api\/ai/);
+  assert.match(links, /sitemap.xml/);
+});

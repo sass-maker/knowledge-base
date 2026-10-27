@@ -140,3 +140,7 @@ if (markdownMissing.status !== 404 || !markdownMissing.headers.get('Content-Type
 }
 
 console.log('agent surfaces verified: 1 public HTML route, Markdown negotiation, 1 AI catalog, and HTML/Markdown 404s');
+
+for (const disclosure of ['PostHog', 'Microsoft Clarity', 'session replay', 'source integrations', 'https://github.com/Codevetter/starboard']) {
+  if (!indexMarkdown.includes(disclosure)) throw new Error(`Missing retained disclosure: ${disclosure}`);
+}

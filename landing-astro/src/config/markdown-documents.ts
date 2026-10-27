@@ -10,6 +10,7 @@ export const markdownIdentity = {
   summary: content.page.description,
   contact: 'https://github.com/sass-maker/knowledge-base/issues',
   trainingAllowed: true,
+  notes: ['Do not use this public origin as a retrieval endpoint.', '[Agent catalog](https://knowledgebase.sassmaker.com/.well-known/ai-catalog.json)'],
   excludedPaths: ['/admin', '/auth', '/dashboard', '/api', '/search', '/documents', '/settings'],
 };
 const manifest = createAgentSurfaceManifest({ ...markdownIdentity, pages: { '/': homeMarkdown } });
