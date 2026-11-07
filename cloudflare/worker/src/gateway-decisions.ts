@@ -102,7 +102,7 @@ function gatewayAnswers(frozen: FrozenDecision, value: unknown): JsonRecord {
     if (typeof row.id !== 'string' || !Object.hasOwn(frozen.questions, row.id) || Object.hasOwn(answers, row.id))
       throw new Error('Invalid or duplicate gateway answer id');
     if (row.status === 'abstained' && row.value === null) {
-      answers[row.id] = { type: 'choice', choice: row.id.endsWith('_fit') ? 'reject' : 'none' };
+      answers[row.id] = { type: 'choice', choice: row.id.endsWith('_fit') || row.id.endsWith('_utility') ? 'reject' : 'none' };
     } else if (row.status === 'answered' && typeof row.value === 'string') answers[row.id] = { type: 'choice', choice: row.value };
     else throw new Error('Invalid gateway choice answer');
   }

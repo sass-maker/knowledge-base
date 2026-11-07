@@ -126,3 +126,18 @@ describe('bounded source feature profiles', () => {
  });
 
 });
+
+
+describe('structured operation profiles', () => {
+ it('requires operation fields and resolves them to the same literal evidence', async () => {
+  const f = fixture([{ id: 'doc', path: 'README.md', texts: ['Extract readable article text from raw HTML using Readability.'] }]);
+  const operation = { input: 'Raw HTML', action: 'Extract article text', output: 'Readable article text', method: 'Readability', constraints: [], importance: 'core' };
+  f.fetch.mockResolvedValueOnce(Response.json({ choices: [{ message: { content: JSON.stringify({ purpose: { value: 'An article extractor.', evidence_ids: ['s1'] }, capabilities: [{ value: 'Extract article text from HTML.', operation, evidence_ids: ['s1'] }], needs: [] }) } }] }));
+  const result = await f.run({ profile_mode: 'operations' });
+  expect(result.facts.find((fact) => fact.field === 'capabilities')).toMatchObject({ operation, evidence: [{ excerpt: f.chunks[0]!.content }] });
+ });
+ it('rejects a capabilities response without a structured operation', async () => {
+  const f = fixture([{ id: 'doc', path: 'README.md', texts: ['Find matching records and retain their source provenance.'] }]);
+  await expect(f.run({ profile_mode: 'operations' })).rejects.toThrow('structured operations');
+ });
+});

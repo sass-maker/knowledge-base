@@ -6,6 +6,7 @@ import { type EnrichInput, enrichCatalog } from '../catalog-enrichment';
 import { contentHash } from '../catalog-ingest';
 import { compareKnowledgeDecisions, runKnowledgeDecision } from '../gateway-decisions';
 import { freezeDecision } from '../decision-evidence';
+import { prepareOperationComparison } from '../operation-comparison';
 import type { DecisionEngineResult, DecisionInput, FrozenDecision } from '../decision-types';
 import { readRequestJson } from '../request-json';
 import type { AppRuntime } from '../runtime';
@@ -92,7 +93,7 @@ export function registerIntelligenceRoutes(app: App, rt: AppRuntime): void {
     const repo = rt.makeRepository(c.env);
     if (!(await repo.getIndex(tenant, indexId))) return c.json({ error: 'Index not found' }, 404);
     await requireDecisionStorage(c.env);
-    const frozen = await freezeDecision(repo, tenant, indexId, body);
+    const frozen = await prepareOperationComparison(c.env, await freezeDecision(repo, tenant, indexId, body));
     const engineName = body.engine ?? 'free_ai';
     const engine = await runKnowledgeDecision(c.env, frozen, engineName);
     const stored = await storeDecision(c.env, tenant, indexId, frozen, { [engineName]: engine });
@@ -107,7 +108,7 @@ export function registerIntelligenceRoutes(app: App, rt: AppRuntime): void {
     const repo = rt.makeRepository(c.env);
     if (!(await repo.getIndex(tenant, indexId))) return c.json({ error: 'Index not found' }, 404);
     await requireDecisionStorage(c.env);
-    const frozen = await freezeDecision(repo, tenant, indexId, body);
+    const frozen = await prepareOperationComparison(c.env, await freezeDecision(repo, tenant, indexId, body));
     const engines = await compareKnowledgeDecisions(c.env, frozen);
     const stored = await storeDecision(c.env, tenant, indexId, frozen, engines);
     return c.json({

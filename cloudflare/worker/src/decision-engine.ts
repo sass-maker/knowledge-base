@@ -102,6 +102,20 @@ export function validateDecisionAnswers(frozen: FrozenDecision, answers: JsonRec
   for (const key of keys) validateChoiceAnswer(frozen, key, answers[key]);
   const items: DecisionItem[] = frozen.candidates.map((candidate, i) => {
     const key = `c${i + 1}`;
+    if (frozen.comparisons) {
+      const comparison = frozen.comparisons[key];
+      const utility = String(jsonRecord(answers[`${key}_utility`]).choice) as NonNullable<DecisionItem['utility']>;
+      const positive = utility === 'high' || utility === 'medium';
+      if (positive && !comparison) throw new Error('A useful decision requires a prepared source-backed comparison');
+      return {
+        candidate_id: candidate.id, verdict: positive ? 'reference' : 'reject', utility,
+        reason: comparison?.action ?? 'No source-supported comparison was prepared.',
+        benefit: comparison?.differences ?? 'No supporting candidate evidence selected.',
+        project_evidence: comparison ? [candidate.project_options[comparison.project_key]!] : [],
+        candidate_evidence: comparison ? [candidate.candidate_options[comparison.candidate_key]!] : [],
+        ...(comparison ? { comparison: { action: comparison.action, differences: comparison.differences, candidate_operation: comparison.candidate_operation } } : {}),
+      };
+    }
     const verdict = String(jsonRecord(answers[`${key}_fit`]).choice) as DecisionItem['verdict'];
     const projectKey = String(jsonRecord(answers[`${key}_project`]).choice);
     const candidateKey = String(jsonRecord(answers[`${key}_candidate`]).choice);
