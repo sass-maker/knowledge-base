@@ -18,7 +18,10 @@ function useEvalReports(domain: string) {
   const [reportAttempt, setReportAttempt] = useState(0);
 
   useEffect(() => {
-    if (!domain) return;
+    if (!domain) {
+      setReportRead(null);
+      return;
+    }
     let cancelled = false;
     setReportRead((prior) => ({
       domain,

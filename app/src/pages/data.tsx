@@ -336,7 +336,7 @@ export default function DataPage() {
               Loading corpus data…
             </div>
           ) : !hasCurrentRows ? (
-            !error && (
+            (!error || (currentCorpus && (query || kindFilter))) && (
               <div className="flex min-h-64 flex-col items-center justify-center gap-2 px-6 text-center">
                 <Database className="size-6 text-muted-foreground" />
                 <p className="text-sm font-medium text-foreground">No matching {tab}</p>
