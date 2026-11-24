@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type Domain, isAccessDenied } from '@/lib/api';
 
-export function useDomainSelection() {
+export function useDomainSelection({ selectFirst = true }: { selectFirst?: boolean } = {}) {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [domain, setDomain] = useState('');
   const [loading, setLoading] = useState(true);
@@ -17,7 +17,7 @@ export function useDomainSelection() {
       .then(({ domains: rows }) => {
         if (cancelled) return;
         setDomains(rows);
-        setDomain((selected) => (rows.some((row) => row.name === selected) ? selected : (rows[0]?.name ?? '')));
+        setDomain((selected) => (rows.some((row) => row.name === selected) ? selected : ((selectFirst ? rows[0]?.name : '') ?? '')));
       })
       .catch((cause) => {
         if (cancelled) return;
@@ -33,7 +33,7 @@ export function useDomainSelection() {
     return () => {
       cancelled = true;
     };
-  }, [attempt]);
+  }, [attempt, selectFirst]);
 
   return { domain, domains, setDomain, loading, error, retry: () => setAttempt((value) => value + 1) };
 }

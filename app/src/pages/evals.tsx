@@ -13,16 +13,9 @@ type ReportRead = {
   rows: EvalReport[];
 } & ({ status: 'loading' | 'ready' } | { status: 'error'; error: string });
 
-export default function EvalsPage() {
-  const { domains, domain, setDomain, loading: domainsLoading, error: domainsError, retry: retryDomains } = useDomainSelection();
+function useEvalReports(domain: string) {
   const [reportRead, setReportRead] = useState<ReportRead | null>(null);
   const [reportAttempt, setReportAttempt] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [running, setRunning] = useState(false);
-  const [kind, setKind] = useState<'answer' | 'search'>('answer');
-  const [mode, setMode] = useState('hybrid');
-  const [cases, setCases] = useState('[\n  { "id": "q1", "query": "example", "expected_text": "example" }\n]');
-  const [result, setResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (!domain) return;
@@ -50,6 +43,22 @@ export default function EvalsPage() {
       cancelled = true;
     };
   }, [domain, reportAttempt]);
+
+  return {
+    read: reportRead?.domain === domain ? reportRead : null,
+    refresh: () => setReportAttempt((value) => value + 1),
+  };
+}
+
+export default function EvalsPage() {
+  const { domains, domain, setDomain, loading: domainsLoading, error: domainsError, retry: retryDomains } = useDomainSelection();
+  const { read: currentReportRead, refresh: refreshReports } = useEvalReports(domain);
+  const [error, setError] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const [kind, setKind] = useState<'answer' | 'search'>('answer');
+  const [mode, setMode] = useState('hybrid');
+  const [cases, setCases] = useState('[\n  { "id": "q1", "query": "example", "expected_text": "example" }\n]');
+  const [result, setResult] = useState<string | null>(null);
 
   async function handleRunEval() {
     if (!domain) return;
@@ -80,7 +89,7 @@ export default function EvalsPage() {
               top_k: 5,
             });
       setResult(JSON.stringify(r, null, 2));
-      setReportAttempt((value) => value + 1);
+      refreshReports();
     } catch (e) {
       setError(e instanceof ApiError ? `API error ${e.status}` : String(e));
     } finally {
@@ -88,7 +97,6 @@ export default function EvalsPage() {
     }
   }
 
-  const currentReportRead = reportRead?.domain === domain ? reportRead : null;
   const reports = currentReportRead?.rows ?? [];
 
   return (
@@ -181,11 +189,7 @@ export default function EvalsPage() {
             </div>
           )}
           {currentReportRead?.status === 'error' && (
-            <ReadError
-              message={`Could not load eval reports. ${currentReportRead.error}`}
-              retryLabel="Retry reports"
-              onRetry={() => setReportAttempt((value) => value + 1)}
-            />
+            <ReadError message={`Could not load eval reports. ${currentReportRead.error}`} retryLabel="Retry reports" onRetry={refreshReports} />
           )}
           {!domain && !domainsLoading && !domainsError && <p className="text-sm text-muted-foreground">Create a domain before running evals.</p>}
           {reports.length === 0 ? (
