@@ -88,7 +88,10 @@ function useDomainDetails(domain: string) {
     rows: current?.rows,
     loading: !current || current.loading,
     error: current?.error,
-    refresh: () => setAttempt((value) => value + 1),
+    refresh: () => {
+      setDetail((previous) => (previous?.domain === domain ? { ...previous, loading: true, error: null } : previous));
+      setAttempt((value) => value + 1);
+    },
   };
 }
 
