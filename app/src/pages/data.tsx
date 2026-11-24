@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, ApiError, type ChunkEntry, type Domain, type EntityRecord, type FileEntry, type Job, type RelationshipRecord } from '@/lib/api';
+import { api, ApiError, type ChunkEntry, type EntityRecord, type FileEntry, isAccessDenied, type Job, type RelationshipRecord } from '@/lib/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/button';
+import { ReadError } from '@/components/read-error';
+import { useDomainSelection } from '@/lib/use-domain-selection';
 import { cn, formatTime, truncate } from '@/lib/utils';
 import { Boxes, Briefcase, ChevronLeft, ChevronRight, Database, FileText, GitBranch, Loader2, RefreshCw, Search } from 'lucide-react';
 
 type DataTab = 'files' | 'chunks' | 'jobs' | 'entities' | 'relationships';
+
+type DataTabItem = {
+  id: DataTab;
+  label: string;
+  count: number;
+  icon: typeof FileText;
+};
 
 const PAGE_SIZE = 20;
 
@@ -69,28 +78,64 @@ function Pager({ page, total, onChange }: { page: number; total: number; onChang
   );
 }
 
+function DataTabs({
+  items,
+  selectedTab,
+  showCounts,
+  setTab,
+}: {
+  items: DataTabItem[];
+  selectedTab: DataTab;
+  showCounts: boolean;
+  setTab: (tab: DataTab) => void;
+}) {
+  return (
+    <div className="flex gap-1 overflow-x-auto border-b border-border" role="tablist">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const selected = selectedTab === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => setTab(item.id)}
+            className={cn(
+              'flex min-h-10 shrink-0 items-center gap-2 border-b-2 px-3 text-sm transition-colors',
+              selected ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Icon className="size-4" />
+            {item.label}
+            {showCounts && <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px]">{item.count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const emptyCorpus = {
+  files: [] as FileEntry[],
+  chunks: [] as ChunkEntry[],
+  jobs: [] as Job[],
+  entities: [] as EntityRecord[],
+  relationships: [] as RelationshipRecord[],
+};
+
 export default function DataPage() {
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const [domain, setDomain] = useState('');
+  const { domain, domains, setDomain, loading: domainLoading, error: domainError, retry: retryDomains } = useDomainSelection({ selectFirst: false });
   const [tab, setTab] = useState<DataTab>('files');
   const [query, setQuery] = useState('');
   const [kindFilter, setKindFilter] = useState('');
-  const [files, setFiles] = useState<FileEntry[]>([]);
-  const [chunks, setChunks] = useState<ChunkEntry[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [entities, setEntities] = useState<EntityRecord[]>([]);
-  const [relationships, setRelationships] = useState<RelationshipRecord[]>([]);
+  const [corpus, setCorpus] = useState<{ domain: string; rows: typeof emptyCorpus } | null>(null);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    api
-      .getDomains()
-      .then((result) => setDomains(result.domains ?? []))
-      .catch(() => {});
-  }, []);
+  const currentCorpus = corpus?.domain === domain ? corpus.rows : null;
+  const { files, chunks, jobs, entities, relationships } = currentCorpus ?? emptyCorpus;
 
   useEffect(() => {
     let cancelled = false;
@@ -105,14 +150,23 @@ export default function DataPage() {
     ])
       .then(([fileResult, chunkResult, jobResult, entityResult, relationshipResult]) => {
         if (cancelled) return;
-        setFiles(fileResult.files ?? []);
-        setChunks(chunkResult);
-        setJobs(jobResult.jobs ?? []);
-        setEntities(entityResult);
-        setRelationships(relationshipResult);
+        setCorpus({
+          domain,
+          rows: {
+            files: fileResult.files ?? [],
+            chunks: chunkResult,
+            jobs: jobResult.jobs ?? [],
+            entities: entityResult,
+            relationships: relationshipResult,
+          },
+        });
       })
       .catch((cause) => {
         if (cancelled) return;
+        if (isAccessDenied(cause)) {
+          setCorpus(null);
+          setKindFilter('');
+        }
         setError(cause instanceof ApiError ? `API error ${cause.status}` : String(cause));
       })
       .finally(() => {
@@ -187,12 +241,7 @@ export default function DataPage() {
     return [...new Set(values.filter(Boolean))].sort();
   }, [entities, files, jobs, relationships, tab]);
 
-  const tabs: Array<{
-    id: DataTab;
-    label: string;
-    count: number;
-    icon: typeof FileText;
-  }> = [
+  const tabs: DataTabItem[] = [
     { id: 'files', label: 'Files', count: files.length, icon: FileText },
     { id: 'chunks', label: 'Chunks', count: chunks.length, icon: Boxes },
     { id: 'jobs', label: 'Jobs', count: jobs.length, icon: Briefcase },
@@ -204,6 +253,9 @@ export default function DataPage() {
       icon: GitBranch,
     },
   ];
+
+  const hasCurrentRows = filtered.length > 0;
+  const waitingForCurrentDomain = loading || (!currentCorpus && !error);
 
   return (
     <>
@@ -218,7 +270,12 @@ export default function DataPage() {
         }
       />
       <div className="flex flex-col gap-5 p-4 sm:p-6">
-        {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+            Could not refresh corpus data. {error}
+          </div>
+        )}
+        {domainError && <ReadError message={`Could not load domains. ${domainError}`} retryLabel="Retry domains" onRetry={retryDomains} />}
 
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
           <label className="flex min-w-52 flex-col gap-1.5">
@@ -228,7 +285,7 @@ export default function DataPage() {
               onChange={(event) => setDomain(event.target.value)}
               className="h-10 rounded-md border border-input bg-background px-3 font-mono text-sm text-foreground"
             >
-              <option value="">All domains</option>
+              <option value="">{domainLoading ? 'Loading domains…' : 'All domains'}</option>
               {domains.map((item) => (
                 <option key={item.name} value={item.name}>
                   {item.name}
@@ -270,44 +327,24 @@ export default function DataPage() {
           )}
         </div>
 
-        <div className="flex gap-1 overflow-x-auto border-b border-border" role="tablist">
-          {tabs.map((item) => {
-            const Icon = item.icon;
-            const selected = tab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => setTab(item.id)}
-                className={cn(
-                  'flex min-h-10 shrink-0 items-center gap-2 border-b-2 px-3 text-sm transition-colors',
-                  selected ? 'border-accent text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
-                )}
-              >
-                <Icon className="size-4" />
-                {item.label}
-                <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px]">{item.count}</span>
-              </button>
-            );
-          })}
-        </div>
+        <DataTabs items={tabs} selectedTab={tab} setTab={setTab} showCounts={Boolean(currentCorpus)} />
 
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
-          {loading ? (
+        <div className="overflow-hidden rounded-xl border border-border bg-card empty:hidden">
+          {waitingForCurrentDomain && !hasCurrentRows ? (
             <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
               <Loader2 className="size-4 spin" />
               Loading corpus data…
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex min-h-64 flex-col items-center justify-center gap-2 px-6 text-center">
-              <Database className="size-6 text-muted-foreground" />
-              <p className="text-sm font-medium text-foreground">No matching {tab}</p>
-              <p className="max-w-md text-sm text-muted-foreground">
-                {query || kindFilter ? 'Clear the filters to widen this view.' : 'This data type has not been created for the selected domain yet.'}
-              </p>
-            </div>
+          ) : !hasCurrentRows ? (
+            (!error || (currentCorpus && (query || kindFilter))) && (
+              <div className="flex min-h-64 flex-col items-center justify-center gap-2 px-6 text-center">
+                <Database className="size-6 text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">No matching {tab}</p>
+                <p className="max-w-md text-sm text-muted-foreground">
+                  {query || kindFilter ? 'Clear the filters to widen this view.' : 'This data type has not been created for the selected domain yet.'}
+                </p>
+              </div>
+            )
           ) : (
             <>
               <div className="overflow-x-auto">

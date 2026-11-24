@@ -1,42 +1,67 @@
 import { useState, useEffect } from 'react';
-import { api, type Domain, type EvalReport, ApiError } from '@/lib/api';
+import { api, type EvalReport, ApiError, isAccessDenied } from '@/lib/api';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardTitle } from '@/components/card';
 import { Button } from '@/components/button';
+import { ReadError } from '@/components/read-error';
+import { useDomainSelection } from '@/lib/use-domain-selection';
 import { formatTime, formatMs } from '@/lib/utils';
 import { Loader2, FlaskConical } from 'lucide-react';
 
+type ReportRead = {
+  domain: string;
+  rows: EvalReport[];
+} & ({ status: 'loading' | 'ready' } | { status: 'error'; error: string });
+
+function useEvalReports(domain: string) {
+  const [reportRead, setReportRead] = useState<ReportRead | null>(null);
+  const [reportAttempt, setReportAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!domain) {
+      setReportRead(null);
+      return;
+    }
+    let cancelled = false;
+    setReportRead((prior) => ({
+      domain,
+      rows: prior?.domain === domain ? prior.rows : [],
+      status: 'loading',
+    }));
+    api
+      .getEvalReports(domain)
+      .then((r) => {
+        if (!cancelled) setReportRead({ domain, rows: r.reports ?? [], status: 'ready' });
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        setReportRead((prior) => ({
+          domain,
+          rows: !isAccessDenied(cause) && prior?.domain === domain ? prior.rows : [],
+          status: 'error',
+          error: cause instanceof Error ? cause.message : String(cause),
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [domain, reportAttempt]);
+
+  return {
+    read: reportRead?.domain === domain ? reportRead : null,
+    refresh: () => setReportAttempt((value) => value + 1),
+  };
+}
+
 export default function EvalsPage() {
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const [domain, setDomain] = useState('');
-  const [reports, setReports] = useState<EvalReport[]>([]);
+  const { domains, domain, setDomain, loading: domainsLoading, error: domainsError, retry: retryDomains } = useDomainSelection();
+  const { read: currentReportRead, refresh: refreshReports } = useEvalReports(domain);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [kind, setKind] = useState<'answer' | 'search'>('answer');
   const [mode, setMode] = useState('hybrid');
   const [cases, setCases] = useState('[\n  { "id": "q1", "query": "example", "expected_text": "example" }\n]');
   const [result, setResult] = useState<string | null>(null);
-
-  useEffect(() => {
-    api
-      .getDomains()
-      .then((d) => {
-        setDomains(d.domains ?? []);
-        if (d.domains?.length > 0 && !domain) setDomain(d.domains[0].name);
-      })
-      .catch(() => {});
-  }, [domain]);
-
-  useEffect(() => {
-    if (!domain) return;
-    setLoading(true);
-    api
-      .getEvalReports(domain)
-      .then((r) => setReports(r.reports ?? []))
-      .catch((e) => setError(e instanceof ApiError ? `API error ${e.status}` : String(e)))
-      .finally(() => setLoading(false));
-  }, [domain]);
 
   async function handleRunEval() {
     if (!domain) return;
@@ -67,8 +92,7 @@ export default function EvalsPage() {
               top_k: 5,
             });
       setResult(JSON.stringify(r, null, 2));
-      const reports = await api.getEvalReports(domain);
-      setReports(reports.reports ?? []);
+      refreshReports();
     } catch (e) {
       setError(e instanceof ApiError ? `API error ${e.status}` : String(e));
     } finally {
@@ -76,11 +100,19 @@ export default function EvalsPage() {
     }
   }
 
+  const reports = currentReportRead?.rows ?? [];
+
   return (
     <>
       <PageHeader title="Evals" description="Run and review retrieval quality evaluations" />
       <div className="flex flex-col gap-6 p-6">
         {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+        {domainsLoading && (
+          <p className="text-sm text-muted-foreground" role="status">
+            Loading domains…
+          </p>
+        )}
+        {domainsError && <ReadError message={`Could not load domains. ${domainsError}`} retryLabel="Retry domains" onRetry={retryDomains} />}
 
         <label className="flex flex-col gap-1.5 max-w-xs">
           <span className="text-sm font-medium text-foreground">Domain</span>
@@ -154,12 +186,21 @@ export default function EvalsPage() {
 
         <div className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold text-foreground">Eval reports</h3>
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Loading…</div>
-          ) : reports.length === 0 ? (
-            <Card>
-              <p className="text-sm text-muted-foreground">No eval reports for this domain yet.</p>
-            </Card>
+          {domain && (!currentReportRead || currentReportRead.status === 'loading') && (
+            <div className="text-sm text-muted-foreground" role="status">
+              Loading eval reports…
+            </div>
+          )}
+          {currentReportRead?.status === 'error' && (
+            <ReadError message={`Could not load eval reports. ${currentReportRead.error}`} retryLabel="Retry reports" onRetry={refreshReports} />
+          )}
+          {!domain && !domainsLoading && !domainsError && <p className="text-sm text-muted-foreground">Create a domain before running evals.</p>}
+          {reports.length === 0 ? (
+            currentReportRead?.status === 'ready' && (
+              <Card>
+                <p className="text-sm text-muted-foreground">No eval reports for this domain yet.</p>
+              </Card>
+            )
           ) : (
             <div className="overflow-hidden rounded-xl border border-border">
               <table className="w-full text-sm">
