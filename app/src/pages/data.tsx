@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, ApiError, type ChunkEntry, type Domain, type EntityRecord, type FileEntry, type Job, type RelationshipRecord } from '@/lib/api';
+import { api, ApiError, type ChunkEntry, type Domain, type EntityRecord, type FileEntry, isAccessDenied, type Job, type RelationshipRecord } from '@/lib/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/button';
 import { cn, formatTime, truncate } from '@/lib/utils';
@@ -83,6 +83,7 @@ export default function DataPage() {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resolvedDomain, setResolvedDomain] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -110,9 +111,11 @@ export default function DataPage() {
         setJobs(jobResult.jobs ?? []);
         setEntities(entityResult);
         setRelationships(relationshipResult);
+        setResolvedDomain(domain);
       })
       .catch((cause) => {
         if (cancelled) return;
+        if (isAccessDenied(cause)) setResolvedDomain(null);
         setError(cause instanceof ApiError ? `API error ${cause.status}` : String(cause));
       })
       .finally(() => {
@@ -205,6 +208,9 @@ export default function DataPage() {
     },
   ];
 
+  const hasCurrentRows = resolvedDomain === domain && filtered.length > 0;
+  const waitingForCurrentDomain = loading || (resolvedDomain !== domain && !error);
+
   return (
     <>
       <PageHeader
@@ -218,7 +224,7 @@ export default function DataPage() {
         }
       />
       <div className="flex flex-col gap-5 p-4 sm:p-6">
-        {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+        {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">Could not refresh corpus data. {error}</div>}
 
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
           <label className="flex min-w-52 flex-col gap-1.5">
@@ -294,13 +300,13 @@ export default function DataPage() {
           })}
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
-          {loading ? (
+        <div className={cn('overflow-hidden rounded-xl border border-border bg-card', error && !hasCurrentRows && 'hidden')} aria-busy={loading}>
+          {waitingForCurrentDomain && !hasCurrentRows ? (
             <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
               <Loader2 className="size-4 spin" />
               Loading corpus data…
             </div>
-          ) : filtered.length === 0 ? (
+          ) : !hasCurrentRows && !error ? (
             <div className="flex min-h-64 flex-col items-center justify-center gap-2 px-6 text-center">
               <Database className="size-6 text-muted-foreground" />
               <p className="text-sm font-medium text-foreground">No matching {tab}</p>
@@ -308,7 +314,7 @@ export default function DataPage() {
                 {query || kindFilter ? 'Clear the filters to widen this view.' : 'This data type has not been created for the selected domain yet.'}
               </p>
             </div>
-          ) : (
+          ) : hasCurrentRows ? (
             <>
               <div className="overflow-x-auto">
                 {tab === 'files' && (
@@ -478,7 +484,7 @@ export default function DataPage() {
               </div>
               <Pager page={page} total={filtered.length} onChange={setPage} />
             </>
-          )}
+          ) : null}
         </div>
 
         <p className="text-xs text-muted-foreground">

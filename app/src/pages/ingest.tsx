@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import { api, type Domain, ApiError } from '@/lib/api';
+import { useState, useCallback } from 'react';
+import { api, ApiError } from '@/lib/api';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardTitle } from '@/components/card';
 import { Button } from '@/components/button';
+import { ReadError } from '@/components/read-error';
+import { useDomainSelection } from '@/lib/use-domain-selection';
 import { Upload, FileText, Loader2, Check, FileSpreadsheet, FileCode, FileImage, Globe, Type, Play } from 'lucide-react';
 
 const FORMAT_GROUPS = [
@@ -45,8 +47,7 @@ const FORMAT_GROUPS = [
 ];
 
 export default function IngestPage() {
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const [domain, setDomain] = useState('');
+  const { domains, domain, setDomain, loading: domainsLoading, error: domainsError, retry: retryDomains } = useDomainSelection();
   const [file, setFile] = useState<File | null>(null);
   const [textTitle, setTextTitle] = useState('');
   const [text, setText] = useState('');
@@ -63,16 +64,6 @@ export default function IngestPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
-
-  useEffect(() => {
-    api
-      .getDomains()
-      .then((d) => {
-        setDomains(d.domains ?? []);
-        if (d.domains?.length > 0 && !domain) setDomain(d.domains[0].name);
-      })
-      .catch(() => {});
-  }, [domain]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -240,6 +231,11 @@ export default function IngestPage() {
         </div>
 
         {/* Config */}
+        {domainsLoading && <p className="text-sm text-muted-foreground" role="status">Loading domains…</p>}
+        {domainsError && <ReadError message={`Could not load domains. ${domainsError}`} retryLabel="Retry domains" onRetry={retryDomains} />}
+        {!domainsLoading && !domainsError && domains.length === 0 && (
+          <p className="text-sm text-muted-foreground">Create a domain before ingesting files.</p>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-foreground">Domain</span>

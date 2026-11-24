@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { ApiError, api, type Domain, type Trace, type TraceDrilldown } from '@/lib/api';
+import { ApiError, api, type Domain, isAccessDenied, type Trace, type TraceDrilldown } from '@/lib/api';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/button';
+import { ReadError } from '@/components/read-error';
 import { formatMs, formatScore, formatTime } from '@/lib/utils';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, History, Loader2, Microscope, Search } from 'lucide-react';
 
@@ -26,6 +27,8 @@ export default function QueryHistoryPage() {
   const [mode, setMode] = useState('');
   const [traces, setTraces] = useState<Trace[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [readAttempt, setReadAttempt] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [drilldowns, setDrilldowns] = useState<Record<string, TraceDrilldown>>({});
@@ -43,7 +46,7 @@ export default function QueryHistoryPage() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(null);
+    setReadError(null);
     api
       .getTraces()
       .then((result) => {
@@ -56,7 +59,12 @@ export default function QueryHistoryPage() {
       })
       .catch((cause) => {
         if (!cancelled) {
-          setError(cause instanceof ApiError ? `API error ${cause.status}` : String(cause));
+          if (isAccessDenied(cause)) {
+            setTraces([]);
+            setDrilldowns({});
+            setExpanded(new Set());
+          }
+          setReadError(cause instanceof Error ? cause.message : String(cause));
         }
       })
       .finally(() => {
@@ -65,7 +73,7 @@ export default function QueryHistoryPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [readAttempt]);
 
   useEffect(() => {
     setPage(0);
@@ -142,6 +150,10 @@ export default function QueryHistoryPage() {
       />
       <div className="flex flex-col gap-5 p-4 sm:p-6">
         {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+        {readError && (
+          <ReadError message={`Could not load query history. ${readError}`} retryLabel="Retry history" onRetry={() => setReadAttempt((value) => value + 1)} />
+        )}
+        {loading && filtered.length > 0 && <p className="text-sm text-muted-foreground" role="status">Refreshing query history…</p>}
         {notice && <div className="rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">{notice}</div>}
 
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
@@ -192,13 +204,13 @@ export default function QueryHistoryPage() {
           </label>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
-          {loading ? (
+        <div className="overflow-hidden rounded-xl border border-border bg-card" hidden={Boolean(readError && filtered.length === 0)}>
+          {loading && filtered.length === 0 ? (
             <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
               <Loader2 className="size-4 spin" />
               Loading query history…
             </div>
-          ) : filtered.length === 0 ? (
+          ) : filtered.length === 0 ? (!readError && (
             <div className="flex min-h-64 flex-col items-center justify-center gap-2 px-6 text-center">
               <History className="size-6 text-muted-foreground" />
               <p className="text-sm font-medium text-foreground">No matching queries</p>
@@ -206,7 +218,7 @@ export default function QueryHistoryPage() {
                 {query || domain || mode ? 'Clear the filters to widen this view.' : 'Run a cited query to create the first trace.'}
               </p>
             </div>
-          ) : (
+          )) : (
             <>
               <div className="overflow-x-auto">
                 <table className="min-w-[960px] w-full text-left text-sm">

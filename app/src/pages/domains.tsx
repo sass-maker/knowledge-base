@@ -7,6 +7,7 @@ import {
   type EmbeddingModel,
   type EntityRecord,
   type FileEntry,
+  isAccessDenied,
   type Job,
   type RelationshipRecord,
   type SchemaDraft,
@@ -15,6 +16,7 @@ import {
 import { PageHeader } from '@/components/page-header';
 import { Card, CardTitle } from '@/components/card';
 import { Button } from '@/components/button';
+import { ReadError } from '@/components/read-error';
 import { formatTime } from '@/lib/utils';
 import { Briefcase, Database, FileText, GitBranch, Loader2, Play, Plus, RefreshCw, Upload } from 'lucide-react';
 
@@ -29,6 +31,7 @@ export default function DomainsPage() {
   const [entities, setEntities] = useState<EntityRecord[]>([]);
   const [relationships, setRelationships] = useState<RelationshipRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [domainsError, setDomainsError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -40,17 +43,23 @@ export default function DomainsPage() {
   const [creating, setCreating] = useState(false);
 
   const loadDomains = useCallback(async () => {
+    setLoading(true);
+    setDomainsError(null);
     try {
       const [d, m] = await Promise.all([api.getDomains(), api.getEmbeddingModels()]);
       setDomains(d.domains ?? []);
       setModels((m.free_ai_models ?? []).filter((model) => model.selectable));
-      if (!selected && d.domains?.length > 0) setSelected(d.domains[0].name);
+      setSelected((value) => d.domains.some((item) => item.name === value) ? value : d.domains[0]?.name ?? '');
     } catch (e) {
-      setError(e instanceof ApiError ? `API error ${e.status}` : String(e));
+      if (isAccessDenied(e)) {
+        setDomains([]);
+        setSelected('');
+      }
+      setDomainsError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [selected]);
+  }, []);
 
   const loadDetail = useCallback(async (domain: string) => {
     setDetailLoading(true);
@@ -208,11 +217,15 @@ export default function DomainsPage() {
           </Card>
         )}
 
-        {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
             <Loader2 className="size-4 spin" /> Loading domains…
           </div>
-        ) : domains.length === 0 ? (
+        )}
+        {domainsError && (
+          <ReadError message={`Could not load domains. ${domainsError}`} retryLabel="Retry domains" onRetry={() => void loadDomains()} />
+        )}
+        {domains.length === 0 ? (!loading && !domainsError && (
           <Card>
             <div className="flex flex-col items-center gap-4 py-8 text-center">
               <div
@@ -232,7 +245,7 @@ export default function DomainsPage() {
               </Button>
             </div>
           </Card>
-        ) : (
+        )) : (
           <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
             <div className="flex flex-col gap-2">
               {domains.map((d) => (

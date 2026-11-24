@@ -31,6 +31,10 @@ export class ApiError extends Error {
   }
 }
 
+export function isAccessDenied(cause: unknown): boolean {
+  return cause instanceof ApiError && (cause.status === 401 || cause.status === 403);
+}
+
 async function sendRequest(path: string, init: RequestInit = {}): Promise<{ body: unknown; headers: Headers }> {
   const isFormData = init.body instanceof FormData;
   const headers = new Headers(init.headers);
