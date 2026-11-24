@@ -96,7 +96,11 @@ export default function EvalsPage() {
       <PageHeader title="Evals" description="Run and review retrieval quality evaluations" />
       <div className="flex flex-col gap-6 p-6">
         {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
-        {domainsLoading && <p className="text-sm text-muted-foreground" role="status">Loading domains…</p>}
+        {domainsLoading && (
+          <p className="text-sm text-muted-foreground" role="status">
+            Loading domains…
+          </p>
+        )}
         {domainsError && <ReadError message={`Could not load domains. ${domainsError}`} retryLabel="Retry domains" onRetry={retryDomains} />}
 
         <label className="flex flex-col gap-1.5 max-w-xs">
@@ -172,19 +176,25 @@ export default function EvalsPage() {
         <div className="flex flex-col gap-3">
           <h3 className="text-sm font-semibold text-foreground">Eval reports</h3>
           {domain && (!currentReportRead || currentReportRead.status === 'loading') && (
-            <div className="text-sm text-muted-foreground" role="status">Loading eval reports…</div>
+            <div className="text-sm text-muted-foreground" role="status">
+              Loading eval reports…
+            </div>
           )}
           {currentReportRead?.status === 'error' && (
-            <ReadError message={`Could not load eval reports. ${currentReportRead.error}`} retryLabel="Retry reports" onRetry={() => setReportAttempt((value) => value + 1)} />
+            <ReadError
+              message={`Could not load eval reports. ${currentReportRead.error}`}
+              retryLabel="Retry reports"
+              onRetry={() => setReportAttempt((value) => value + 1)}
+            />
           )}
-          {!domain && !domainsLoading && !domainsError && (
-            <p className="text-sm text-muted-foreground">Create a domain before running evals.</p>
-          )}
-          {reports.length === 0 ? (currentReportRead?.status === 'ready' && (
-            <Card>
-              <p className="text-sm text-muted-foreground">No eval reports for this domain yet.</p>
-            </Card>
-          )) : (
+          {!domain && !domainsLoading && !domainsError && <p className="text-sm text-muted-foreground">Create a domain before running evals.</p>}
+          {reports.length === 0 ? (
+            currentReportRead?.status === 'ready' && (
+              <Card>
+                <p className="text-sm text-muted-foreground">No eval reports for this domain yet.</p>
+              </Card>
+            )
+          ) : (
             <div className="overflow-hidden rounded-xl border border-border">
               <table className="w-full text-sm">
                 <thead>

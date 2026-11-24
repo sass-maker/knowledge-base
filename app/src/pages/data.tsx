@@ -224,7 +224,11 @@ export default function DataPage() {
         }
       />
       <div className="flex flex-col gap-5 p-4 sm:p-6">
-        {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">Could not refresh corpus data. {error}</div>}
+        {error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+            Could not refresh corpus data. {error}
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
           <label className="flex min-w-52 flex-col gap-1.5">

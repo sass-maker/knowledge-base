@@ -153,7 +153,11 @@ export default function QueryHistoryPage() {
         {readError && (
           <ReadError message={`Could not load query history. ${readError}`} retryLabel="Retry history" onRetry={() => setReadAttempt((value) => value + 1)} />
         )}
-        {loading && filtered.length > 0 && <p className="text-sm text-muted-foreground" role="status">Refreshing query history…</p>}
+        {loading && filtered.length > 0 && (
+          <p className="text-sm text-muted-foreground" role="status">
+            Refreshing query history…
+          </p>
+        )}
         {notice && <div className="rounded-lg border border-accent/30 bg-accent/10 px-4 py-3 text-sm text-accent">{notice}</div>}
 
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
@@ -210,15 +214,17 @@ export default function QueryHistoryPage() {
               <Loader2 className="size-4 spin" />
               Loading query history…
             </div>
-          ) : filtered.length === 0 ? (!readError && (
-            <div className="flex min-h-64 flex-col items-center justify-center gap-2 px-6 text-center">
-              <History className="size-6 text-muted-foreground" />
-              <p className="text-sm font-medium text-foreground">No matching queries</p>
-              <p className="max-w-md text-sm text-muted-foreground">
-                {query || domain || mode ? 'Clear the filters to widen this view.' : 'Run a cited query to create the first trace.'}
-              </p>
-            </div>
-          )) : (
+          ) : filtered.length === 0 ? (
+            !readError && (
+              <div className="flex min-h-64 flex-col items-center justify-center gap-2 px-6 text-center">
+                <History className="size-6 text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">No matching queries</p>
+                <p className="max-w-md text-sm text-muted-foreground">
+                  {query || domain || mode ? 'Clear the filters to widen this view.' : 'Run a cited query to create the first trace.'}
+                </p>
+              </div>
+            )
+          ) : (
             <>
               <div className="overflow-x-auto">
                 <table className="min-w-[960px] w-full text-left text-sm">

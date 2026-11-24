@@ -12,11 +12,12 @@ export function useDomainSelection() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    api.getDomains()
+    api
+      .getDomains()
       .then(({ domains: rows }) => {
         if (cancelled) return;
         setDomains(rows);
-        setDomain((selected) => rows.some((row) => row.name === selected) ? selected : rows[0]?.name ?? '');
+        setDomain((selected) => (rows.some((row) => row.name === selected) ? selected : (rows[0]?.name ?? '')));
       })
       .catch((cause) => {
         if (cancelled) return;

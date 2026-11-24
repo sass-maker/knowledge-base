@@ -231,11 +231,13 @@ export default function IngestPage() {
         </div>
 
         {/* Config */}
-        {domainsLoading && <p className="text-sm text-muted-foreground" role="status">Loading domains…</p>}
-        {domainsError && <ReadError message={`Could not load domains. ${domainsError}`} retryLabel="Retry domains" onRetry={retryDomains} />}
-        {!domainsLoading && !domainsError && domains.length === 0 && (
-          <p className="text-sm text-muted-foreground">Create a domain before ingesting files.</p>
+        {domainsLoading && (
+          <p className="text-sm text-muted-foreground" role="status">
+            Loading domains…
+          </p>
         )}
+        {domainsError && <ReadError message={`Could not load domains. ${domainsError}`} retryLabel="Retry domains" onRetry={retryDomains} />}
+        {!domainsLoading && !domainsError && domains.length === 0 && <p className="text-sm text-muted-foreground">Create a domain before ingesting files.</p>}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium text-foreground">Domain</span>

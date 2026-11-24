@@ -49,7 +49,7 @@ export default function DomainsPage() {
       const [d, m] = await Promise.all([api.getDomains(), api.getEmbeddingModels()]);
       setDomains(d.domains ?? []);
       setModels((m.free_ai_models ?? []).filter((model) => model.selectable));
-      setSelected((value) => d.domains.some((item) => item.name === value) ? value : d.domains[0]?.name ?? '');
+      setSelected((value) => (d.domains.some((item) => item.name === value) ? value : (d.domains[0]?.name ?? '')));
     } catch (e) {
       if (isAccessDenied(e)) {
         setDomains([]);
@@ -222,30 +222,31 @@ export default function DomainsPage() {
             <Loader2 className="size-4 spin" /> Loading domains…
           </div>
         )}
-        {domainsError && (
-          <ReadError message={`Could not load domains. ${domainsError}`} retryLabel="Retry domains" onRetry={() => void loadDomains()} />
-        )}
-        {domains.length === 0 ? (!loading && !domainsError && (
-          <Card>
-            <div className="flex flex-col items-center gap-4 py-8 text-center">
-              <div
-                className="flex size-12 items-center justify-center rounded-xl"
-                style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
-              >
-                <Database className="size-6" />
+        {domainsError && <ReadError message={`Could not load domains. ${domainsError}`} retryLabel="Retry domains" onRetry={() => void loadDomains()} />}
+        {domains.length === 0 ? (
+          !loading &&
+          !domainsError && (
+            <Card>
+              <div className="flex flex-col items-center gap-4 py-8 text-center">
+                <div
+                  className="flex size-12 items-center justify-center rounded-xl"
+                  style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-foreground)' }}
+                >
+                  <Database className="size-6" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-base font-semibold text-foreground">No domains yet</h3>
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    Create your first domain to start ingesting files, inferring schemas, and running cited queries.
+                  </p>
+                </div>
+                <Button onClick={() => setShowCreate(true)}>
+                  <Plus className="size-4" /> Create your first domain
+                </Button>
               </div>
-              <div className="flex flex-col gap-1">
-                <h3 className="text-base font-semibold text-foreground">No domains yet</h3>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Create your first domain to start ingesting files, inferring schemas, and running cited queries.
-                </p>
-              </div>
-              <Button onClick={() => setShowCreate(true)}>
-                <Plus className="size-4" /> Create your first domain
-              </Button>
-            </div>
-          </Card>
-        )) : (
+            </Card>
+          )
+        ) : (
           <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
             <div className="flex flex-col gap-2">
               {domains.map((d) => (
